@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="#0A0A0B"/>
+  <circle cx="8" cy="16" r="2.6" fill="#10B981"/>
+  <text x="14" y="21" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" font-weight="600" letter-spacing="0.5" fill="#F4F4F5">N</text>
+</svg>
