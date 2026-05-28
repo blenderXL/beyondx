@@ -1,12 +1,22 @@
 name: Deploy · production
 
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to deploy (e.g. v0.1.1)"
+        required: true
+        type: string
 
-# Two-stage prod deploy:
-#  1) Apply migrations to nzx-prod (gated by `production` environment approval).
-#  2) Build + deploy the app to Vercel production (also gated).
+# Two-stage prod deploy, manually triggered:
+#  1) Apply migrations to nzx-prod.
+#  2) Build + deploy the app to Vercel production.
+#
+# Gate = a human clicking "Run workflow" and supplying the release tag.
+# (Required-reviewers environment approval needs GitHub Enterprise for private
+# repos; this manual dispatch is the equivalent deliberate gate on Team.)
+# Prod secrets remain isolated via the `production` environment, and the
+# environment's `v*` tag rule blocks deploys from any non-release ref.
 #
 # Vercel's GitHub integration is configured (in the project settings) to deploy
 # only Preview builds for master/branch pushes — never Production. Production
@@ -25,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ inputs.tag }}
       - uses: supabase/setup-cli@v1
         with:
           version: latest
@@ -45,7 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ inputs.tag }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
