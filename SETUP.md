@@ -3,7 +3,48 @@
 One-time manual setup before the first `git push`. Work top-to-bottom; each step lists the exact UI clicks and what to paste where. Once done, push `master` and the pipeline runs itself.
 
 **Repo:** `blenderXL/beyondx`
-**Local branch:** `master`, 2 commits ahead of origin (unpushed)
+**Local branch:** `master` (PR #1 merged; `feat/v1.0-scaffold` work landed)
+
+---
+
+## Status — as of 2026-05-29
+
+v1.0 dev/preview loop is **live and verified**. Production is **deferred to ~v1.1** (no real users, no domain, nothing to gate yet) — every prod-only step below is intentionally skipped.
+
+| Step | State | Notes |
+|---|---|---|
+| 1a Visibility | ✅ **Public** | Vercel Hobby (free) can't deploy a private org repo. Git history secret-scanned clean + RLS on all 7 tables before exposing. (Supersedes the "make it Private" instruction below.) |
+| 1b Branch ruleset | ✅ Done | `master-protection` active; 2 required checks added: `Lint · typecheck · unit`, `E2E (Playwright against local dev)`. |
+| 1c `production` env | ✅ Created | `v*` tag rule set. Required reviewers N/A on Team. Gate = manual `workflow_dispatch`. |
+| 2 Supabase dev (`nzx-dev`, `mlbskwkjwbdewbmoagav`) | ✅ Done | Migrations 0001/0002 applied; ledger repaired via `supabase migration repair --status applied` (manual SQL-Editor apply doesn't write the ledger). Local CLI linked to **dev**. |
+| 3 Supabase access token | ✅ Set (repo secret) | |
+| 4 Supabase prod (`nzx-prod`, `jdhfhibxdvdhleooetld`) | ⏭️ Exists, ledger repaired | Prod **deploy** deferred. |
+| 5 Vercel project | ✅ Created | Env vars (`NEXT_PUBLIC_SUPABASE_URL` + `_ANON_KEY`, dev legacy keys) set on Production/Preview/Development. Swap Production→prod values at launch. **"master = Preview-only" placeholder trick is dead** (new UI validates the branch); moot while prod is deferred. |
+| 6 Vercel token | ⏭️ Deferred | Prod-only. |
+| 7a Repo secrets | ✅ Done | `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DEV_URL`, `SUPABASE_DEV_ANON_KEY`, `SUPABASE_DEV_PROJECT_REF`, `SUPABASE_DEV_DB_PASSWORD`. |
+| 7b Prod env secrets | ⏭️ Deferred | `SUPABASE_PROD_*`, `VERCEL_*`. |
+| 8 Secret sanity scan | ✅ Clean | |
+| 9 First push / PR | ✅ Done | Pushed `feat/v1.0-scaffold` → PR #1 → CI green → **Vercel green** → merged (`91f046e`). `Deploy · dev` ✅ (no-op). |
+| 10 Prod dress rehearsal | ⏭️ Deferred | |
+
+**Resolved this session:**
+- **CI**: `pnpm/action-setup` "Multiple versions" error → removed `version: 9` (read from `package.json#packageManager`). Commit `60401e3`.
+- **Vercel deploy failing (build OK, deploy → ERROR "Vulnerable version of Next.js detected")**: Vercel hard-blocks deploys on Next.js versions vulnerable to **CVE-2025-66478** (CVSS 10 RCE) + CVE-2025-55183/55184/67779. Fix: bumped `next` + `eslint-config-next` `15.1.3 → 15.1.11` (patched 15.1.x line). Commit `a78c56f`. Deploy now READY.
+
+**⚠️ Open action item — release-please needs a scoped PAT to open the Release PR:**
+The `release-please` workflow fails post-merge with `GitHub Actions is not permitted to create or approve pull requests`. Root cause: the `blenderXL` **org** locks `GITHUB_TOKEN` to read-only and disables Actions-created PRs (the repo-level toggle is grayed out — org-enforced). `GITHUB_TOKEN` could create the branch + commit but not the PR.
+
+**Fix (chosen — keeps org policy locked down):** `release-please.yml` now authenticates with a scoped fine-grained PAT via `token: ${{ secrets.RELEASE_PLEASE_TOKEN }}`. You must create the PAT and add the secret:
+
+1. `https://github.com/settings/personal-access-tokens/new` → **Fine-grained token**.
+   - Name: `beyondx-release-please`; Expiration: 1 year (calendar-reminder to rotate).
+   - **Resource owner:** `blenderXL`; **Repository access:** Only select repositories → `beyondx`.
+   - **Repository permissions:** **Contents: Read and write** + **Pull requests: Read and write** (everything else: No access).
+   - Generate. If the org requires owner approval for fine-grained PATs, approve it under org settings.
+2. Repo → **Settings → Secrets and variables → Actions → New repository secret** → name `RELEASE_PLEASE_TOKEN`, paste the token.
+3. Re-run: `gh run rerun <release-please-run-id>` (or push any commit to `master`). The `chore: release 0.1.1` Release PR should open.
+
+**Deferred to v1.1:** all prod wiring (steps 4/6/7b/10), `sb_publishable_`/`sb_secret_` Supabase keys, `SUPABASE_SERVICE_ROLE_KEY`, `nzxus.com` domain, **turn OFF Vercel "Require Log In" deployment protection** (currently ON — would login-wall the public landing page), upgrade Vercel to **Pro** (Hobby ToS forbids commercial/paid use).
 
 ---
 
@@ -37,7 +78,7 @@ Goal: lock the repo so only reviewed code reaches `master`, and only approved de
 
 Open `https://github.com/blenderXL/beyondx` → **Settings** (top-right).
 
-- **General → Danger Zone → Change repository visibility** → should be **Private**. If not, make it private.
+- **General → Danger Zone → Change repository visibility** → repo is **Public** (✅ done). Vercel Hobby (free) cannot deploy a private org repo, so we went public after a clean git-history secret scan + confirming RLS on all 7 tables. Revisit at v1.1 if a paid Vercel plan makes private viable.
 
 ### 1b. Branch protection on `master`
 
@@ -242,6 +283,7 @@ Open `https://github.com/blenderXL/beyondx/settings`.
 | `SUPABASE_DEV_ANON_KEY` | from step 2c |
 | `SUPABASE_DEV_PROJECT_REF` | from step 2c |
 | `SUPABASE_DEV_DB_PASSWORD` | from step 2a |
+| `RELEASE_PLEASE_TOKEN` | fine-grained PAT, Contents + Pull requests: write on `beyondx` (org policy blocks the default `GITHUB_TOKEN` from opening PRs — see Status section) |
 
 ### 7b. Production environment secrets
 
