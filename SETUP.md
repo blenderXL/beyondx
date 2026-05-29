@@ -73,25 +73,32 @@ If `nzx-dev` already exists from earlier setup, skip to **2c**. Otherwise create
 
 Open `https://supabase.com/dashboard` → **New project**.
 
-- **Organization:** your personal org
+- **Organization:** your Supabase org
 - **Name:** `nzx-dev`
 - **Database Password:** generate a strong one, paste into your scratch file as `SUPABASE_DEV_DB_PASSWORD`
-- **Region:** `us-east-1` (matches `vercel.json` region `iad1`)
+- **Region:** East US (North Virginia) (matches `vercel.json` region `iad1`)
 - **Pricing Plan:** Free
+- **Security toggles** (see rationale below) — **set these identically on dev and prod:**
+  - ☑ **Enable Data API** — ON. The app uses `supabase-js` → Data API. Required.
+  - ☑ **Automatically expose new tables** — ON. Our migrations don't include `GRANT` statements; they rely on Supabase's default grants to the API roles. OFF would make migration-created tables unreachable and break the app.
+  - ☑ **Enable automatic RLS** — ON. Adds an event trigger that auto-enables RLS on any new table. Safety net for the documented footgun ("forgetting RLS silently breaks isolation"); idempotent with our explicit `enable row level security`. Expose-ON + autoRLS-ON = new tables are reachable but deny-all until a policy exists.
+- **GitHub (optional):** leave **unselected** — we apply migrations via GitHub Actions (`deploy-dev`/`deploy-prod`), not Supabase's own GitHub integration. Selecting it would create a competing deploy path.
 - Create. Wait ~2 min for provisioning.
 
 ### 2b. Apply migrations (first time only)
 
-In the dashboard, open **SQL Editor → New query**. In a separate terminal:
+In the dashboard, open **SQL Editor → New query**. You need to paste the *SQL contents* of each migration file — NOT the filename. Open each file in your editor (or run `cat` in **your own terminal**, not the SQL editor) to copy its contents:
 
-```bash
-cat supabase/migrations/0001_init.sql
-cat supabase/migrations/0002_finance_tables.sql
-```
+- `supabase/migrations/0001_init.sql`
+- `supabase/migrations/0002_finance_tables.sql`
 
-Paste each file into a new SQL query in the dashboard and Run (in order: `0001`, then `0002`). Confirm no errors.
+Paste the contents of **0001 first**, Run, then clear and paste **0002**, Run. Order matters — 0002 depends on the `profiles` table and `touch_updated_at()` function created by 0001. Each should report "Success. No rows returned."
+
+> Common mistake: pasting `cat supabase/migrations/0001_init.sql` into the SQL editor → `syntax error at or near "cat"`. The `cat` is a shell command for your terminal; the SQL editor only runs SQL.
 
 > Alternatively, if you have the Supabase CLI installed and want to test the migration path locally: `supabase login`, then `supabase link --project-ref <ref>`, then `supabase db push`. Either path works; SQL Editor is simpler for first-time.
+
+After both run, check **Table Editor** — you should see `profiles`, `debts`, `accounts`, `incomes`, `expenses`, `plans`, `plan_runs`.
 
 ### 2c. Grab the dev project secrets
 
@@ -99,7 +106,9 @@ Project dashboard → **Project Settings (gear icon)**:
 
 - **General → Reference ID** → copy to `SUPABASE_DEV_PROJECT_REF` (looks like `abcdefghij`, 20 chars)
 - **API → Project URL** → copy to `SUPABASE_DEV_URL` (looks like `https://abcdefghij.supabase.co`)
-- **API → Project API keys → `anon` `public`** → copy to `SUPABASE_DEV_ANON_KEY`
+- **API Keys → "Legacy anon, service_role API keys" tab → `anon` `public`** → copy to `SUPABASE_DEV_ANON_KEY` (a JWT starting `eyJ...`).
+  - **Use the LEGACY tab, not the new `sb_publishable_`/`sb_secret_` keys.** v1.0's `@supabase/ssr@0.5.2` predates the new key format; migrating to new keys is a v1.1 chore. Whatever you pick, use the same key type on prod.
+  - **Skip `service_role` for now** — no v1.0 code uses it; it's first needed in v1.1 (Lemon Squeezy webhooks). Don't store an unused privileged secret.
 - If you forgot the DB password from step 2a: **Database → Database password → Reset** (generates a new one — that's fine).
 
 ---
@@ -121,8 +130,9 @@ Same flow as step 2, with two differences: name is `nzx-prod`, and we do **not**
 - Dashboard → **New project**
 - Name: `nzx-prod`
 - Database Password: generate a different strong one, paste into scratch as `SUPABASE_PROD_DB_PASSWORD`
-- Region: `us-east-1`
+- Region: East US (North Virginia)
 - Plan: Free (upgrade later when nzxus.com goes live)
+- **Security toggles — set EXACTLY as dev (step 2a):** Enable Data API ON · Automatically expose new tables ON · Enable automatic RLS ON. GitHub integration unselected. Mismatched config here is the classic "works in dev, broken in prod" trap.
 - Create. Wait for provisioning.
 - Project Settings → **General → Reference ID** → copy to `SUPABASE_PROD_PROJECT_REF`
 - **Do not** copy the prod URL/anon key into the GitHub Actions secrets — they go directly into Vercel's production env vars in step 5d.
@@ -181,10 +191,13 @@ Project → **Settings → Environment Variables**. You want them split by envir
 |---|---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | `PROD_SUPABASE_URL` | `SUPABASE_DEV_URL` | `SUPABASE_DEV_URL` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `PROD_SUPABASE_ANON_KEY` | `SUPABASE_DEV_ANON_KEY` | `SUPABASE_DEV_ANON_KEY` |
-| `SUPABASE_SERVICE_ROLE_KEY` | (prod service-role key) | (dev service-role key) | (dev service-role key) |
 | `NEXT_PUBLIC_SITE_URL` | `https://nzx-prod.vercel.app` | *(leave unset — Vercel auto-injects per-deploy URL)* | `http://localhost:3000` |
 
-For each row: click **Add New**, paste the value, **uncheck the environments you don't want**, save. Repeat. Service-role keys come from Supabase → Project Settings → API → `service_role` `secret` (one per project).
+Use the **legacy `anon` `public`** key values (per step 2c), not the new `sb_publishable_` keys.
+
+For each row: click **Add New**, paste the value, **uncheck the environments you don't want**, save.
+
+> **`SUPABASE_SERVICE_ROLE_KEY` is intentionally omitted** — no v1.0 code uses it. Add it (from Supabase → API Keys → legacy `service_role` `secret`, one per project) in v1.1 when Lemon Squeezy webhooks need it. Don't store an unused privileged secret now.
 
 ### 5e. Optional: link the local repo to Vercel
 
