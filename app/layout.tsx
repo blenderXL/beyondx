@@ -1,0 +1,42 @@
+import type { Metadata } from "next";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
+import "./globals.css";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "NZX — plan your way out, month by month",
+    template: "%s · NZX",
+  },
+  description:
+    "NZX is a personal debt-payoff and budgeting planner. Enter what you owe, pick snowball or avalanche, get a month-by-month plan.",
+  applicationName: "NZX",
+  openGraph: {
+    title: "NZX — plan your way out, month by month",
+    description:
+      "A clean, dark-first debt-payoff planner. Snowball or avalanche, deterministic math, optional AI assistant.",
+    url: SITE_URL,
+    siteName: "NZX",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image", title: "NZX", description: "Plan your way out, month by month." },
+  robots: { index: true, follow: true },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html
+      lang="en"
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="min-h-screen antialiased">
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
+    </html>
+  );
+}
