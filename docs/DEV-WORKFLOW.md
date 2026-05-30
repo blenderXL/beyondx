@@ -2,7 +2,7 @@
 
 > **Living doc.** How day-to-day development flows from a local edit to a dev/preview deploy to a cut release. Production is separate → [PRODUCTION-PLAN.md](./PRODUCTION-PLAN.md). Infra inventory → [PROJECT-STATE.md](./PROJECT-STATE.md).
 
-_Last updated: 2026-05-29._
+_Last updated: 2026-05-30._
 
 ## TL;DR loop
 ```
@@ -19,8 +19,15 @@ branch → edit → push → Vercel Preview auto-builds on the PR → review pre
 | Type-check | `npx pnpm@9.12.3 typecheck` |
 | Lint / format | `npx pnpm@9.12.3 lint` / `... format` |
 | Unit (Vitest) | `npx pnpm@9.12.3 test` |
-| E2E (Playwright) | `npx pnpm@9.12.3 test:e2e` |
+| E2E (Playwright) | `npx pnpm@9.12.3 test:e2e` (first time: `... exec playwright install chromium`) |
+| Seed dev test users | `npx pnpm@9.12.3 seed:test-user` (needs real `nzx-dev` service_role key in `.env.local`) |
 | Install after dep change | `npx pnpm@9.12.3 install` (regenerates `pnpm-lock.yaml`) |
+
+## Auth E2E / test users
+- Two seeded **nzx-dev** users back the auth specs: `e2e@nzxus.com` (password/login) and `e2e-mfa@nzxus.com` (MFA). Defaults live in `scripts/seed-test-user.ts` ↔ `tests/e2e/helpers/auth.ts` (override via `TEST_USER_*` / `TEST_MFA_USER_*` env).
+- **Seeding** uses the service-role admin API (`email_confirm: true`); the `on_auth_user_created` trigger makes the profile. Without the service_role key you can seed via GoTrue signup + a one-off `update auth.users set email_confirmed_at = now()`.
+- **MFA spec** (`tests/e2e/mfa.spec.ts`) drives the full enroll → step-up → middleware-bounce flow, computing TOTP codes with `otpauth`, and self-cleans (disables the factor) at the end. It's pinned to the `chromium` project (both projects share one dev user) and bumps its own timeout (may wait out a 30s TOTP window).
+- The Playwright **runner** loads `.env.local` (via `playwright.config.ts`) so helpers can reach Supabase for best-effort factor cleanup.
 
 ## Previewing changes on Vercel — **no merge required**
 - **Every push to a branch with an open PR triggers a fresh Vercel Preview deployment.** The PR's **"Vercel" check** updates and a **preview URL** is attached (each commit gets its own immutable URL; the PR's "Visit Preview" points at the latest).

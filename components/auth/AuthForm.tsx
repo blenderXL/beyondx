@@ -1,132 +1,179 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { loginAction, signupAction } from "@/app/(auth)/actions";
+import { INITIAL_AUTH_STATE } from "@/lib/auth/authState";
+import { passwordChecks } from "@/lib/auth/passwordPolicy";
 
 type Mode = "login" | "signup";
 
 interface Props {
   mode: Mode;
+  next?: string;
 }
 
 const SITE_URL =
-  typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  typeof window !== "undefined" ? window.location.origin : (process.env.NEXT_PUBLIC_SITE_URL ?? "");
 
-export function AuthForm({ mode }: Props) {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "submitting" | "sent" | "error">("idle");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+const inputClass =
+  "mt-2 block h-11 w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-3 font-mono text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-text-primary)]";
+const labelClass =
+  "font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-muted)]";
 
-  async function handleMagicLink(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setStatus("submitting");
-    setErrorMsg(null);
-    const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${SITE_URL}/callback`,
-        shouldCreateUser: true,
-      },
-    });
-    if (error) {
-      setStatus("error");
-      setErrorMsg(error.message);
-      return;
-    }
-    setStatus("sent");
-  }
+export function AuthForm({ mode, next = "/app" }: Props) {
+  const action = mode === "login" ? loginAction : signupAction;
+  const [state, formAction, pending] = useActionState(action, INITIAL_AUTH_STATE);
+  const [password, setPassword] = useState("");
+  const [oauthPending, setOauthPending] = useState(false);
+  const [oauthError, setOauthError] = useState<string | null>(null);
 
   async function handleGoogle() {
-    setStatus("submitting");
-    setErrorMsg(null);
+    setOauthPending(true);
+    setOauthError(null);
     const supabase = getSupabaseBrowserClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: `${SITE_URL}/callback` },
     });
     if (error) {
-      setStatus("error");
-      setErrorMsg(error.message);
+      setOauthPending(false);
+      setOauthError(error.message);
     }
-    // OAuth handles redirect; router.push not needed here.
+    // On success the browser is redirected to Google; nothing else to do here.
   }
 
   const title = mode === "login" ? "Log in" : "Create account";
   const altMode = mode === "login" ? "signup" : "login";
   const altLabel = mode === "login" ? "Need an account? Sign up" : "Have an account? Log in";
+  const submitLabel = mode === "login" ? "Log in" : "Create account";
+  const busy = pending || oauthPending;
+  const checks = passwordChecks(password);
+  const signupDone = mode === "signup" && state.ok;
 
   return (
     <div className="mx-auto w-full max-w-md">
-      <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-text-muted)]">
-        // {mode === "login" ? "welcome back" : "join nzx"}
-      </p>
+      <p className={labelClass}>// {mode === "login" ? "welcome back" : "join nzx"}</p>
       <h1 className="mt-3 font-sans text-3xl font-medium text-[var(--color-text-primary)]">
         {title}
       </h1>
 
-      <div className="mt-10 space-y-3">
-        <button
-          type="button"
-          onClick={handleGoogle}
-          disabled={status === "submitting"}
-          className="flex h-11 w-full items-center justify-center gap-3 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-text-primary)] transition-colors hover:border-[var(--color-text-primary)] disabled:opacity-60"
-        >
-          <GoogleIcon /> Continue with Google
-        </button>
-        {/* Apple sign-in placeholder — wired once Apple Developer credentials exist. */}
-        <button
-          type="button"
-          disabled
-          aria-disabled
-          title="Apple Sign-In requires an Apple Developer account — coming in v1.0.1"
-          className="flex h-11 w-full items-center justify-center gap-3 rounded-md border border-dashed border-[var(--color-border-subtle)] bg-transparent font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-text-muted)]"
-        >
-          <AppleIcon /> Continue with Apple · soon
-        </button>
-      </div>
-
-      <div className="my-8 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-muted)]">
-        <span aria-hidden className="h-px flex-1 bg-[var(--color-border-subtle)]" />
-        or email
-        <span aria-hidden className="h-px flex-1 bg-[var(--color-border-subtle)]" />
-      </div>
-
-      <form onSubmit={handleMagicLink} className="space-y-3">
-        <label className="block">
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-muted)]">
-            Email
-          </span>
-          <input
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            className="mt-2 block h-11 w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-3 font-mono text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-text-primary)]"
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={status === "submitting" || status === "sent"}
-          className="flex h-11 w-full items-center justify-center rounded-md bg-[var(--color-text-primary)] font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-canvas)] transition-opacity hover:opacity-90 disabled:opacity-60"
-        >
-          {status === "sent" ? "Check your inbox" : status === "submitting" ? "Sending…" : "Send magic link"}
-        </button>
-      </form>
-
-      {status === "sent" ? (
-        <p className="mt-4 font-mono text-xs text-[var(--color-accent-emerald)]">
-          // Magic link sent. Click the link in your inbox to continue.
+      {signupDone ? (
+        <p className="mt-10 font-mono text-sm text-[var(--color-accent-emerald)]">
+          // Check your inbox to confirm your email, then log in.
         </p>
-      ) : null}
-      {status === "error" && errorMsg ? (
+      ) : (
+        <>
+          <div className="mt-10 space-y-3">
+            <button
+              type="button"
+              onClick={handleGoogle}
+              disabled={busy}
+              className="flex h-11 w-full items-center justify-center gap-3 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] font-mono text-xs tracking-[0.18em] text-[var(--color-text-primary)] uppercase transition-colors hover:border-[var(--color-text-primary)] disabled:opacity-60"
+            >
+              <GoogleIcon /> Continue with Google
+            </button>
+            {/* Apple sign-in placeholder — wired once Apple Developer credentials exist. */}
+            <button
+              type="button"
+              disabled
+              aria-disabled
+              title="Apple Sign-In requires an Apple Developer account — coming soon"
+              className="flex h-11 w-full items-center justify-center gap-3 rounded-md border border-dashed border-[var(--color-border-subtle)] bg-transparent font-mono text-xs tracking-[0.18em] text-[var(--color-text-muted)] uppercase"
+            >
+              <AppleIcon /> Continue with Apple · soon
+            </button>
+          </div>
+
+          <div className="my-8 flex items-center gap-3 font-mono text-[10px] tracking-[0.22em] text-[var(--color-text-muted)] uppercase">
+            <span aria-hidden className="h-px flex-1 bg-[var(--color-border-subtle)]" />
+            or email
+            <span aria-hidden className="h-px flex-1 bg-[var(--color-border-subtle)]" />
+          </div>
+
+          <form action={formAction} className="space-y-3">
+            <input type="hidden" name="next" value={next} />
+            <label className="block">
+              <span className={labelClass}>Email</span>
+              <input
+                type="email"
+                name="email"
+                required
+                autoComplete="email"
+                placeholder="you@example.com"
+                className={inputClass}
+              />
+            </label>
+            <label className="block">
+              <span className={labelClass}>Password</span>
+              <input
+                type="password"
+                name="password"
+                required
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••"
+                className={inputClass}
+              />
+            </label>
+
+            {mode === "signup" ? (
+              <>
+                <label className="block">
+                  <span className={labelClass}>Confirm password</span>
+                  <input
+                    type="password"
+                    name="confirm"
+                    required
+                    autoComplete="new-password"
+                    placeholder="••••••••••"
+                    className={inputClass}
+                  />
+                </label>
+                <ul className="grid gap-1 pt-1" aria-label="Password requirements">
+                  {checks.map((check) => (
+                    <li
+                      key={check.label}
+                      className="flex items-center gap-2 font-mono text-[11px]"
+                      style={{
+                        color: check.ok ? "var(--color-accent-emerald)" : "var(--color-text-muted)",
+                      }}
+                    >
+                      <span aria-hidden>{check.ok ? "✓" : "·"}</span>
+                      {check.label}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+
+            {mode === "login" ? (
+              <p className="pt-1 text-right">
+                <Link
+                  href="/forgot-password"
+                  className="font-mono text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
+                >
+                  Forgot password?
+                </Link>
+              </p>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={busy}
+              className="flex h-11 w-full items-center justify-center rounded-md bg-[var(--color-text-primary)] font-mono text-xs tracking-[0.18em] text-[var(--color-canvas)] uppercase transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {pending ? "Working…" : submitLabel}
+            </button>
+          </form>
+        </>
+      )}
+
+      {(state.error || oauthError) && !signupDone ? (
         <p role="alert" className="mt-4 font-mono text-xs text-[var(--color-accent-red)]">
-          // {errorMsg}
+          // {state.error ?? oauthError}
         </p>
       ) : null}
 
@@ -137,9 +184,6 @@ export function AuthForm({ mode }: Props) {
       </p>
     </div>
   );
-
-  // suppress unused warning while router import is present for future redirects
-  void router;
 }
 
 function GoogleIcon() {

@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ShieldCheck, ChevronRight } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getEntitlements } from "@/lib/entitlements/getEntitlements";
 
@@ -13,10 +15,10 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--color-text-muted)]">
+        <p className="font-mono text-[10px] tracking-[0.28em] text-[var(--color-text-muted)] uppercase">
           // settings
         </p>
-        <h1 className="mt-3 font-sans text-3xl font-medium leading-tight text-[var(--color-text-primary)]">
+        <h1 className="mt-3 font-sans text-3xl leading-tight font-medium text-[var(--color-text-primary)]">
           Account
         </h1>
       </div>
@@ -27,19 +29,32 @@ export default async function SettingsPage() {
         <dd className="break-all text-[var(--color-text-primary)]">{user?.id}</dd>
         <dt className="text-[var(--color-text-muted)]">Tier</dt>
         <dd
-          className="uppercase tracking-[0.18em]"
+          className="tracking-[0.18em] uppercase"
           style={{
-            color:
-              tier === "pro"
-                ? "var(--color-accent-purple)"
-                : "var(--color-text-primary)",
+            color: tier === "pro" ? "var(--color-accent-purple)" : "var(--color-text-primary)",
           }}
         >
           {tier}
         </dd>
       </dl>
+      <Link
+        href="/app/settings/security"
+        className="flex items-center gap-4 rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6 transition-colors hover:border-[var(--color-border-strong)]"
+      >
+        <ShieldCheck className="size-5 text-[var(--color-accent-emerald)]" aria-hidden />
+        <div className="flex-1">
+          <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--color-text-muted)] uppercase">
+            // security
+          </p>
+          <p className="mt-1 font-sans text-sm text-[var(--color-text-secondary)]">
+            Two-factor authentication and account protection.
+          </p>
+        </div>
+        <ChevronRight className="size-4 text-[var(--color-text-muted)]" aria-hidden />
+      </Link>
+
       <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] bg-[var(--color-surface)] p-6">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-muted)]">
+        <p className="font-mono text-[10px] tracking-[0.22em] text-[var(--color-text-muted)] uppercase">
           // billing
         </p>
         <p className="mt-2 max-w-prose font-sans text-sm text-[var(--color-text-secondary)]">
