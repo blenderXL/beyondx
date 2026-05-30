@@ -13,6 +13,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **v1.1** — Debt/income/expense CRUD, snowball/avalanche calculator, schedule UI, charts, Lemon Squeezy paywall.
 - **v1.2** — LLM assistant gated to Pro (Claude Haiku 4.5 via Vercel AI SDK first; provider swappable).
 
+## Project docs (read these at session start)
+
+Living docs in `docs/` carry the operational state so it doesn't have to be re-explained each session — **read them before infra/deploy work**:
+- **`docs/PROJECT-STATE.md`** — infra inventory: GitHub/Supabase/Vercel IDs, secrets, org policies, local-env gotchas (e.g. `pnpm` not on PATH → `npx pnpm@9.12.3`; `gh` can't create/merge PRs → use GitHub MCP).
+- **`docs/DEV-WORKFLOW.md`** — branch→PR→preview→merge→deploy-dev→release-please loop; how Vercel previews work (push, not merge).
+- **`docs/PRODUCTION-PLAN.md`** — deferred prod scope + launch checklist.
+- **`docs/PROGRESS.md`** — milestone status, resolved blockers, v1.1 backlog, decision log.
+
+`SETUP.md` is the original first-time external-setup checklist (with a Status table). Keep these docs updated as processes change.
+
 ## Commands
 
 | Action | Command |
