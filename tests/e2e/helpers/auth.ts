@@ -1,15 +1,29 @@
 import { type Page, expect } from "@playwright/test";
 import { TOTP, Secret } from "otpauth";
 
-/** Seeded dev users — keep in sync with scripts/seed-test-user.ts. */
+/**
+ * Seeded dev users. Credentials come ONLY from env (never committed) — set them
+ * in .env.local locally and as CI secrets. Specs that log in skip when these are
+ * absent (see `hasTestCreds`). Keep names in sync with scripts/seed-test-user.ts.
+ */
 export const TEST_USER = {
-  email: process.env.TEST_USER_EMAIL ?? "e2e@nzxus.com",
-  password: process.env.TEST_USER_PASSWORD ?? "E2e-Test-Pass-2026!",
+  email: process.env.TEST_USER_EMAIL ?? "",
+  password: process.env.TEST_USER_PASSWORD ?? "",
 };
 export const MFA_USER = {
-  email: process.env.TEST_MFA_USER_EMAIL ?? "e2e-mfa@nzxus.com",
-  password: process.env.TEST_MFA_USER_PASSWORD ?? "E2e-Mfa-Pass-2026!",
+  email: process.env.TEST_MFA_USER_EMAIL ?? "",
+  password: process.env.TEST_MFA_USER_PASSWORD ?? "",
 };
+
+/** True when the password-login user's credentials are configured in the env. */
+export function hasTestCreds(): boolean {
+  return Boolean(TEST_USER.email && TEST_USER.password);
+}
+
+/** True when the MFA user's credentials are configured in the env. */
+export function hasMfaCreds(): boolean {
+  return Boolean(MFA_USER.email && MFA_USER.password);
+}
 
 /** Current 6-digit TOTP for a base32 secret (matches Supabase's defaults). */
 export function totpCode(secret: string): string {

@@ -23,17 +23,20 @@ if (!url || !serviceRoleKey) {
   process.exit(1);
 }
 
-// Keep these defaults in sync with tests/e2e/helpers/auth.ts.
+// Credentials come ONLY from env (never hardcoded — keep them out of git).
+// Set TEST_USER_* / TEST_MFA_USER_* in .env.local. Matches tests/e2e/helpers/auth.ts.
 const USERS = [
-  {
-    email: process.env.TEST_USER_EMAIL ?? "e2e@nzxus.com",
-    password: process.env.TEST_USER_PASSWORD ?? "E2e-Test-Pass-2026!",
-  },
-  {
-    email: process.env.TEST_MFA_USER_EMAIL ?? "e2e-mfa@nzxus.com",
-    password: process.env.TEST_MFA_USER_PASSWORD ?? "E2e-Mfa-Pass-2026!",
-  },
+  { email: process.env.TEST_USER_EMAIL, password: process.env.TEST_USER_PASSWORD },
+  { email: process.env.TEST_MFA_USER_EMAIL, password: process.env.TEST_MFA_USER_PASSWORD },
 ];
+
+if (USERS.some((u) => !u.email || !u.password)) {
+  console.error(
+    "Missing test-user credentials. Set TEST_USER_EMAIL, TEST_USER_PASSWORD, " +
+      "TEST_MFA_USER_EMAIL, TEST_MFA_USER_PASSWORD in .env.local.",
+  );
+  process.exit(1);
+}
 
 const supabase = createClient(url, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -42,8 +45,8 @@ const supabase = createClient(url, serviceRoleKey, {
 async function main() {
   for (const { email, password } of USERS) {
     const { data, error } = await supabase.auth.admin.createUser({
-      email,
-      password,
+      email: email!,
+      password: password!,
       email_confirm: true,
     });
     if (error) {

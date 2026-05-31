@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { TEST_USER, expectOnApp } from "./helpers/auth";
+import { TEST_USER, hasTestCreds, expectOnApp } from "./helpers/auth";
+
+// Credentials are env-only (never committed). Without them, skip rather than fail.
+test.skip(!hasTestCreds(), "Set TEST_USER_EMAIL / TEST_USER_PASSWORD to run password-auth E2E");
 
 test.describe("Password auth", () => {
   test("valid credentials log in and reach the app", async ({ page }) => {

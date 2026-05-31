@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { MFA_USER, totpCode, clearMfaFactors, expectOnApp } from "./helpers/auth";
+import { MFA_USER, totpCode, clearMfaFactors, hasMfaCreds, expectOnApp } from "./helpers/auth";
+
+// Credentials are env-only (never committed). Without them, skip rather than fail.
+test.skip(!hasMfaCreds(), "Set TEST_MFA_USER_EMAIL / TEST_MFA_USER_PASSWORD to run MFA E2E");
 
 // Serial: the steps build on one enrolled factor for a shared dev user.
 test.describe.configure({ mode: "serial" });
