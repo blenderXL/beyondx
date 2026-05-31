@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { CenterpieceSvg } from "./CenterpieceSvg";
-import { CalloutArrow } from "./CalloutArrow";
 import { LiveClock } from "./LiveClock";
 
 const fade = {
@@ -33,20 +32,6 @@ export function Hero() {
           className="relative"
         >
           <CenterpieceSvg />
-
-          {/* Day/Night callout — points from below up to the toggle in the top-right */}
-          <motion.div
-            custom={2}
-            variants={fade}
-            initial="hidden"
-            animate="show"
-            className="pointer-events-none absolute -right-32 top-1/2 hidden -translate-y-1/2 items-center gap-2 md:flex"
-          >
-            <CalloutArrow direction="up-right" />
-            <span className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
-              Switch Day &apos;N&apos; Night
-            </span>
-          </motion.div>
         </motion.div>
       </div>
 
