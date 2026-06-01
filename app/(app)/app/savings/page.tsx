@@ -2,15 +2,15 @@ import { redirect } from "next/navigation";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { featureState } from "@/lib/flags/server";
 import { ComingSoon } from "@/components/finance/ComingSoon";
-import { IncomeClient } from "@/components/finance/IncomeClient";
-import type { Income } from "@/lib/finance/types";
+import { SavingsClient } from "@/components/finance/SavingsClient";
+import type { SavingsGoal } from "@/lib/finance/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function IncomePage() {
-  // Gate A: hidden until the `income` release flag is flipped on.
-  const { visible } = await featureState("income");
-  if (!visible) return <ComingSoon title="Income" />;
+export default async function SavingsPage() {
+  // Gate A: hidden until the `savings` release flag is flipped on.
+  const { visible } = await featureState("savings");
+  if (!visible) return <ComingSoon title="Savings" />;
 
   const supabase = await getSupabaseServerClient();
   const {
@@ -19,10 +19,10 @@ export default async function IncomePage() {
   if (!user) redirect("/login");
 
   const { data } = await supabase
-    .from("incomes")
+    .from("savings_goals")
     .select("*")
     .is("archived_at", null)
     .order("created_at", { ascending: true });
 
-  return <IncomeClient incomes={(data ?? []) as Income[]} />;
+  return <SavingsClient goals={(data ?? []) as SavingsGoal[]} />;
 }

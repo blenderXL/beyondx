@@ -7,6 +7,7 @@ import {
   CreditCard,
   TrendingUp,
   Wallet,
+  PiggyBank,
   CalendarRange,
   Sparkles,
   Settings,
@@ -14,19 +15,29 @@ import {
 } from "lucide-react";
 import { Wordmark } from "@/components/brand/Wordmark";
 import { cn } from "@/lib/utils";
+import type { FlagKey } from "@/lib/flags/registry";
 
 const NAV = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/app/debts", label: "Debts", icon: CreditCard },
-  { href: "/app/income", label: "Income", icon: TrendingUp },
-  { href: "/app/expenses", label: "Expenses", icon: Wallet },
-  { href: "/app/plans", label: "Plans", icon: CalendarRange },
+  { href: "/app/income", label: "Income", icon: TrendingUp, flag: "income" },
+  { href: "/app/expenses", label: "Expenses", icon: Wallet, flag: "expenses" },
+  { href: "/app/savings", label: "Savings", icon: PiggyBank, flag: "savings" },
+  { href: "/app/plans", label: "Plans", icon: CalendarRange, flag: "payoffEngine" },
   { href: "/app/assistant", label: "Assistant", icon: Sparkles, proOnly: true },
   { href: "/app/settings", label: "Settings", icon: Settings },
-] as const;
+] as const satisfies readonly {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  flag?: FlagKey;
+  proOnly?: boolean;
+}[];
 
-export function Sidebar() {
+/** `enabledFlags` comes from the layout (server-resolved). Flag-gated items hide when off. */
+export function Sidebar({ enabledFlags }: { enabledFlags?: Partial<Record<FlagKey, boolean>> }) {
   const pathname = usePathname();
+  const visibleNav = NAV.filter((item) => !("flag" in item) || enabledFlags?.[item.flag as FlagKey]);
   return (
     <aside className="flex h-full w-60 flex-col border-r border-[var(--color-border-subtle)] bg-[var(--color-surface)]">
       <div className="px-6 py-6">
@@ -36,7 +47,7 @@ export function Sidebar() {
       </div>
       <nav aria-label="App" className="flex-1 px-3">
         <ul className="space-y-1">
-          {NAV.map((item) => {
+          {visibleNav.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href || (item.href !== "/app" && pathname.startsWith(item.href));
             return (
