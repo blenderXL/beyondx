@@ -24,7 +24,7 @@ branch → edit → push → Vercel Preview auto-builds on the PR → review pre
 | Install after dep change | `npx pnpm@9.12.3 install` (regenerates `pnpm-lock.yaml`) |
 
 ## Auth E2E / test users
-- Two seeded **nzx-dev** users back the auth specs: `e2e@nzxus.com` (password/login) and `e2e-mfa@nzxus.com` (MFA). Defaults live in `scripts/seed-test-user.ts` ↔ `tests/e2e/helpers/auth.ts` (override via `TEST_USER_*` / `TEST_MFA_USER_*` env).
+- Two seeded **nzx-dev** users back the auth specs (a password-login user and an MFA user). **Credentials come only from env — never committed:** set `TEST_USER_EMAIL` / `TEST_USER_PASSWORD` / `TEST_MFA_USER_EMAIL` / `TEST_MFA_USER_PASSWORD` in `.env.local` (template in `.env.local.example`). `scripts/seed-test-user.ts` and `tests/e2e/helpers/auth.ts` read them; the auth/MFA specs skip if unset.
 - **Seeding** uses the service-role admin API (`email_confirm: true`); the `on_auth_user_created` trigger makes the profile. Without the service_role key you can seed via GoTrue signup + a one-off `update auth.users set email_confirmed_at = now()`.
 - **MFA spec** (`tests/e2e/mfa.spec.ts`) drives the full enroll → step-up → middleware-bounce flow, computing TOTP codes with `otpauth`, and self-cleans (disables the factor) at the end. It's pinned to the `chromium` project (both projects share one dev user) and bumps its own timeout (may wait out a 30s TOTP window).
 - The Playwright **runner** loads `.env.local` (via `playwright.config.ts`) so helpers can reach Supabase for best-effort factor cleanup.
