@@ -6,7 +6,7 @@ _Last updated: 2026-06-01._
 
 ## Milestone status
 - **v1.0 — SHIPPED & TAGGED `v0.1.1`.** Landing + auth + signed-in shell + forward-compatible schema. Full CI/CD pipeline live and validated end-to-end.
-- **v1.1 — IN PROGRESS.** Auth (`v0.1.2`) + **Phase 1 debts** (PR #10) shipped to master. **Phase 1.6 (flag/entitlement scaffold) + Phase 2 (income+tithe / expenses / savings, behind flags)** built, tested, and committed on branch `feat/flags-entitlements` (migrations `0004`, `0005`) — not yet PR'd/merged. Remaining: payoff engine + monthly planner + insights + paywall.
+- **v1.1 — IN PROGRESS.** Auth (`v0.1.2`) + **Phase 1 debts** (PR #10) shipped to master. **Phase 1.6 (flags) + Phase 2 (income+tithe / expenses / savings) + Phase 4 (payoff engine)** built, tested, committed on branch `feat/flags-entitlements` (migrations `0004`, `0005`) — PR open, not yet merged. Remaining: Phase 3 monthly planner + Phase 5 insights/viz + paywall.
 - **v1.2 — future.** LLM assistant (Pro-gated).
 
 ## Product vision & roadmap (2026-06-01, re-envisioned)
@@ -21,6 +21,7 @@ The full roadmap lives in the plan file `~/.claude/plans/let-me-first-ask-hidden
 **Two-gate flag/entitlement architecture** *(new — see plan file + PROJECT-STATE):* (A) **release flags** — a modular `lib/flags/registry.ts` list resolved via a `FlagProvider` interface (mirrors `LLMProvider`); interim backend = a Supabase `feature_flags` table flipped from the dashboard at release sign-off (runtime, **no commit/redeploy**); later swaps to PostHog flags. (B) **entitlements** — `getEntitlements()` + a separate `lib/entitlements/featureAccess.ts` tier list. Composed: usable ⇔ release-ON **and** tier-OK → `{ visible, locked }`. Flag-first delivery means Phase 2+ features merge to `master` hidden until signed off.
 
 ## ✅ Done (v1.1)
+- **Phase 4 — Payoff engine** (branch `feat/flags-entitlements`, commit `096840c`): pure deterministic fixed-budget engine `lib/finance/payoff.ts` (interest accrual → minimums → extra cascades by method; snowball/avalanche/custom; freed minimums roll forward; infeasibility detection + 100-year guard). Returns schedule, debt-free months, total interest, per-debt payoff month. **Plans UI** `/app/plans` behind the `payoffEngine` flag (method + budget recompute client-side). 10 unit + 1 e2e. *(Built before Phase 3 because it's pure and the `plans` route/flag already existed; `plan_runs` persistence deferred.)*
 - **Phase 1.6 — Flag + entitlement scaffold** (branch `feat/flags-entitlements`, commit `6514fb7`):
   - **Gate A (release flags):** `lib/flags/registry.ts` (modular typed flag list, default-off), `provider.ts` (`FlagProvider` interface mirroring `LLMProvider` + `StaticFlagProvider` + pure `resolveFlagRow`), `supabaseProvider.ts` (interim backend, fail-safe to defaults), `server.ts` (`getFlagProvider`/`featureState`). **Migration `0004`** adds `feature_flags` (RLS read-all, **no write policy** → only service_role/dashboard can flip; verified customers can't enable hidden features). Flip = a row toggle at release sign-off, **no redeploy**.
   - **Gate B (entitlements):** `lib/entitlements/featureAccess.ts` (feature→min-tier list); `getEntitlements()` derives its `features` map from it.
