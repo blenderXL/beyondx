@@ -1,15 +1,13 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { featuresForTier, type FeatureKey } from "./featureAccess";
 
 export type Tier = "free" | "pro";
 
 export interface Entitlements {
   tier: Tier;
   assistantMessagesRemaining: number;
-  features: {
-    advancedCharts: boolean;
-    assistant: boolean;
-    exportPdf: boolean;
-  };
+  /** Per-feature access, derived from the `featureAccess` list (single source of truth). */
+  features: Record<FeatureKey, boolean>;
 }
 
 const PRO_MONTHLY_ASSISTANT_QUOTA = 200;
@@ -47,7 +45,7 @@ export async function getEntitlements(): Promise<Entitlements> {
   return {
     tier: "pro",
     assistantMessagesRemaining: Math.max(0, PRO_MONTHLY_ASSISTANT_QUOTA - used),
-    features: { advancedCharts: true, assistant: true, exportPdf: true },
+    features: featuresForTier("pro"),
   };
 }
 
@@ -55,6 +53,6 @@ export function freeEntitlements(): Entitlements {
   return {
     tier: "free",
     assistantMessagesRemaining: 0,
-    features: { advancedCharts: false, assistant: false, exportPdf: false },
+    features: featuresForTier("free"),
   };
 }
