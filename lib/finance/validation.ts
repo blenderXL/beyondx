@@ -51,12 +51,10 @@ export interface DebtValues {
   min_payment: number;
   due_day: number | null;
   credit_limit: number | null;
-  original_balance: number | null;
   issuer: string | null;
   promo_apr: number | null;
   promo_until: string | null;
   deferred_interest: boolean;
-  payoff_order: number | null;
   notes: string | null;
 }
 
@@ -140,9 +138,6 @@ export function validateDebtInput(fields: RawFields): ValidationResult<DebtValue
   const creditLimit = optionalMoney(fields.credit_limit, "Credit limit");
   if (creditLimit.error) return fail(creditLimit.error);
 
-  const originalBalance = optionalMoney(fields.original_balance, "Original balance");
-  if (originalBalance.error) return fail(originalBalance.error);
-
   const issuer = str(fields.issuer) || null;
   if (issuer && issuer.length > 120) return fail("Issuer is too long (max 120 characters).");
 
@@ -172,18 +167,6 @@ export function validateDebtInput(fields: RawFields): ValidationResult<DebtValue
   const deferred_interest =
     str(fields.deferred_interest) === "on" || str(fields.deferred_interest) === "true";
 
-  let payoff_order: number | null = null;
-  {
-    const s = str(fields.payoff_order);
-    if (s !== "") {
-      const n = parseIntStrict(s);
-      if (n === null || !Number.isInteger(n) || n < 0 || n > 32767) {
-        return fail("Payoff order must be a whole number from 0 to 32767.");
-      }
-      payoff_order = n;
-    }
-  }
-
   const notes = str(fields.notes) || null;
   if (notes && notes.length > 2000) return fail("Notes are too long (max 2000 characters).");
 
@@ -198,12 +181,10 @@ export function validateDebtInput(fields: RawFields): ValidationResult<DebtValue
       min_payment: minP.value ?? 0,
       due_day,
       credit_limit: creditLimit.value,
-      original_balance: originalBalance.value,
       issuer,
       promo_apr,
       promo_until,
       deferred_interest,
-      payoff_order,
       notes,
     },
   };

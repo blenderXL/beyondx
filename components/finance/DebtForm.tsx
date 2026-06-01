@@ -6,6 +6,7 @@ import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
 import { DEBT_TYPES, DEBT_TYPE_LABELS, type Debt } from "@/lib/finance/types";
 import {
   inputClass,
+  dateInputClass,
   labelClass,
   textareaClass,
   primaryButtonClass,
@@ -114,11 +115,6 @@ export function DebtForm({ debt, onDone, onCancel }: Props) {
         </label>
 
         <MoneyField name="balance" label="Current balance" defaultValue={debt?.balance} required />
-        <MoneyField
-          name="original_balance"
-          label="Original / highest balance"
-          defaultValue={debt?.original_balance}
-        />
         <MoneyField name="credit_limit" label="Credit limit" defaultValue={debt?.credit_limit} />
         <MoneyField name="min_payment" label="Minimum payment" defaultValue={debt?.min_payment} />
 
@@ -166,21 +162,7 @@ export function DebtForm({ debt, onDone, onCancel }: Props) {
             type="date"
             name="promo_until"
             defaultValue={debt?.promo_until ?? ""}
-            className={inputClass}
-          />
-        </label>
-
-        <label className="block">
-          <span className={labelClass}>Payoff order</span>
-          <input
-            type="number"
-            name="payoff_order"
-            min={0}
-            max={32767}
-            step={1}
-            defaultValue={debt?.payoff_order ?? ""}
-            placeholder="optional"
-            className={inputClass}
+            className={dateInputClass}
           />
         </label>
 

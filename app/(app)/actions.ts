@@ -38,7 +38,11 @@ export async function createDebt(
   const result = validateDebtInput(Object.fromEntries(formData));
   if (!result.ok || !result.values) return { error: result.error };
 
-  const { error } = await supabase.from("debts").insert({ profile_id: userId, ...result.values });
+  // Capture the starting balance as the baseline for "% paid off" — the user only
+  // ever types current balance; the baseline stays fixed as they pay it down.
+  const { error } = await supabase
+    .from("debts")
+    .insert({ profile_id: userId, ...result.values, original_balance: result.values.balance });
   if (error) return { error: "Couldn't save the debt. Please try again." };
 
   revalidatePath(DEBTS_PATH);

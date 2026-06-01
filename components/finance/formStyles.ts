@@ -10,6 +10,10 @@ export const labelClass =
 export const inputClass =
   "mt-2 block h-11 w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-3 font-mono text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-text-primary)]";
 
+// Native date inputs render their value top-aligned in WebKit; flex + items-center
+// vertically centers the datetime text so it matches the other fields.
+export const dateInputClass = inputClass.replace("block", "flex items-center");
+
 export const textareaClass =
   "mt-2 block min-h-20 w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-3 py-2 font-mono text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-text-primary)]";
 

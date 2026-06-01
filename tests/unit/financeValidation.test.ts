@@ -62,12 +62,10 @@ describe("validateDebtInput", () => {
       apr: "24.24",
       min_payment: "$50.00",
       credit_limit: "11,000",
-      original_balance: "2000",
       due_day: "15",
       promo_apr: "0",
       promo_until: "2026-12-31",
       deferred_interest: "on",
-      payoff_order: "3",
       notes: "balance transfer",
     });
     expect(r.ok).toBe(true);
@@ -76,12 +74,10 @@ describe("validateDebtInput", () => {
       apr: 24.24,
       min_payment: 50,
       credit_limit: 11000,
-      original_balance: 2000,
       due_day: 15,
       promo_apr: 0,
       promo_until: "2026-12-31",
       deferred_interest: true,
-      payoff_order: 3,
       notes: "balance transfer",
     });
   });
