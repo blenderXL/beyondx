@@ -1,11 +1,38 @@
-import { PhasePlaceholder } from "@/components/layout/PhasePlaceholder";
+import { redirect } from "next/navigation";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { featureState } from "@/lib/flags/server";
+import { ComingSoon } from "@/components/finance/ComingSoon";
+import { PlansClient } from "@/components/finance/PlansClient";
+import type { PayoffDebtInput } from "@/lib/finance/payoff";
+import type { Debt } from "@/lib/finance/types";
 
-export default function PlansPage() {
-  return (
-    <PhasePlaceholder
-      area="Plans"
-      arriving="v1.1"
-      description="Pick snowball or avalanche, set a monthly budget, and get a deterministic month-by-month payoff schedule that ends at zero."
-    />
-  );
+export const dynamic = "force-dynamic";
+
+export default async function PlansPage() {
+  // Gate A: hidden until the `payoffEngine` release flag is flipped on.
+  const { visible } = await featureState("payoffEngine");
+  if (!visible) return <ComingSoon title="Plans" />;
+
+  const supabase = await getSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data } = await supabase
+    .from("debts")
+    .select("id, name, balance, apr, min_payment, payoff_order")
+    .is("archived_at", null)
+    .order("created_at", { ascending: true });
+
+  const debts: PayoffDebtInput[] = ((data ?? []) as Pick<Debt, "id" | "name" | "balance" | "apr" | "min_payment" | "payoff_order">[]).map((d) => ({
+    id: d.id,
+    name: d.name,
+    balance: Number(d.balance),
+    apr: Number(d.apr),
+    min_payment: Number(d.min_payment),
+    payoff_order: d.payoff_order,
+  }));
+
+  return <PlansClient debts={debts} />;
 }
