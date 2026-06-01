@@ -10,6 +10,7 @@ import {
   PiggyBank,
   CalendarDays,
   CalendarRange,
+  LineChart,
   Sparkles,
   Settings,
   Lock,
@@ -26,6 +27,7 @@ const NAV = [
   { href: "/app/savings", label: "Savings", icon: PiggyBank, flag: "savings" },
   { href: "/app/planner", label: "Planner", icon: CalendarDays, flag: "planner" },
   { href: "/app/plans", label: "Plans", icon: CalendarRange, flag: "payoffEngine" },
+  { href: "/app/insights", label: "Insights", icon: LineChart, flag: "insights" },
   { href: "/app/assistant", label: "Assistant", icon: Sparkles, proOnly: true },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ] as const satisfies readonly {
