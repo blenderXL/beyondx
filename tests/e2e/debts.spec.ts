@@ -1,0 +1,138 @@
+import { test, expect } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
+import { TEST_USER, MFA_USER, hasTestCreds, hasMfaCreds, uiLogin } from "./helpers/auth";
+
+// All debt specs need the password-login user; without creds, skip rather than fail.
+test.skip(!hasTestCreds(), "Set TEST_USER_EMAIL / TEST_USER_PASSWORD to run debt-management E2E");
+
+// Track created debts so afterAll can delete them (keeps the dev project clean).
+const createdNames: string[] = [];
+function uniqueName(prefix: string): string {
+  const name = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  createdNames.push(name);
+  return name;
+}
+
+function anonClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+}
+
+test.afterAll(async () => {
+  if (!hasTestCreds() || createdNames.length === 0) return;
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) return;
+  const supabase = anonClient();
+  await supabase.auth.signInWithPassword({ email: TEST_USER.email, password: TEST_USER.password });
+  // RLS lets the owner delete their own rows — clears both active and archived test debts.
+  await supabase.from("debts").delete().in("name", createdNames);
+});
+
+test.describe("Debt management", () => {
+  test("create → charge → payment (floors at 0) → edit balance → archive", async ({ page }) => {
+    page.on("dialog", (d) => d.accept()); // accept the archive confirmation
+
+    await uiLogin(page);
+    await expect(page).toHaveURL(/\/app(\/|$)/); // let the login redirect set the session cookie first
+    await page.goto("/app/debts");
+    await expect(page.getByRole("heading", { name: "Your debts" })).toBeVisible();
+
+    const list = page.getByRole("list", { name: "Debts" });
+    const name = uniqueName("e2e-debt");
+
+    // Create with a credit limit so utilization renders (1000 / 2000 = 50%).
+    await page.getByRole("button", { name: "New debt" }).click();
+    await page.getByLabel("Name", { exact: true }).fill(name);
+    await page.getByLabel("Type", { exact: true }).selectOption("credit_card");
+    await page.getByLabel("Current balance").fill("1000");
+    await page.getByLabel("APR (%)", { exact: true }).fill("24.24");
+    await page.getByLabel("Credit limit").fill("2000");
+    await page.getByLabel("Minimum payment").fill("25"); // keeps the $0.00 balance assertion unambiguous
+    await page.getByRole("button", { name: "Add debt" }).click();
+
+    const card = () => list.locator("li", { hasText: name });
+    await expect(card()).toBeVisible();
+    await expect(card().getByText("$1,000.00")).toBeVisible();
+    await expect(card().getByText("50%")).toBeVisible();
+
+    // Charge +250 → 1250.
+    await card().getByRole("button", { name: "Add transaction" }).click();
+    await page.getByLabel("Type", { exact: true }).selectOption("charge");
+    await page.getByLabel("Amount").fill("250");
+    await page.getByRole("button", { name: "Record" }).click();
+    await expect(card().getByText("$1,250.00")).toBeVisible();
+
+    // Payment of 1500 against a 1250 balance → floored at 0, never negative.
+    await card().getByRole("button", { name: "Add transaction" }).click();
+    await page.getByLabel("Type", { exact: true }).selectOption("payment");
+    await page.getByLabel("Amount").fill("1500");
+    await page.getByRole("button", { name: "Record" }).click();
+    await expect(card().getByText("$0.00")).toBeVisible();
+
+    // The payment shows up in recent activity.
+    const activity = page.getByRole("list", { name: "Recent activity" });
+    await expect(activity.locator("li", { hasText: name }).first()).toBeVisible();
+
+    // Edit the balance directly (edit-anytime) → 500.
+    await card().getByRole("button", { name: "Edit" }).click();
+    await page.getByLabel("Current balance").fill("500");
+    await page.getByRole("button", { name: "Save debt" }).click();
+    await expect(card().getByText("$500.00")).toBeVisible();
+
+    // Archive → drops out of the active list.
+    await card().getByRole("button", { name: "Archive" }).click();
+    await expect(list.locator("li", { hasText: name })).toHaveCount(0);
+  });
+
+  test("server rejects out-of-range input (APR above the column max)", async ({ page }) => {
+    await uiLogin(page);
+    await expect(page).toHaveURL(/\/app(\/|$)/); // let the login redirect set the session cookie first
+    await page.goto("/app/debts");
+
+    await page.getByRole("button", { name: "New debt" }).click();
+    await page.getByLabel("Name", { exact: true }).fill(uniqueName("e2e-invalid"));
+    await page.getByLabel("Current balance").fill("100");
+    await page.getByLabel("APR (%)", { exact: true }).fill("150");
+    await page.getByRole("button", { name: "Add debt" }).click();
+
+    await expect(page.getByText(/APR can't exceed/i)).toBeVisible();
+  });
+
+  test("RLS hides one user's debt from another", async () => {
+    test.skip(!hasMfaCreds(), "Set TEST_MFA_USER_* for the second user in the RLS isolation test");
+
+    const owner = anonClient();
+    const { data: ownerAuth, error: ownerErr } = await owner.auth.signInWithPassword({
+      email: TEST_USER.email,
+      password: TEST_USER.password,
+    });
+    expect(ownerErr).toBeNull();
+    expect(ownerAuth.user).toBeTruthy();
+
+    const name = uniqueName("e2e-rls");
+    const { data: inserted, error: insErr } = await owner
+      .from("debts")
+      .insert({ profile_id: ownerAuth.user!.id, name, type: "other", balance: 1 })
+      .select("id")
+      .single();
+    expect(insErr).toBeNull();
+    expect(inserted?.id).toBeTruthy();
+
+    // A different signed-in user must neither read nor write that row.
+    const other = anonClient();
+    await other.auth.signInWithPassword({ email: MFA_USER.email, password: MFA_USER.password });
+
+    const { data: leaked } = await other.from("debts").select("id").eq("id", inserted!.id);
+    expect(leaked).toEqual([]);
+
+    const { data: updated } = await other
+      .from("debts")
+      .update({ balance: 999 })
+      .eq("id", inserted!.id)
+      .select("id");
+    expect(updated).toEqual([]);
+
+    await owner.from("debts").delete().eq("id", inserted!.id);
+  });
+});
