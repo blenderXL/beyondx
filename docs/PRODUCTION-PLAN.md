@@ -2,10 +2,10 @@
 
 > **Living doc.** Production is **deliberately deferred** (~post-v1.1). Nothing here is wired yet. This is the plan for when NZX gets real users / a domain. Dev/preview flow → [DEV-WORKFLOW.md](./DEV-WORKFLOW.md). Inventory → [PROJECT-STATE.md](./PROJECT-STATE.md).
 
-_Last updated: 2026-05-30._
+_Last updated: 2026-06-01._
 
 ## Why deferred
-v1.0 is a landing-page scaffold — no real CRUD, no payments, no LLM, no users, no domain. There is nothing to gate, so all prod wiring is intentionally skipped until v1.1 brings real functionality. `nzx-prod` Supabase exists (ledger repaired) but no app or workflow touches it.
+The app is real auth + the first real CRUD slice (Phase 1 debt management), but still no payments, no LLM, no users, no domain. Prod wiring stays intentionally skipped until launch makes sense. `nzx-prod` Supabase exists (ledger repaired) but no app or workflow has ever touched it. **First real prod ship is now possible** — merging the open Release PR #9 cuts `v0.1.3` and enables the manual `deploy-prod` dispatch (which would apply `0001`–`0003` to `nzx-prod`). It remains a deliberate decision, not an automatic step. When taken, walk the launch checklist below first.
 
 ## How prod deploy is designed to work (already built, never run)
 - **`.github/workflows/deploy-prod.yml`** triggers on **`workflow_dispatch` only** — a human clicks **Actions → "Deploy · production" → Run workflow** and supplies the release **tag** (e.g. `v0.1.1`).
@@ -27,6 +27,7 @@ v1.0 is a landing-page scaffold — no real CRUD, no payments, no LLM, no users,
 - [ ] **Configure Google OAuth** on the prod project (Client ID/secret from Google Cloud) — also still **unconfigured on `nzx-dev`** (`external.google: false`), so the "Continue with Google" button errors until set up in either project.
 - [ ] (Optional) Apply the **security-advisor hardening migration**: `revoke execute` on `handle_new_user()` / `rls_auto_enable()` from `anon`/`authenticated`, set `search_path` on `touch_updated_at`, move `vector` out of `public`.
 - [ ] (Optional) Re-evaluate WAF / rate-limiting — relevant once the **v1.2 LLM assistant** (cost-bearing) ships; per-user rate-limit the assistant route.
+- [ ] **At each release sign-off, flip the intended release flags ON** (interim: Supabase `feature_flags` table on the prod project; later: PostHog) — features merge to `master` hidden behind flags and are exposed only here. Default-off means an un-flipped flag stays invisible in prod. See the flag architecture in [PROJECT-STATE.md](./PROJECT-STATE.md) + the roadmap plan file.
 
 ## Rollback
 - Vercel → Deployments → pick the previous prod deployment → **Promote to Production** (~10s).
