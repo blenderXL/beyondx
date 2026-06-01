@@ -6,7 +6,7 @@ _Last updated: 2026-06-01._
 
 ## Milestone status
 - **v1.0 — SHIPPED & TAGGED `v0.1.1`.** Landing + auth + signed-in shell + forward-compatible schema. Full CI/CD pipeline live and validated end-to-end.
-- **v1.1 — IN PROGRESS.** Auth hardening (email+password + TOTP MFA) **shipped, released `v0.1.2`, deployed to the Vercel Production target.** **Phase 1 — Debt management (CRUD + transactions, migration `0003`) merged to master (PR #10)**, awaiting release as **`v0.1.3`** (sits in the open Release PR). Remaining: Income/Expense/Savings CRUD + calculator + paywall.
+- **v1.1 — IN PROGRESS.** Auth (`v0.1.2`) + **Phase 1 debts** (PR #10) shipped to master. **Phase 1.6 (flag/entitlement scaffold) + Phase 2 (income+tithe / expenses / savings, behind flags)** built, tested, and committed on branch `feat/flags-entitlements` (migrations `0004`, `0005`) — not yet PR'd/merged. Remaining: payoff engine + monthly planner + insights + paywall.
 - **v1.2 — future.** LLM assistant (Pro-gated).
 
 ## Product vision & roadmap (2026-06-01, re-envisioned)
@@ -21,6 +21,13 @@ The full roadmap lives in the plan file `~/.claude/plans/let-me-first-ask-hidden
 **Two-gate flag/entitlement architecture** *(new — see plan file + PROJECT-STATE):* (A) **release flags** — a modular `lib/flags/registry.ts` list resolved via a `FlagProvider` interface (mirrors `LLMProvider`); interim backend = a Supabase `feature_flags` table flipped from the dashboard at release sign-off (runtime, **no commit/redeploy**); later swaps to PostHog flags. (B) **entitlements** — `getEntitlements()` + a separate `lib/entitlements/featureAccess.ts` tier list. Composed: usable ⇔ release-ON **and** tier-OK → `{ visible, locked }`. Flag-first delivery means Phase 2+ features merge to `master` hidden until signed off.
 
 ## ✅ Done (v1.1)
+- **Phase 1.6 — Flag + entitlement scaffold** (branch `feat/flags-entitlements`, commit `6514fb7`):
+  - **Gate A (release flags):** `lib/flags/registry.ts` (modular typed flag list, default-off), `provider.ts` (`FlagProvider` interface mirroring `LLMProvider` + `StaticFlagProvider` + pure `resolveFlagRow`), `supabaseProvider.ts` (interim backend, fail-safe to defaults), `server.ts` (`getFlagProvider`/`featureState`). **Migration `0004`** adds `feature_flags` (RLS read-all, **no write policy** → only service_role/dashboard can flip; verified customers can't enable hidden features). Flip = a row toggle at release sign-off, **no redeploy**.
+  - **Gate B (entitlements):** `lib/entitlements/featureAccess.ts` (feature→min-tier list); `getEntitlements()` derives its `features` map from it.
+  - **Composition:** `resolve.ts` → `{ visible, locked }`; `<FeatureGate>` (mirrors `RequireTier`). 14 unit tests.
+- **Phase 2 — Ledger spine cont.** (same branch, commit `47319ce`):
+  - **Migration `0005`** (additive): income `tithe_mode`/`tithe_value`/`pay_day` + soft-delete, expense `expense_group`/`payee`/`due_day` + soft-delete, new **`savings_goals`** table (owner-only RLS).
+  - **Income (+ configurable tithe % / $), Expenses (+ group/payee/due-day), Savings pots** CRUD — validators (17 unit tests) reuse Phase 1 helpers; server actions mirror the debt actions; each screen gated behind its release flag (flag OFF → `ComingSoon` + nav link hidden; ON → full UI). Sidebar is flag-aware. `tests/e2e/phase2.spec.ts` (serial, 4 tests) proves the OFF gate + CRUD + tithe validation for all three. **Accounts CRUD deferred** to Phase 5 (net-worth) — the user's sheet has no bank accounts.
 - **Phase 1 — Debt management** (branch `feat/debt-management`, PR #10, merged `96cfa5c`):
   - **Migration `0003_debts_and_transactions.sql`** (idempotent, additive/expand-contract): adds nullable debt fields (`credit_limit`, `original_balance`, `issuer`, `promo_apr`, `promo_until`, `deferred_interest`, `payoff_order`, `notes`) + new **`transactions`** table (`kind` ∈ charge/payment/contribution, append-only, RLS owner-only, indexes on `profile_id`/`debt_id`). Applied to **nzx-dev**; prod untouched.
   - **Finance lib** (`lib/finance/`): `types.ts` (Debt/Transaction), `validation.ts` (money parse/round + server-side checks, reusable for Phase 2), `actionState.ts`. **Server Actions** (`app/(app)/actions.ts`): `createDebt`/`updateDebt`/`archiveDebt` + `addTransaction` (single read-modify-write that adjusts `debts.balance` — charge `+`, payment `−`, **floored at 0**). Balance is the live source of truth.
