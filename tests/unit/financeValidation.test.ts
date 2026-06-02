@@ -39,7 +39,8 @@ describe("rounding", () => {
 });
 
 describe("validateDebtInput", () => {
-  const base = { name: "Chase", type: "credit_card", balance: "1000" };
+  // credit_card is a non-exempt type, so a next_due_date is required on create.
+  const base = { name: "Chase", type: "credit_card", balance: "1000", next_due_date: "2026-07-01" };
 
   it("accepts a minimal valid debt and defaults APR/min to 0", () => {
     const r = validateDebtInput(base);
@@ -50,7 +51,7 @@ describe("validateDebtInput", () => {
       balance: 1000,
       apr: 0,
       min_payment: 0,
-      due_day: null,
+      next_due_date: "2026-07-01",
       deferred_interest: false,
     });
   });
@@ -62,7 +63,7 @@ describe("validateDebtInput", () => {
       apr: "24.24",
       min_payment: "$50.00",
       credit_limit: "11,000",
-      due_day: "15",
+      next_due_date: "2026-08-15",
       promo_apr: "0",
       promo_until: "2026-12-31",
       deferred_interest: "on",
@@ -74,12 +75,19 @@ describe("validateDebtInput", () => {
       apr: 24.24,
       min_payment: 50,
       credit_limit: 11000,
-      due_day: 15,
+      next_due_date: "2026-08-15",
       promo_apr: 0,
       promo_until: "2026-12-31",
       deferred_interest: true,
       notes: "balance transfer",
     });
+  });
+
+  it("accepts the expanded debt types", () => {
+    for (const type of ["loan_401k", "home_equity", "personal_loan", "savings_club"]) {
+      const fields = type === "savings_club" ? { ...base, type } : { ...base, type };
+      expect(validateDebtInput(fields).ok).toBe(true);
+    }
   });
 
   it("requires a name", () => {
@@ -112,10 +120,23 @@ describe("validateDebtInput", () => {
     expect(validateDebtInput({ ...base, apr: "-1" }).error).toMatch(/negative/i);
   });
 
-  it("bounds due day to 1–31", () => {
-    expect(validateDebtInput({ ...base, due_day: "0" }).error).toMatch(/1 to 31/i);
-    expect(validateDebtInput({ ...base, due_day: "40" }).error).toMatch(/1 to 31/i);
-    expect(validateDebtInput({ ...base, due_day: "12.5" }).error).toMatch(/1 to 31/i);
+  it("requires next_due_date on create for a non-exempt type", () => {
+    const { next_due_date, ...noDate } = base;
+    void next_due_date;
+    expect(validateDebtInput(noDate).error).toMatch(/due date/i);
+  });
+
+  it("does NOT require next_due_date for exempt types (medical, savings club)", () => {
+    expect(validateDebtInput({ name: "ER bill", type: "medical", balance: "500" }).ok).toBe(true);
+    expect(validateDebtInput({ name: "Club", type: "savings_club", balance: "50" }).ok).toBe(true);
+  });
+
+  it("is lenient about a missing next_due_date on update (editing legacy rows)", () => {
+    expect(validateDebtInput({ name: "Chase", type: "credit_card", balance: "1000" }, "update").ok).toBe(true);
+  });
+
+  it("rejects an invalid next_due_date", () => {
+    expect(validateDebtInput({ ...base, next_due_date: "07/01/2026" }).error).toMatch(/due date/i);
   });
 
   it("rejects an invalid promo date", () => {

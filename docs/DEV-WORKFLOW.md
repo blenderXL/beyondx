@@ -2,7 +2,7 @@
 
 > **Living doc.** How day-to-day development flows from a local edit to a dev/preview deploy to a cut release. Production is separate → [PRODUCTION-PLAN.md](./PRODUCTION-PLAN.md). Infra inventory → [PROJECT-STATE.md](./PROJECT-STATE.md).
 
-_Last updated: 2026-05-30._
+_Last updated: 2026-06-01._
 
 ## TL;DR loop
 ```
@@ -42,7 +42,7 @@ branch → edit → push → Vercel Preview auto-builds on the PR → review pre
 6. **Merge with the GitHub MCP** (`mcp__plugin_github_github__merge_pull_request`) — `gh pr merge` also fails on the PAT.
 
 ## What fires on every push to `master`
-- **`Deploy · dev`** (`.github/workflows/deploy-dev.yml`): runs `supabase db push` against `nzx-dev`. Currently a **no-op** (ledger repaired; both migrations already applied). It applies any *new* migration files you add.
+- **`Deploy · dev`** (`.github/workflows/deploy-dev.yml`): runs `supabase db push` against `nzx-dev`, applying any *new* migration files. `0001`–`0003` are already applied. **⚠️ If you apply a migration out-of-band via the Supabase MCP (`apply_migration`), it writes a timestamp version that mismatches `db push`'s expected ordering and makes the next `deploy-dev` fail** — reconcile `supabase_migrations.schema_migrations` afterward (memory `supabase-mcp-migration-version-mismatch.md`). Prefer adding the file + pushing over MCP apply.
 - **`release-please`** (`.github/workflows/release-please.yml`): maintains a long-lived **Release PR** (`chore(master): release X.Y.Z`) that bumps `package.json` + `.release-please-manifest.json` and writes `CHANGELOG.md`. Authenticates with **`RELEASE_PLEASE_TOKEN`** (PAT) because the org blocks `GITHUB_TOKEN` from creating PRs.
 - **Vercel** auto-deploys `master` to its **Production target** (`beyondx-pied.vercel.app`, dev Supabase for now).
 
