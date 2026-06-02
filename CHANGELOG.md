@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.4](https://github.com/blenderXL/beyondx/compare/v0.1.3...v0.1.4) (2026-06-02)
+
+
+### Features
+
+* **debts:** custom accessible icon-dropdown for the type picker ([7dcc22b](https://github.com/blenderXL/beyondx/commit/7dcc22b72d650d2cf15e0f293ef3d0fccd50adc0))
+* **debts:** custom accessible icon-dropdown for the type picker ([9ec5989](https://github.com/blenderXL/beyondx/commit/9ec5989f8b971bb6a1c2643b1ab3cca2f3d53e26))
+
 ## [0.1.3](https://github.com/blenderXL/beyondx/compare/v0.1.2...v0.1.3) (2026-06-02)
 
 
