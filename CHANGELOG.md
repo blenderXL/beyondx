@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.5](https://github.com/blenderXL/beyondx/compare/v0.1.4...v0.1.5) (2026-06-02)
+
+
+### Features
+
+* **insights:** per-type icons in the debt-distribution breakdown ([0ec5785](https://github.com/blenderXL/beyondx/commit/0ec5785795fbc981b311893f53513657f25a1487))
+* **insights:** per-type icons in the debt-distribution breakdown ([3b1f5e8](https://github.com/blenderXL/beyondx/commit/3b1f5e8c02e59f8a1c9b6c32ed2266e8c4a00545))
+
 ## [0.1.4](https://github.com/blenderXL/beyondx/compare/v0.1.3...v0.1.4) (2026-06-02)
 
 
