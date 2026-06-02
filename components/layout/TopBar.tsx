@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { DayNightToggle } from "@/components/landing/DayNightToggle";
+import { resetUser } from "@/lib/telemetry/capture";
 
 interface Props {
   email: string | null;
@@ -16,6 +17,8 @@ export function TopBar({ email, displayName, tier }: Props) {
   async function signOut() {
     const supabase = getSupabaseBrowserClient();
     await supabase.auth.signOut();
+    // Forget the PostHog distinct id BEFORE navigation so the next anon view isn't merged.
+    resetUser();
     router.replace("/");
     router.refresh();
   }

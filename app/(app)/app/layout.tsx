@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
+import { IdentifyUser } from "@/components/telemetry/IdentifyUser";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getEntitlements } from "@/lib/entitlements/getEntitlements";
 import { getFlagProvider } from "@/lib/flags/server";
@@ -26,6 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="grid h-screen grid-cols-[15rem_1fr] overflow-hidden bg-[var(--color-canvas)]">
+      <IdentifyUser userId={user.id} />
       <Sidebar enabledFlags={enabledFlags} />
       <div className="grid grid-rows-[auto_1fr] overflow-hidden">
         <TopBar
