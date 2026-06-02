@@ -7,33 +7,67 @@
  */
 
 export type DebtType =
-  | "credit_card"
-  | "loan"
-  | "mortgage"
-  | "student"
+  | "loan_401k"
   | "auto"
+  | "savings_club"
+  | "credit_card"
+  | "home_equity"
   | "medical"
+  | "mortgage"
+  | "personal_loan"
+  | "student"
+  | "loan"
   | "other";
 
+/** Dropdown order (matches the product's debt-type list; "Loan (other)" + "Other" last). */
 export const DEBT_TYPES: readonly DebtType[] = [
-  "credit_card",
-  "loan",
-  "mortgage",
-  "student",
+  "loan_401k",
   "auto",
+  "savings_club",
+  "credit_card",
+  "home_equity",
   "medical",
+  "mortgage",
+  "personal_loan",
+  "student",
+  "loan",
   "other",
 ] as const;
 
 export const DEBT_TYPE_LABELS: Record<DebtType, string> = {
-  credit_card: "Credit card",
-  loan: "Loan",
+  loan_401k: "401(k) Loan",
+  auto: "Auto/Trailer/Vehicle Loan (secured)",
+  savings_club: "Christmas/Savings Club",
+  credit_card: "Credit Card/Line (unsecured)",
+  home_equity: "Home Equity Loan",
+  medical: "Medical Bill",
   mortgage: "Mortgage",
-  student: "Student loan",
-  auto: "Auto loan",
-  medical: "Medical",
+  personal_loan: "Personal Loan",
+  student: "Student Loan",
+  loan: "Loan (other)",
   other: "Other",
 };
+
+/**
+ * Conditional-field rules shared by the form and the server validator (single source
+ * of truth — add a rule here and both honor it).
+ */
+export const DEBT_TYPES_WITHOUT_DUE_DATE: readonly DebtType[] = ["medical", "savings_club"];
+
+/** Credit limit is only meaningful for revolving credit. */
+export function creditLimitApplies(type: DebtType): boolean {
+  return type === "credit_card";
+}
+
+/** Next due date is shown/required for every type except the exempt ones. */
+export function dueDateApplies(type: DebtType): boolean {
+  return !DEBT_TYPES_WITHOUT_DUE_DATE.includes(type);
+}
+
+/** Issuer + promotional-financing fields only apply to revolving credit. */
+export function cardExtrasApply(type: DebtType): boolean {
+  return type === "credit_card";
+}
 
 /** Charges raise a debt's balance; payments lower it. `contribution` is reserved for Phase 2 savings. */
 export type TransactionKind = "charge" | "payment" | "contribution";
@@ -47,6 +81,8 @@ export interface Debt {
   apr: number;
   min_payment: number;
   due_day: number | null;
+  /** Next payment due date (ISO). Supersedes due_day for new debts; due_day kept for back-compat. */
+  next_due_date: string | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;

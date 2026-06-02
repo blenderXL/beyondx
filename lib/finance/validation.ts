@@ -6,6 +6,7 @@
 
 import {
   DEBT_TYPES,
+  dueDateApplies,
   EXPENSE_CADENCES,
   EXPENSE_GROUPS,
   INCOME_CADENCES,
@@ -61,7 +62,7 @@ export interface DebtValues {
   balance: number;
   apr: number;
   min_payment: number;
-  due_day: number | null;
+  next_due_date: string | null;
   credit_limit: number | null;
   issuer: string | null;
   promo_apr: number | null;
@@ -97,7 +98,10 @@ function optionalMoney(
   return { value: round2(n), error: null };
 }
 
-export function validateDebtInput(fields: RawFields): ValidationResult<DebtValues> {
+export function validateDebtInput(
+  fields: RawFields,
+  mode: "create" | "update" = "create",
+): ValidationResult<DebtValues> {
   const fail = (error: string): ValidationResult<DebtValues> => ({
     ok: false,
     error,
@@ -134,16 +138,19 @@ export function validateDebtInput(fields: RawFields): ValidationResult<DebtValue
   const minP = optionalMoney(fields.min_payment, "Minimum payment");
   if (minP.error) return fail(minP.error);
 
-  // Due day — optional 1–31.
-  let due_day: number | null = null;
+  // Next due date — ISO date. Required on create for non-exempt types (medical /
+  // savings-club are exempt); lenient on update so editing a legacy debt isn't blocked.
+  let next_due_date: string | null = null;
   {
-    const s = str(fields.due_day);
-    if (s !== "") {
-      const n = parseIntStrict(s);
-      if (n === null || !Number.isInteger(n) || n < 1 || n > 31) {
-        return fail("Due day must be a whole number from 1 to 31.");
+    const s = str(fields.next_due_date);
+    if (s === "") {
+      if (mode === "create" && dueDateApplies(type)) {
+        return fail("A next due date is required for this debt type.");
       }
-      due_day = n;
+    } else if (!ISO_DATE.test(s) || Number.isNaN(Date.parse(s))) {
+      return fail("Next due date is invalid.");
+    } else {
+      next_due_date = s;
     }
   }
 
@@ -191,7 +198,7 @@ export function validateDebtInput(fields: RawFields): ValidationResult<DebtValue
       balance: round2(balance),
       apr,
       min_payment: minP.value ?? 0,
-      due_day,
+      next_due_date,
       credit_limit: creditLimit.value,
       issuer,
       promo_apr,

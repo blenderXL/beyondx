@@ -65,7 +65,7 @@ export async function updateDebt(
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return { error: "Missing debt id." };
 
-  const result = validateDebtInput(Object.fromEntries(formData));
+  const result = validateDebtInput(Object.fromEntries(formData), "update");
   if (!result.ok || !result.values) return { error: result.error };
 
   // `.select()` lets us tell "updated nothing" (wrong id / not yours via RLS) from a real error.

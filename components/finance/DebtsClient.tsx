@@ -2,7 +2,7 @@
 
 import { useActionState, useCallback, useState } from "react";
 import { StatCard } from "@/components/layout/StatCard";
-import { DebtForm } from "@/components/finance/DebtForm";
+import { DebtAccountFormCard } from "@/components/finance/DebtAccountFormCard";
 import { TransactionForm } from "@/components/finance/TransactionForm";
 import { archiveDebt } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
@@ -58,9 +58,9 @@ export function DebtsClient({ debts, recent }: Props) {
         ) : null}
       </header>
 
-      {mode.kind === "create" ? <DebtForm onDone={toList} onCancel={toList} /> : null}
+      {mode.kind === "create" ? <DebtAccountFormCard onDone={toList} onCancel={toList} /> : null}
       {mode.kind === "edit" ? (
-        <DebtForm debt={mode.debt} onDone={toList} onCancel={toList} />
+        <DebtAccountFormCard debt={mode.debt} onDone={toList} onCancel={toList} />
       ) : null}
       {mode.kind === "txn" ? (
         <TransactionForm debt={mode.debt} onDone={toList} onCancel={toList} />

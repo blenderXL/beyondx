@@ -43,12 +43,13 @@ test.describe("Debt management", () => {
 
     // Create with a credit limit so utilization renders (1000 / 2000 = 50%).
     await page.getByRole("button", { name: "New debt" }).click();
-    await page.getByLabel("Name", { exact: true }).fill(name);
-    await page.getByLabel("Type", { exact: true }).selectOption("credit_card");
+    await page.getByLabel("Debt nickname / description").fill(name);
+    await page.getByLabel("Type of debt", { exact: true }).selectOption("credit_card");
     await page.getByLabel("Current balance").fill("1000");
-    await page.getByLabel("APR (%)", { exact: true }).fill("24.24");
+    await page.getByLabel("Interest rate (%)", { exact: true }).fill("24.24");
     await page.getByLabel("Credit limit").fill("2000");
     await page.getByLabel("Minimum payment").fill("25"); // keeps the $0.00 balance assertion unambiguous
+    await page.getByLabel("Next due date").fill("2026-07-01");
     await page.getByRole("button", { name: "Add debt" }).click();
 
     const card = () => list.locator("li", { hasText: name });
@@ -91,12 +92,39 @@ test.describe("Debt management", () => {
     await page.goto("/app/debts");
 
     await page.getByRole("button", { name: "New debt" }).click();
-    await page.getByLabel("Name", { exact: true }).fill(uniqueName("e2e-invalid"));
+    await page.getByLabel("Debt nickname / description").fill(uniqueName("e2e-invalid"));
+    // Medical is exempt from the required Next Due Date, so the submit reaches the server rate check.
+    await page.getByLabel("Type of debt", { exact: true }).selectOption("medical");
     await page.getByLabel("Current balance").fill("100");
-    await page.getByLabel("APR (%)", { exact: true }).fill("150");
+    await page.getByLabel("Minimum payment").fill("10"); // now required
+    await page.getByLabel("Interest rate (%)", { exact: true }).fill("150");
     await page.getByRole("button", { name: "Add debt" }).click();
 
     await expect(page.getByText(/APR can't exceed/i)).toBeVisible();
+  });
+
+  test("form fields adapt to the selected debt type", async ({ page }) => {
+    await uiLogin(page);
+    await expect(page).toHaveURL(/\/app(\/|$)/);
+    await page.goto("/app/debts");
+    await page.getByRole("button", { name: "New debt" }).click();
+
+    const typeSelect = page.getByLabel("Type of debt", { exact: true });
+
+    // Credit card → credit limit AND next due date show.
+    await typeSelect.selectOption("credit_card");
+    await expect(page.getByLabel("Credit limit")).toBeVisible();
+    await expect(page.getByLabel("Next due date")).toBeVisible();
+
+    // Mortgage → no credit limit, but still a next due date.
+    await typeSelect.selectOption("mortgage");
+    await expect(page.getByLabel("Credit limit")).toHaveCount(0);
+    await expect(page.getByLabel("Next due date")).toBeVisible();
+
+    // Medical → neither (exempt from the due date).
+    await typeSelect.selectOption("medical");
+    await expect(page.getByLabel("Credit limit")).toHaveCount(0);
+    await expect(page.getByLabel("Next due date")).toHaveCount(0);
   });
 
   test("RLS hides one user's debt from another", async () => {

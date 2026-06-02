@@ -48,7 +48,7 @@ test("insights: flag ON → distribution + utilization render; advanced charts a
   await page.goto("/app/insights");
 
   await expect(page.getByRole("heading", { name: "Insights" })).toBeVisible();
-  await expect(page.getByRole("list", { name: "Debt distribution" })).toContainText("Credit card");
+  await expect(page.getByRole("list", { name: "Debt distribution" })).toContainText("Credit Card/Line");
   await expect(page.getByRole("img", { name: "Trend chart" }).first()).toBeVisible(); // payoff curve SVG
 
   // Gate B: the free test user sees the Pro upsell in the advanced section, not the chart.

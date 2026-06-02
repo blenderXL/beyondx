@@ -22,17 +22,19 @@ export default async function PlannerPage() {
   const [incomesRes, expensesRes, debtsRes] = await Promise.all([
     supabase.from("incomes").select("*").is("archived_at", null),
     supabase.from("expenses").select("*").is("archived_at", null),
-    supabase.from("debts").select("id, name, min_payment, due_day").is("archived_at", null),
+    supabase.from("debts").select("id, name, min_payment, due_day, next_due_date").is("archived_at", null),
   ]);
 
+  type DebtRow = { id: string; name: string; min_payment: number; due_day: number | null; next_due_date: string | null };
   const plan = buildMonthlyPlan({
     incomes: (incomesRes.data ?? []) as Income[],
     expenses: (expensesRes.data ?? []) as Expense[],
-    debts: ((debtsRes.data ?? []) as PlannerDebt[]).map((d) => ({
+    debts: ((debtsRes.data ?? []) as DebtRow[]).map<PlannerDebt>((d) => ({
       id: d.id,
       name: d.name,
       min_payment: Number(d.min_payment),
-      due_day: d.due_day,
+      // Prefer the real Next Due Date's day-of-month; fall back to the legacy due_day.
+      due_day: d.next_due_date ? new Date(d.next_due_date).getUTCDate() : d.due_day,
     })),
   });
 
