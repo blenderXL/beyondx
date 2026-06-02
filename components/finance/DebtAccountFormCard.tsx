@@ -109,13 +109,21 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
       action={formAction}
       className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6"
     >
-      <p className={labelClass}>// {editing ? "edit debt account" : "new debt account"}</p>
-      <h2 className="mt-2 mb-1 font-sans text-xl font-medium text-[var(--color-text-primary)]">
-        {editing ? debt!.name : "Add a debt account"}
-      </h2>
-      <p className="mb-6 font-mono text-[11px] text-[var(--color-text-muted)]">
-        // fields adapt to the debt type · <span className="text-[var(--color-accent-red)]">*</span> required
-      </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <p className={labelClass}>// {editing ? "edit debt account" : "new debt account"}</p>
+          <h2 className="mt-2 mb-1 font-sans text-xl font-medium text-[var(--color-text-primary)]">
+            {editing ? debt!.name : "Add a debt account"}
+          </h2>
+          <p className="font-mono text-[11px] text-[var(--color-text-muted)]">
+            // fields adapt to the debt type · <span className="text-[var(--color-accent-red)]">*</span> required
+          </p>
+        </div>
+        {/* Selected-type icon — reflects the dropdown choice at a glance. */}
+        <span className="shrink-0 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-3 text-[var(--color-text-secondary)]">
+          <DebtTypeIcon type={type} className="size-6" />
+        </span>
+      </div>
 
       {editing ? <input type="hidden" name="id" value={debt!.id} /> : null}
 
@@ -143,24 +151,19 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
             Type of debt
             <Req />
           </span>
-          <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)]">
-              <DebtTypeIcon type={type} className="size-4" />
-            </span>
-            <select
-              name="type"
-              aria-label="Type of debt"
-              value={type}
-              onChange={(e) => setType(e.target.value as DebtType)}
-              className={inputClass.replace("px-3", "pl-10 pr-3")}
-            >
-              {DEBT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {DEBT_TYPE_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            name="type"
+            aria-label="Type of debt"
+            value={type}
+            onChange={(e) => setType(e.target.value as DebtType)}
+            className={inputClass}
+          >
+            {DEBT_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {DEBT_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="block">
