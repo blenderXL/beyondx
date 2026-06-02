@@ -8,6 +8,8 @@ import {
   validateIncomeInput,
   validateSavingsGoalInput,
   validateTransactionInput,
+  parseMoney,
+  round2,
 } from "@/lib/finance/validation";
 import { applyTransactionToBalance } from "@/lib/finance/balance";
 import type { FinanceActionState } from "@/lib/finance/actionState";
@@ -256,4 +258,57 @@ export async function updateSavingsGoal(_p: FinanceActionState, formData: FormDa
 }
 export async function archiveSavingsGoal(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   return archiveOwned("savings_goals", SAVINGS_PATH, idOf(formData));
+}
+
+const PLANNER_PATH = "/app/planner";
+const ISO_MONTH = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Planner "paid this month" toggle. Tracking-only: records (or removes) a `payment`
+ * transaction stamped with `billing_month` against an expense or debt, building payment
+ * history without mutating debt balances (those stay the source of truth on /app/debts).
+ * Idempotent — one paid mark per item per month.
+ */
+export async function togglePaid(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return SIGNED_OUT;
+
+  const kind = String(formData.get("kind") ?? "");
+  const itemId = String(formData.get("item_id") ?? "").trim();
+  const billingMonth = String(formData.get("billing_month") ?? "").trim();
+  const checked = formData.get("checked") != null;
+  if ((kind !== "expense" && kind !== "debt") || !itemId || !ISO_MONTH.test(billingMonth)) {
+    return { error: "Couldn't update — bad request." };
+  }
+  const col = kind === "expense" ? "expense_id" : "debt_id";
+
+  if (checked) {
+    const { data: existing } = await supabase
+      .from("transactions")
+      .select("id")
+      .eq(col, itemId)
+      .eq("billing_month", billingMonth)
+      .eq("kind", "payment")
+      .limit(1);
+    if (!existing || existing.length === 0) {
+      // amount must be > 0 (column check); use the planned amount, floored at one cent.
+      const planned = parseMoney(formData.get("amount")) ?? 0;
+      const amount = Math.max(round2(planned), 0.01);
+      const { error } = await supabase
+        .from("transactions")
+        .insert({ profile_id: userId, [col]: itemId, kind: "payment", amount, billing_month: billingMonth });
+      if (error) return { error: "Couldn't mark it paid. Please try again." };
+    }
+  } else {
+    const { error } = await supabase
+      .from("transactions")
+      .delete()
+      .eq(col, itemId)
+      .eq("billing_month", billingMonth)
+      .eq("kind", "payment");
+    if (error) return { error: "Couldn't update. Please try again." };
+  }
+
+  revalidatePath(PLANNER_PATH);
+  return { error: null, ok: true };
 }

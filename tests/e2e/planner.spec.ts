@@ -11,6 +11,7 @@ const stamp = Date.now();
 const incomeName = `e2e-plan-income-${stamp}`;
 const expenseName = `e2e-plan-exp-${stamp}`;
 const debtName = `e2e-plan-debt-${stamp}`;
+const paidExpName = `e2e-plan-paid-${stamp}`;
 
 async function setFlag(key: string, enabled: boolean) {
   const sc = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
@@ -27,6 +28,7 @@ test.afterAll(async () => {
   await c.auth.signInWithPassword({ email: TEST_USER.email, password: TEST_USER.password });
   await c.from("incomes").delete().eq("source", incomeName);
   await c.from("expenses").delete().eq("category", expenseName);
+  await c.from("expenses").delete().eq("category", paidExpName); // payment txns cascade
   await c.from("debts").delete().eq("name", debtName);
 });
 
@@ -71,4 +73,45 @@ test("monthly planner: flag ON → computed income/offerings/expenses/rollups re
   await expect(rollups).toContainText("Debt minimums");
   // The 1st-of-month pay cycle column renders (income landed on day 1).
   await expect(page.getByText("1st-of-month")).toBeVisible();
+});
+
+test("paid toggle records, then removes, a payment for the billing month", async ({ page }) => {
+  await setFlag("planner", true);
+  const c = ownerClient();
+  const { data: auth } = await c.auth.signInWithPassword({
+    email: TEST_USER.email,
+    password: TEST_USER.password,
+  });
+  const profile_id = auth.user!.id;
+  const { data: exp } = await c
+    .from("expenses")
+    .insert({ profile_id, category: paidExpName, amount: 88, cadence: "monthly", expense_group: "subscription", due_day: 9 })
+    .select("id")
+    .single();
+  const expenseId = exp!.id;
+
+  const now = new Date();
+  const billingMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
+  const countPaid = async () => {
+    const { count } = await c
+      .from("transactions")
+      .select("id", { count: "exact", head: true })
+      .eq("expense_id", expenseId)
+      .eq("billing_month", billingMonth)
+      .eq("kind", "payment");
+    return count ?? 0;
+  };
+
+  await uiLogin(page);
+  await expect(page).toHaveURL(/\/app(\/|$)/);
+  await page.goto("/app/planner");
+
+  const checkbox = page.getByRole("checkbox", { name: `Mark ${paidExpName} paid` });
+  await expect(checkbox).not.toBeChecked();
+
+  await checkbox.check(); // submits the toggle form
+  await expect.poll(countPaid).toBe(1); // payment recorded for this month
+
+  await checkbox.uncheck();
+  await expect.poll(countPaid).toBe(0); // paid mark removed
 });
