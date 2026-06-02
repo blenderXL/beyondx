@@ -12,6 +12,7 @@ import {
   round2,
 } from "@/lib/finance/validation";
 import { applyTransactionToBalance } from "@/lib/finance/balance";
+import { captureError } from "@/lib/telemetry/capture";
 import type { FinanceActionState } from "@/lib/finance/actionState";
 
 /**
@@ -36,6 +37,16 @@ async function requireUserId() {
   return { supabase, userId: user?.id ?? null };
 }
 
+/**
+ * Report an unexpected Supabase error to Sentry (these actions return a Result rather than
+ * throwing, so Sentry wouldn't see them otherwise) and return the user-facing message. The
+ * `action` tag is the only context — no row data, so nothing financial leaks.
+ */
+function dbFailure(error: unknown, action: string, message: string): FinanceActionState {
+  captureError(error, { action });
+  return { error: message };
+}
+
 export async function createDebt(
   _prev: FinanceActionState,
   formData: FormData,
@@ -51,7 +62,7 @@ export async function createDebt(
   const { error } = await supabase
     .from("debts")
     .insert({ profile_id: userId, ...result.values, original_balance: result.values.balance });
-  if (error) return { error: "Couldn't save the debt. Please try again." };
+  if (error) return dbFailure(error, "createDebt", "Couldn't save the debt. Please try again.");
 
   revalidatePath(DEBTS_PATH);
   return { error: null, ok: true };
@@ -76,7 +87,7 @@ export async function updateDebt(
     .update(result.values)
     .eq("id", id)
     .select("id");
-  if (error) return { error: "Couldn't update the debt. Please try again." };
+  if (error) return dbFailure(error, "updateDebt", "Couldn't update the debt. Please try again.");
   if (!data || data.length === 0) return { error: "Debt not found." };
 
   revalidatePath(DEBTS_PATH);
@@ -99,7 +110,7 @@ export async function archiveDebt(
     .eq("id", id)
     .is("archived_at", null)
     .select("id");
-  if (error) return { error: "Couldn't archive the debt. Please try again." };
+  if (error) return dbFailure(error, "archiveDebt", "Couldn't archive the debt. Please try again.");
   if (!data || data.length === 0) return { error: "Debt not found." };
 
   revalidatePath(DEBTS_PATH);
@@ -126,7 +137,7 @@ export async function addTransaction(
     .select("balance")
     .eq("id", debtId)
     .maybeSingle();
-  if (readError) return { error: "Couldn't load the debt. Please try again." };
+  if (readError) return dbFailure(readError, "addTransaction.read", "Couldn't load the debt. Please try again.");
   if (!debt) return { error: "Debt not found." };
 
   const newBalance = applyTransactionToBalance(Number(debt.balance), kind, amount);
@@ -139,14 +150,19 @@ export async function addTransaction(
     note,
     ...(occurred_on ? { occurred_on } : {}),
   });
-  if (insertError) return { error: "Couldn't record the transaction. Please try again." };
+  if (insertError)
+    return dbFailure(insertError, "addTransaction.insert", "Couldn't record the transaction. Please try again.");
 
   const { error: balanceError } = await supabase
     .from("debts")
     .update({ balance: newBalance })
     .eq("id", debtId);
   if (balanceError) {
-    return { error: "Recorded the transaction, but the balance didn't update. Refresh and check." };
+    return dbFailure(
+      balanceError,
+      "addTransaction.balance",
+      "Recorded the transaction, but the balance didn't update. Refresh and check.",
+    );
   }
 
   revalidatePath(DEBTS_PATH);
@@ -174,7 +190,7 @@ async function insertOwned(
   const { supabase, userId } = await requireUserId();
   if (!userId) return SIGNED_OUT;
   const { error } = await supabase.from(table).insert({ profile_id: userId, ...values });
-  if (error) return { error: "Couldn't save. Please try again." };
+  if (error) return dbFailure(error, `insert:${table}`, "Couldn't save. Please try again.");
   revalidatePath(path);
   return { error: null, ok: true };
 }
@@ -189,7 +205,7 @@ async function updateOwned(
   if (!userId) return SIGNED_OUT;
   if (!id) return { error: "Missing id." };
   const { data, error } = await supabase.from(table).update(values).eq("id", id).select("id");
-  if (error) return { error: "Couldn't update. Please try again." };
+  if (error) return dbFailure(error, `update:${table}`, "Couldn't update. Please try again.");
   if (!data || data.length === 0) return { error: "Not found." };
   revalidatePath(path);
   return { error: null, ok: true };
@@ -205,7 +221,7 @@ async function archiveOwned(table: string, path: string, id: string): Promise<Fi
     .eq("id", id)
     .is("archived_at", null)
     .select("id");
-  if (error) return { error: "Couldn't archive. Please try again." };
+  if (error) return dbFailure(error, `archive:${table}`, "Couldn't archive. Please try again.");
   if (!data || data.length === 0) return { error: "Not found." };
   revalidatePath(path);
   return { error: null, ok: true };
@@ -297,7 +313,7 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
       const { error } = await supabase
         .from("transactions")
         .insert({ profile_id: userId, [col]: itemId, kind: "payment", amount, billing_month: billingMonth });
-      if (error) return { error: "Couldn't mark it paid. Please try again." };
+      if (error) return dbFailure(error, "togglePaid.insert", "Couldn't mark it paid. Please try again.");
     }
   } else {
     const { error } = await supabase
@@ -306,7 +322,7 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
       .eq(col, itemId)
       .eq("billing_month", billingMonth)
       .eq("kind", "payment");
-    if (error) return { error: "Couldn't update. Please try again." };
+    if (error) return dbFailure(error, "togglePaid.delete", "Couldn't update. Please try again.");
   }
 
   revalidatePath(PLANNER_PATH);
