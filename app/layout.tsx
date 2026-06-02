@@ -1,8 +1,11 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { PostHogProvider } from "@/components/telemetry/PostHogProvider";
+import { PageviewTracker } from "@/components/telemetry/PageviewTracker";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
@@ -35,7 +38,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       suppressHydrationWarning
     >
       <body className="min-h-screen antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <PostHogProvider>
+            <Suspense fallback={null}>
+              <PageviewTracker />
+            </Suspense>
+            {children}
+          </PostHogProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
