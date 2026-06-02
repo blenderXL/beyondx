@@ -1,6 +1,7 @@
 import { StatCard } from "@/components/layout/StatCard";
 import { formatUsd } from "@/lib/finance/derive";
 import type { MonthlyPlan, CycleBreakdown, Cycle } from "@/lib/finance/planner";
+import { PlannerBills, type PlannerBill } from "@/components/finance/PlannerBills";
 import { labelClass } from "@/components/finance/formStyles";
 
 const CYCLE_LABELS: Record<Cycle, string> = {
@@ -43,7 +44,15 @@ function CycleColumn({ title, b }: { title: string; b: CycleBreakdown }) {
   );
 }
 
-export function PlannerView({ plan }: { plan: MonthlyPlan }) {
+export function PlannerView({
+  plan,
+  bills,
+  billingMonth,
+}: {
+  plan: MonthlyPlan;
+  bills: PlannerBill[];
+  billingMonth: string;
+}) {
   const cycles = (["first", "mid", "none"] as const).filter(
     (c) => plan.byCycle[c].income > 0 || plan.byCycle[c].outflow > 0,
   );
@@ -96,6 +105,8 @@ export function PlannerView({ plan }: { plan: MonthlyPlan }) {
           </ul>
         </section>
       ) : null}
+
+      <PlannerBills bills={bills} billingMonth={billingMonth} />
     </div>
   );
 }
