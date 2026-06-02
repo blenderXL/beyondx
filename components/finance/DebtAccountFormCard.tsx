@@ -12,6 +12,7 @@ import {
   type Debt,
   type DebtType,
 } from "@/lib/finance/types";
+import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import {
   inputClass,
   dateInputClass,
@@ -142,19 +143,24 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
             Type of debt
             <Req />
           </span>
-          <select
-            name="type"
-            aria-label="Type of debt"
-            value={type}
-            onChange={(e) => setType(e.target.value as DebtType)}
-            className={inputClass}
-          >
-            {DEBT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {DEBT_TYPE_LABELS[t]}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)]">
+              <DebtTypeIcon type={type} className="size-4" />
+            </span>
+            <select
+              name="type"
+              aria-label="Type of debt"
+              value={type}
+              onChange={(e) => setType(e.target.value as DebtType)}
+              className={inputClass.replace("px-3", "pl-10 pr-3")}
+            >
+              {DEBT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {DEBT_TYPE_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </div>
         </label>
 
         <label className="block">

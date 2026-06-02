@@ -5,6 +5,7 @@ import { StatCard } from "@/components/layout/StatCard";
 import { computePayoff, orderDebts, type PayoffDebtInput, type PayoffMethod } from "@/lib/finance/payoff";
 import { formatUsd, formatPercent } from "@/lib/finance/derive";
 import { inputClass, labelClass } from "@/components/finance/formStyles";
+import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 
 const METHODS: { value: PayoffMethod; label: string; blurb: string }[] = [
   { value: "avalanche", label: "Avalanche", blurb: "Highest APR first — least interest paid." },
@@ -116,6 +117,11 @@ export function PlansClient({ debts }: { debts: PayoffDebtInput[] }) {
               >
                 <div className="flex items-center gap-4">
                   <span className="font-mono text-sm text-[var(--color-text-muted)] tabular-nums">#{i + 1}</span>
+                  {d.type ? (
+                    <span className="shrink-0 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-2 text-[var(--color-text-secondary)]">
+                      <DebtTypeIcon type={d.type} className="size-4" />
+                    </span>
+                  ) : null}
                   <div>
                     <p className="font-sans text-sm font-medium text-[var(--color-text-primary)]">{d.name}</p>
                     <p className="font-mono text-[11px] text-[var(--color-text-muted)]">

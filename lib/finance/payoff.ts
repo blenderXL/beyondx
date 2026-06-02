@@ -9,6 +9,7 @@
  */
 
 import { round2 } from "./validation";
+import type { DebtType } from "./types";
 
 export type PayoffMethod = "snowball" | "avalanche" | "custom";
 
@@ -19,6 +20,8 @@ export interface PayoffDebtInput {
   apr: number; // percentage, e.g. 24.24
   min_payment: number;
   payoff_order?: number | null;
+  /** Optional — carried through only so the UI can show a per-type icon; engine ignores it. */
+  type?: DebtType;
 }
 
 export interface PayoffMonth {

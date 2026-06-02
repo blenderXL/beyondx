@@ -21,13 +21,14 @@ export default async function PlansPage() {
 
   const { data } = await supabase
     .from("debts")
-    .select("id, name, balance, apr, min_payment, payoff_order")
+    .select("id, name, type, balance, apr, min_payment, payoff_order")
     .is("archived_at", null)
     .order("created_at", { ascending: true });
 
-  const debts: PayoffDebtInput[] = ((data ?? []) as Pick<Debt, "id" | "name" | "balance" | "apr" | "min_payment" | "payoff_order">[]).map((d) => ({
+  const debts: PayoffDebtInput[] = ((data ?? []) as Pick<Debt, "id" | "name" | "type" | "balance" | "apr" | "min_payment" | "payoff_order">[]).map((d) => ({
     id: d.id,
     name: d.name,
+    type: d.type,
     balance: Number(d.balance),
     apr: Number(d.apr),
     min_payment: Number(d.min_payment),

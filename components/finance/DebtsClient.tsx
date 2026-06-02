@@ -7,6 +7,7 @@ import { TransactionForm } from "@/components/finance/TransactionForm";
 import { archiveDebt } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
 import { DEBT_TYPE_LABELS, type Debt, type TransactionKind } from "@/lib/finance/types";
+import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { formatUsd, formatPercent, utilization, payoffProgress } from "@/lib/finance/derive";
 import {
   labelClass,
@@ -126,14 +127,19 @@ function DebtCard({ debt, onEdit, onTxn }: { debt: Debt; onEdit: () => void; onT
   return (
     <li className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-sans text-base font-medium text-[var(--color-text-primary)]">
-            {debt.name}
-          </p>
-          <p className="mt-1 font-mono text-[11px] tracking-[0.18em] text-[var(--color-text-muted)] uppercase">
-            {DEBT_TYPE_LABELS[debt.type]}
-            {debt.issuer ? ` · ${debt.issuer}` : ""}
-          </p>
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 shrink-0 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-2 text-[var(--color-text-secondary)]">
+            <DebtTypeIcon type={debt.type} className="size-4" />
+          </span>
+          <div>
+            <p className="font-sans text-base font-medium text-[var(--color-text-primary)]">
+              {debt.name}
+            </p>
+            <p className="mt-1 font-mono text-[11px] tracking-[0.18em] text-[var(--color-text-muted)] uppercase">
+              {DEBT_TYPE_LABELS[debt.type]}
+              {debt.issuer ? ` · ${debt.issuer}` : ""}
+            </p>
+          </div>
         </div>
         <p className="font-sans text-2xl font-medium text-[var(--color-text-primary)] tabular-nums">
           {formatUsd(Number(debt.balance))}
