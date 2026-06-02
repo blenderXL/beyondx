@@ -1,6 +1,12 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { TEST_USER, MFA_USER, hasTestCreds, hasMfaCreds, uiLogin } from "./helpers/auth";
+
+/** The type picker is a custom ARIA listbox now — open it and click the option by its label. */
+async function selectDebtType(page: Page, optionLabel: string) {
+  await page.getByRole("button", { name: "Type of debt" }).click();
+  await page.getByRole("option", { name: optionLabel }).click();
+}
 
 // All debt specs need the password-login user; without creds, skip rather than fail.
 test.skip(!hasTestCreds(), "Set TEST_USER_EMAIL / TEST_USER_PASSWORD to run debt-management E2E");
@@ -44,7 +50,7 @@ test.describe("Debt management", () => {
     // Create with a credit limit so utilization renders (1000 / 2000 = 50%).
     await page.getByRole("button", { name: "New debt" }).click();
     await page.getByLabel("Debt nickname / description").fill(name);
-    await page.getByLabel("Type of debt", { exact: true }).selectOption("credit_card");
+    await selectDebtType(page, "Credit Card/Line (unsecured)");
     await page.getByLabel("Current balance").fill("1000");
     await page.getByLabel("Interest rate (%)", { exact: true }).fill("24.24");
     await page.getByLabel("Credit limit").fill("2000");
@@ -94,7 +100,7 @@ test.describe("Debt management", () => {
     await page.getByRole("button", { name: "New debt" }).click();
     await page.getByLabel("Debt nickname / description").fill(uniqueName("e2e-invalid"));
     // Medical is exempt from the required Next Due Date, so the submit reaches the server rate check.
-    await page.getByLabel("Type of debt", { exact: true }).selectOption("medical");
+    await selectDebtType(page, "Medical Bill");
     await page.getByLabel("Current balance").fill("100");
     await page.getByLabel("Minimum payment").fill("10"); // now required
     await page.getByLabel("Interest rate (%)", { exact: true }).fill("150");
@@ -109,20 +115,23 @@ test.describe("Debt management", () => {
     await page.goto("/app/debts");
     await page.getByRole("button", { name: "New debt" }).click();
 
-    const typeSelect = page.getByLabel("Type of debt", { exact: true });
+    // The custom picker opens an ARIA listbox with one option per debt type.
+    await page.getByRole("button", { name: "Type of debt" }).click();
+    await expect(page.getByRole("listbox", { name: "Type of debt" })).toBeVisible();
+    await expect(page.getByRole("option")).toHaveCount(11);
+    await page.getByRole("option", { name: "Credit Card/Line (unsecured)" }).click();
 
     // Credit card → credit limit AND next due date show.
-    await typeSelect.selectOption("credit_card");
     await expect(page.getByLabel("Credit limit")).toBeVisible();
     await expect(page.getByLabel("Next due date")).toBeVisible();
 
     // Mortgage → no credit limit, but still a next due date.
-    await typeSelect.selectOption("mortgage");
+    await selectDebtType(page, "Mortgage");
     await expect(page.getByLabel("Credit limit")).toHaveCount(0);
     await expect(page.getByLabel("Next due date")).toBeVisible();
 
     // Medical → neither (exempt from the due date).
-    await typeSelect.selectOption("medical");
+    await selectDebtType(page, "Medical Bill");
     await expect(page.getByLabel("Credit limit")).toHaveCount(0);
     await expect(page.getByLabel("Next due date")).toHaveCount(0);
   });

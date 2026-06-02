@@ -4,8 +4,6 @@ import { useActionState, useEffect, useState } from "react";
 import { createDebt, updateDebt } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
 import {
-  DEBT_TYPES,
-  DEBT_TYPE_LABELS,
   creditLimitApplies,
   dueDateApplies,
   cardExtrasApply,
@@ -13,6 +11,7 @@ import {
   type DebtType,
 } from "@/lib/finance/types";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
+import { DebtTypeSelect } from "@/components/finance/DebtTypeSelect";
 import {
   inputClass,
   dateInputClass,
@@ -146,25 +145,13 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
           />
         </label>
 
-        <label className="block">
+        <div className="block">
           <span className={labelClass}>
             Type of debt
             <Req />
           </span>
-          <select
-            name="type"
-            aria-label="Type of debt"
-            value={type}
-            onChange={(e) => setType(e.target.value as DebtType)}
-            className={inputClass}
-          >
-            {DEBT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {DEBT_TYPE_LABELS[t]}
-              </option>
-            ))}
-          </select>
-        </label>
+          <DebtTypeSelect value={type} onChange={setType} />
+        </div>
 
         <label className="block">
           <span className={labelClass}>
