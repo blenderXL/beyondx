@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.1.3](https://github.com/blenderXL/beyondx/compare/v0.1.2...v0.1.3) (2026-06-02)
+
+
+### Features
+
+* debt management — CRUD, transactions, and payoff fields ([e9ef5ba](https://github.com/blenderXL/beyondx/commit/e9ef5ba54a307804194436f4912d1e0c1cbae661))
+* debt management — CRUD, transactions, and payoff fields (Phase 1) ([96cfa5c](https://github.com/blenderXL/beyondx/commit/96cfa5c0f6af0dc3d0477f225553b56af0f12770))
+* **debts:** dynamic DebtAccountFormCard + richer types + Next Due Date ([6550f7f](https://github.com/blenderXL/beyondx/commit/6550f7ff1c309b09f1731677199f77ced8f2c7e4))
+* **debts:** per-type vector icons, reused across the app ([6e51432](https://github.com/blenderXL/beyondx/commit/6e514327ca7196be2dbbeb493ed3618d2c1245de))
+* **finance:** deterministic payoff engine + plans UI (Phase 4) ([096840c](https://github.com/blenderXL/beyondx/commit/096840c01e8da29471f4e73495dc141ec42f1d27))
+* **finance:** income+tithe, expenses, savings pots behind flags (Phase 2) ([47319ce](https://github.com/blenderXL/beyondx/commit/47319cefbc73588815caf8bf25b990fe6f550c3e))
+* **finance:** insights & visualization with SVG charts (Phase 5) ([cd5fbfb](https://github.com/blenderXL/beyondx/commit/cd5fbfb37611f2f46103f828babe5f2fa94f220a))
+* **finance:** monthly planner — the spreadsheet replacement (Phase 3) ([6f563f4](https://github.com/blenderXL/beyondx/commit/6f563f4458717d3ce95654305f7c18e615b72dc9))
+* flag system + ledger spine + payoff engine + planner + insights + dynamic debt form ([9b635b2](https://github.com/blenderXL/beyondx/commit/9b635b2ef7896ef06530543b5c2b8c5a2bfbd304))
+* **flags:** two-gate feature-flag + entitlement scaffold (Phase 1.6) ([6514fb7](https://github.com/blenderXL/beyondx/commit/6514fb75e9ce3e9ceb174d948ff0063d34baf9db))
+
+
+### Bug Fixes
+
+* **debts:** move type icon to the form card corner (was overlapping the select) ([c0c21ef](https://github.com/blenderXL/beyondx/commit/c0c21ef39887cddfda57e218c63e0b33088e83fd))
+* **debts:** simplify add-debt form per review ([e14993a](https://github.com/blenderXL/beyondx/commit/e14993a03dee4a759479cf21a06383bae9b7e4ed))
+
+
+### Documentation
+
+* re-envision roadmap to one-stop platform + flag/entitlement architecture ([7ac8925](https://github.com/blenderXL/beyondx/commit/7ac89252c43819f67d0a91f9bc08ce67c0955111))
+* record migration 0006 (debt types + next_due_date) ([928dac6](https://github.com/blenderXL/beyondx/commit/928dac6d17511292b86eea70169546228e941efe))
+* record Phase 1.6 + Phase 2 as built (flags, migrations 0004/0005, savings) ([23607c4](https://github.com/blenderXL/beyondx/commit/23607c4b1635a909bd0f956ff8d8760b05dcaf74))
+* record Phase 3 (planner) + Phase 5 (insights) as built ([529fc06](https://github.com/blenderXL/beyondx/commit/529fc0622027b1d66311cc9a068dc80b5fbf4dec))
+* record Phase 4 (payoff engine) as built ([478fa2b](https://github.com/blenderXL/beyondx/commit/478fa2b04e02580a2be1201ddfa5a4b78e2fc3e3))
+* update living docs for v0.1.2 auth release; scrub test creds ([cf88ee1](https://github.com/blenderXL/beyondx/commit/cf88ee1d6fb1b401e1d7a4f61cbb4097bc6676d7))
+* update living docs for v0.1.2 auth release; scrub test creds ([53ff538](https://github.com/blenderXL/beyondx/commit/53ff5388c07549d4eb9b163b11b1f53e2d4a0fb5))
+
 ## [0.1.2](https://github.com/blenderXL/beyondx/compare/v0.1.1...v0.1.2) (2026-05-31)
 
 
