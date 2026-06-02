@@ -45,6 +45,8 @@ export interface BarItem {
   amount: number;
   pct: number; // 0..1
   accentVar?: string;
+  /** Optional leading icon (e.g. a debt-type icon) shown before the label. */
+  icon?: React.ReactNode;
 }
 
 /** Horizontal proportional bars (distribution / breakdown). */
@@ -57,7 +59,10 @@ export function BarList({ items, ariaLabel }: { items: BarItem[]; ariaLabel: str
       {items.map((it) => (
         <li key={it.label}>
           <div className="flex items-center justify-between gap-4 font-mono text-[11px]">
-            <span className="text-[var(--color-text-secondary)]">{it.label}</span>
+            <span className="flex items-center gap-2 text-[var(--color-text-secondary)]">
+              {it.icon ? <span className="text-[var(--color-text-muted)]">{it.icon}</span> : null}
+              {it.label}
+            </span>
             <span className="tabular-nums text-[var(--color-text-primary)]">
               {formatUsd(it.amount)} · {Math.round(it.pct * 100)}%
             </span>

@@ -5,6 +5,7 @@ import { ComingSoon } from "@/components/finance/ComingSoon";
 import { RequireTier } from "@/components/entitlements/RequireTier";
 import { StatCard } from "@/components/layout/StatCard";
 import { SparkArea, BarList, UtilizationGauge, type BarItem } from "@/components/finance/charts";
+import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { debtDistribution, aprBuckets, totalUtilization, type InsightDebt } from "@/lib/finance/insights";
 import { computePayoff, type PayoffDebtInput } from "@/lib/finance/payoff";
 import { formatUsd } from "@/lib/finance/derive";
@@ -56,6 +57,7 @@ export default async function InsightsPage() {
     amount: s.total,
     pct: s.pct,
     accentVar: ACCENTS[i % ACCENTS.length],
+    icon: <DebtTypeIcon type={s.type} className="size-3.5" />,
   }));
   const aprItems: BarItem[] = aprBuckets(debts).map((b, i) => ({
     label: b.label,
