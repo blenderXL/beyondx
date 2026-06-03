@@ -22,6 +22,11 @@ describe("parseMoney", () => {
     expect(parseMoney(null)).toBeNull();
     expect(parseMoney(undefined)).toBeNull();
   });
+  it("tolerates a trailing percent sign (interest-rate inputs)", () => {
+    expect(parseMoney("20.74%")).toBe(20.74);
+    expect(parseMoney("50 %")).toBe(50);
+    expect(parseMoney("0%")).toBe(0);
+  });
 });
 
 describe("rounding", () => {
@@ -111,6 +116,12 @@ describe("validateDebtInput", () => {
     expect(validateDebtInput({ ...base, balance: String(MONEY_MAX + 1) }).error).toMatch(
       /too large/i,
     );
+  });
+
+  it("accepts an APR typed with a percent sign", () => {
+    const r = validateDebtInput({ ...base, apr: "24.99%" });
+    expect(r.ok).toBe(true);
+    expect(r.values).toMatchObject({ apr: 24.99 });
   });
 
   it("bounds APR to numeric(6,4)", () => {

@@ -60,7 +60,7 @@ export function PlannerView({
   return (
     <div className="mx-auto max-w-5xl">
       <header className="mb-8">
-        <p className={labelClass}>// planner</p>
+        <p className={labelClass}>// budget</p>
         <h1 className="mt-2 font-sans text-3xl font-medium text-[var(--color-text-primary)]">This month</h1>
       </header>
 

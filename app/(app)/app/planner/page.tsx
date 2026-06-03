@@ -17,7 +17,7 @@ function dueDayOf(nextDueDate: string | null, dueDay: number | null): number | n
 export default async function PlannerPage() {
   // Gate A: hidden until the `planner` release flag is flipped on.
   const { visible } = await featureState("planner");
-  if (!visible) return <ComingSoon title="Planner" />;
+  if (!visible) return <ComingSoon title="Budget" />;
 
   const supabase = await getSupabaseServerClient();
   const {
