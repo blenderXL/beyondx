@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StatCard } from "@/components/layout/StatCard";
 import { computePayoff, orderDebts, type PayoffDebtInput, type PayoffMethod } from "@/lib/finance/payoff";
 import { formatUsd, formatPercent } from "@/lib/finance/derive";
@@ -12,6 +12,10 @@ const METHODS: { value: PayoffMethod; label: string; blurb: string }[] = [
   { value: "snowball", label: "Snowball", blurb: "Smallest balance first — fastest wins." },
   { value: "custom", label: "Custom order", blurb: "Your chosen payoff order." },
 ];
+
+/** localStorage keys for the user's last payoff selections. */
+const METHOD_KEY = "nzx.plans.method";
+const BUDGET_KEY = "nzx.plans.budget";
 
 function monthsToLabel(months: number): string {
   if (months <= 0) return "—";
@@ -30,6 +34,35 @@ export function PlansClient({ debts }: { debts: PayoffDebtInput[] }) {
   const [method, setMethod] = useState<PayoffMethod>("avalanche");
   // Default budget: minimums + 10% of balance-ish, but at least minimums + $100.
   const [budget, setBudget] = useState<number>(Math.max(Math.round(totalMin) + 100, Math.round(totalMin)));
+
+  // Persist the user's last method + budget across reloads (client-only, no backend).
+  // Read once on mount AFTER first render so SSR/CSR markup matches (no hydration flash of
+  // stored values); the `hydrated` gate stops the save effect from clobbering storage with
+  // defaults before the read runs. Values are validated before use (ignore tampered input).
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    try {
+      const m = localStorage.getItem(METHOD_KEY);
+      if (m && METHODS.some((x) => x.value === m)) setMethod(m as PayoffMethod);
+      const b = localStorage.getItem(BUDGET_KEY);
+      if (b !== null) {
+        const n = Number(b);
+        if (Number.isFinite(n) && n >= 0) setBudget(n);
+      }
+    } catch {
+      /* storage unavailable (private mode / disabled) — fall back to defaults */
+    }
+    setHydrated(true);
+  }, []);
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(METHOD_KEY, method);
+      localStorage.setItem(BUDGET_KEY, String(budget));
+    } catch {
+      /* ignore quota / availability errors */
+    }
+  }, [hydrated, method, budget]);
 
   const result = useMemo(() => computePayoff(debts, budget, method), [debts, budget, method]);
   const ordered = useMemo(() => orderDebts(debts, method), [debts, method]);
@@ -144,7 +177,7 @@ export function PlansClient({ debts }: { debts: PayoffDebtInput[] }) {
 function Header() {
   return (
     <header className="mb-8">
-      <p className={labelClass}>// plans</p>
+      <p className={labelClass}>// payoff plan</p>
       <h1 className="mt-2 font-sans text-3xl font-medium text-[var(--color-text-primary)]">Payoff plan</h1>
     </header>
   );

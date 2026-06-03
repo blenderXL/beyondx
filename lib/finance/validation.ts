@@ -35,14 +35,16 @@ export function round4(n: number): number {
 }
 
 /**
- * Parse a money-ish string ("$1,234.50", " 1200 ") to a number. Returns null when
+ * Parse a money-ish / rate-ish string ("$1,234.50", " 1200 ", "20.74%") to a number.
+ * Strips `$`, `,`, `%`, and whitespace so the same parser serves money fields and the
+ * interest-rate field (which legitimately carries a trailing `%`). Returns null when
  * blank, NaN, or not finite — callers decide whether null means "omitted" or "invalid".
  */
 export function parseMoney(raw: unknown): number | null {
   if (raw === null || raw === undefined) return null;
   const s = String(raw).trim();
   if (s === "") return null;
-  const n = Number(s.replace(/[$,\s]/g, ""));
+  const n = Number(s.replace(/[$,%\s]/g, ""));
   return Number.isFinite(n) ? n : null;
 }
 
