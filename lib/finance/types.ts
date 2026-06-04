@@ -190,9 +190,22 @@ export interface Income {
   /** percent (0–100) when tithe_mode='percent'; dollar amount when 'fixed'; null when 'none'. */
   tithe_value: number | null;
   pay_day: number | null;
+  /** A variable source uses a per-month override (see `IncomeOverride`) when one exists. */
+  is_variable: boolean;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** A per-month actual amount for a variable income source (migration 0010). */
+export interface IncomeOverride {
+  id: string;
+  profile_id: string;
+  income_id: string;
+  /** First-of-month ISO date the override applies to. */
+  billing_month: string;
+  amount: number;
+  created_at: string;
 }
 
 export type ExpenseCadence =

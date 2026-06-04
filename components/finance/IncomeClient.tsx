@@ -105,6 +105,23 @@ function IncomeForm({ income, onDone, onCancel }: { income?: Income; onDone: () 
         </label>
       </div>
 
+      <label className="mt-4 flex items-start gap-3">
+        <input
+          type="checkbox"
+          name="is_variable"
+          aria-label="Variable income"
+          defaultChecked={income?.is_variable ?? false}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent-emerald)]"
+        />
+        <span className={labelClass}>
+          Variable income
+          <FieldHint text={INCOME_HINTS.is_variable} label="variable income" />
+          <span className="mt-1 block font-mono text-[10px] normal-case tracking-normal text-[var(--color-text-muted)]">
+            changes month to month — set each month&apos;s actual on the Budget page
+          </span>
+        </span>
+      </label>
+
       <p className="mt-4 font-mono text-[10px] text-[var(--color-text-muted)]">
         // offerings/tithing now live on the Expenses page as an &quot;Offering&quot; group.
       </p>

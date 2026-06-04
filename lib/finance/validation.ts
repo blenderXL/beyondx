@@ -272,6 +272,7 @@ export interface IncomeValues {
   tithe_mode: TitheMode;
   tithe_value: number | null;
   pay_day: number | null;
+  is_variable: boolean;
 }
 
 export function validateIncomeInput(fields: RawFields): ValidationResult<IncomeValues> {
@@ -311,11 +312,39 @@ export function validateIncomeInput(fields: RawFields): ValidationResult<IncomeV
   const payDay = optionalDayOfMonth(fields.pay_day, "Pay day");
   if (payDay.error) return fail(payDay.error);
 
+  const is_variable = str(fields.is_variable) === "on" || str(fields.is_variable) === "true";
+
   return {
     ok: true,
     error: null,
-    values: { source, amount: round2(amount), cadence, tithe_mode, tithe_value, pay_day: payDay.value },
+    values: { source, amount: round2(amount), cadence, tithe_mode, tithe_value, pay_day: payDay.value, is_variable },
   };
+}
+
+export interface IncomeOverrideValues {
+  income_id: string;
+  billing_month: string;
+  amount: number;
+}
+
+/** This-month actual for a variable income source (migration 0010). */
+export function validateIncomeOverrideInput(fields: RawFields): ValidationResult<IncomeOverrideValues> {
+  const fail = (error: string): ValidationResult<IncomeOverrideValues> => ({ ok: false, error, values: null });
+
+  const income_id = str(fields.income_id);
+  if (!UUID.test(income_id)) return fail("Choose a valid income source.");
+
+  const billing_month = str(fields.billing_month);
+  if (!ISO_DATE.test(billing_month) || Number.isNaN(Date.parse(billing_month))) {
+    return fail("Billing month is invalid.");
+  }
+
+  const amount = parseMoney(fields.amount);
+  if (amount === null) return fail("Enter this month's amount.");
+  if (amount < 0) return fail("Amount can't be negative.");
+  if (amount > MONEY_MAX) return fail("Amount is too large.");
+
+  return { ok: true, error: null, values: { income_id, billing_month, amount: round2(amount) } };
 }
 
 export interface ExpenseValues {

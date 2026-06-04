@@ -29,14 +29,24 @@ export default async function PlannerPage() {
   const now = new Date();
   const billingMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
 
-  const [incomesRes, expensesRes, debtsRes, paymentsRes] = await Promise.all([
+  const [incomesRes, expensesRes, debtsRes, paymentsRes, overridesRes] = await Promise.all([
     supabase.from("incomes").select("*").is("archived_at", null),
     supabase.from("expenses").select("*").is("archived_at", null),
     supabase.from("debts").select("id, name, min_payment, due_day, next_due_date").is("archived_at", null),
     supabase.from("transactions").select("expense_id, debt_id").eq("kind", "payment").eq("billing_month", billingMonth),
+    // Variable-income actuals for this month (migration 0010). Degrades to no overrides if the
+    // table doesn't exist yet — Supabase returns {data:null} rather than throwing.
+    supabase.from("income_overrides").select("income_id, amount").eq("billing_month", billingMonth),
   ]);
 
+  const incomes = (incomesRes.data ?? []) as Income[];
   const expenses = (expensesRes.data ?? []) as Expense[];
+
+  // income_id → this month's actual amount.
+  const overrides: Record<string, number> = {};
+  for (const o of (overridesRes.data ?? []) as { income_id: string; amount: number }[]) {
+    overrides[o.income_id] = Number(o.amount);
+  }
   type DebtRow = { id: string; name: string; min_payment: number; due_day: number | null; next_due_date: string | null };
   const allDebts = (debtsRes.data ?? []) as DebtRow[];
 
@@ -46,8 +56,9 @@ export default async function PlannerPage() {
   const debts = allDebts.filter((d) => !linkedDebtIds.has(d.id));
 
   const plan = buildMonthlyPlan({
-    incomes: (incomesRes.data ?? []) as Income[],
+    incomes,
     expenses,
+    overrides,
     debts: debts.map<PlannerDebt>((d) => ({
       id: d.id,
       name: d.name,
@@ -55,6 +66,17 @@ export default async function PlannerPage() {
       due_day: dueDayOf(d.next_due_date, d.due_day),
     })),
   });
+
+  // Variable sources get an inline "set this month's actual" editor on the Budget page.
+  const variableIncomes = incomes
+    .filter((i) => i.is_variable)
+    .map((i) => ({
+      id: i.id,
+      source: i.source,
+      base: Number(i.amount),
+      cadence: i.cadence,
+      override: overrides[i.id] ?? null,
+    }));
 
   // Paid state: which items already have a payment in this billing month.
   const paidExpense = new Set<string>();
@@ -86,5 +108,7 @@ export default async function PlannerPage() {
     })),
   ].filter((b) => b.amount > 0);
 
-  return <PlannerView plan={plan} bills={bills} billingMonth={billingMonth} />;
+  return (
+    <PlannerView plan={plan} bills={bills} billingMonth={billingMonth} variableIncomes={variableIncomes} />
+  );
 }

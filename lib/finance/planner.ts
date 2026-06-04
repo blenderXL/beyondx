@@ -89,8 +89,10 @@ export function buildMonthlyPlan(inputs: {
   incomes: Income[];
   expenses: Expense[];
   debts: PlannerDebt[];
+  /** Per-month actual amounts (income_id → amount) for variable sources; cadence still applies. */
+  overrides?: Record<string, number>;
 }): MonthlyPlan {
-  const { incomes, expenses, debts } = inputs;
+  const { incomes, expenses, debts, overrides = {} } = inputs;
   const byCycle: Record<Cycle, CycleBreakdown> = {
     first: emptyCycle(),
     mid: emptyCycle(),
@@ -99,7 +101,11 @@ export function buildMonthlyPlan(inputs: {
 
   let income = 0;
   for (const inc of incomes) {
-    const m = monthlyAmount(inc.amount, inc.cadence);
+    // A variable source uses this month's override (if set) in place of its base amount; the
+    // cadence multiplier then applies as usual. Non-variable sources always use the base.
+    const override = overrides[inc.id];
+    const base = inc.is_variable && override != null ? override : inc.amount;
+    const m = monthlyAmount(base, inc.cadence);
     income = round2(income + m);
     byCycle[cycleForDay(inc.pay_day)].income = round2(byCycle[cycleForDay(inc.pay_day)].income + m);
   }
