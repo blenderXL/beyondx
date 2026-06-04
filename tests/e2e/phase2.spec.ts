@@ -60,7 +60,7 @@ test.describe("Phase 2 — ledger spine behind feature flags", () => {
     await expect(page.getByRole("link", { name: "Income" })).toHaveCount(0);
   });
 
-  test("income: flag ON → create with % tithe → edit → archive; server rejects a bad tithe", async ({ page }) => {
+  test("income: flag ON → create → edit → archive; server rejects a bad amount", async ({ page }) => {
     page.on("dialog", (d) => d.accept());
     await setFlag("income", true);
     await uiLogin(page);
@@ -79,14 +79,12 @@ test.describe("Phase 2 — ledger spine behind feature flags", () => {
     await page.getByLabel("Amount", { exact: true }).fill("3000");
     await page.getByLabel("Pay frequency").selectOption("semimonthly");
     await page.getByLabel("Pay day (1–31)").fill("15");
-    await page.getByLabel("Offering / tithe").selectOption("percent");
-    await page.getByLabel(/Offering value/).fill("10");
+    // Offerings/tithe moved to the Expenses page in Phase 3 — no tithe field on income now.
     await page.getByRole("button", { name: "Add income" }).click();
 
     const card = () => list.locator("li", { hasText: source });
     await expect(card()).toBeVisible();
     await expect(card()).toContainText("$3,000.00");
-    await expect(card()).toContainText("10% offering");
 
     // Edit the amount.
     await card().getByRole("button", { name: "Edit" }).click();
@@ -94,14 +92,12 @@ test.describe("Phase 2 — ledger spine behind feature flags", () => {
     await page.getByRole("button", { name: "Save income" }).click();
     await expect(card()).toContainText("$3,200.00");
 
-    // Server-side validation: a percent tithe over 100 is rejected.
+    // Server-side validation: a negative amount is rejected.
     await page.getByRole("button", { name: "New income" }).click();
     await page.getByLabel("Source").fill(uniqueName("e2e-bad"));
-    await page.getByLabel("Amount", { exact: true }).fill("100");
-    await page.getByLabel("Offering / tithe").selectOption("percent");
-    await page.getByLabel(/Offering value/).fill("150");
+    await page.getByLabel("Amount", { exact: true }).fill("-5");
     await page.getByRole("button", { name: "Add income" }).click();
-    await expect(page.getByText(/between 0 and 100/i)).toBeVisible();
+    await expect(page.getByText(/can't be negative/i)).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();
 
     // Archive removes it from the active list.
@@ -127,14 +123,14 @@ test.describe("Phase 2 — ledger spine behind feature flags", () => {
     await page.getByLabel("Group").selectOption("utility");
     await page.getByLabel("Payee").fill("Optimum");
     await page.getByLabel("Amount", { exact: true }).fill("115");
-    await page.getByLabel("Due day (1–31)").fill("5");
+    await page.getByLabel("Pay day (1–31)").fill("5"); // relabeled from "Due day" in the P3 form redesign
     await page.getByRole("button", { name: "Add expense" }).click();
 
     const card = () => list.locator("li", { hasText: name });
     await expect(card()).toBeVisible();
     await expect(card()).toContainText("$115.00");
     await expect(card()).toContainText("Optimum");
-    await expect(card()).toContainText(/due day 5/i);
+    await expect(card()).toContainText(/pay day 5/i);
 
     await card().getByRole("button", { name: "Archive" }).click();
     await expect(card()).toHaveCount(0);
@@ -156,7 +152,7 @@ test.describe("Phase 2 — ledger spine behind feature flags", () => {
     await page.getByRole("button", { name: "New pot" }).click();
     await page.getByLabel("Name", { exact: true }).fill(name);
     await page.getByLabel("Current amount").fill("1380");
-    await page.getByLabel("Target (optional)").fill("5000");
+    await page.getByLabel("Target", { exact: true }).fill("5000"); // input's aria-label is "Target"
     await page.getByRole("button", { name: "Add pot" }).click();
 
     const card = () => list.locator("li", { hasText: name });

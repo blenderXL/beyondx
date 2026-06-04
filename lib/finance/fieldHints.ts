@@ -42,6 +42,7 @@ export const SAVINGS_HINTS = {
   name: "A label for this savings pot (e.g. Purge, Emergency fund).",
   current_amount: "How much is in the pot right now.",
   target_amount: "An optional goal — the bar shows progress toward it.",
+  type: "What kind of account this is (e.g. Roth IRA, HSA, Emergency).",
 } as const;
 
 export const PLAN_HINTS = {

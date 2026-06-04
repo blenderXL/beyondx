@@ -10,11 +10,13 @@ import {
   EXPENSE_CADENCES,
   EXPENSE_GROUPS,
   INCOME_CADENCES,
+  SAVINGS_TYPES,
   TITHE_MODES,
   type DebtType,
   type ExpenseCadence,
   type ExpenseGroup,
   type IncomeCadence,
+  type SavingsType,
   type TitheMode,
   type TransactionKind,
 } from "@/lib/finance/types";
@@ -450,6 +452,7 @@ export interface SavingsGoalValues {
   name: string;
   target_amount: number | null;
   current_amount: number;
+  type: SavingsType;
 }
 
 export function validateSavingsGoalInput(fields: RawFields): ValidationResult<SavingsGoalValues> {
@@ -465,9 +468,48 @@ export function validateSavingsGoalInput(fields: RawFields): ValidationResult<Sa
   const current = optionalMoney(fields.current_amount, "Current amount");
   if (current.error) return fail(current.error);
 
+  // Type — defaults to "general" when blank. The action omits a "general" type from the
+  // write payload so pots still save before migration 0012 lands (only typed pots need it).
+  const typeRaw = str(fields.type);
+  let type: SavingsType = "general";
+  if (typeRaw !== "") {
+    if (!SAVINGS_TYPES.includes(typeRaw as SavingsType)) return fail("Choose a valid savings type.");
+    type = typeRaw as SavingsType;
+  }
+
   return {
     ok: true,
     error: null,
-    values: { name, target_amount: target.value, current_amount: current.value ?? 0 },
+    values: { name, target_amount: target.value, current_amount: current.value ?? 0, type },
   };
+}
+
+export interface ContributionValues {
+  savings_goal_id: string;
+  amount: number;
+  occurred_on: string | null;
+}
+
+/** A deposit into a savings pot (recorded as a `contribution` transaction). */
+export function validateContributionInput(fields: RawFields): ValidationResult<ContributionValues> {
+  const fail = (error: string): ValidationResult<ContributionValues> => ({ ok: false, error, values: null });
+
+  const savings_goal_id = str(fields.savings_goal_id);
+  if (!UUID.test(savings_goal_id)) return fail("Choose a valid savings pot.");
+
+  const amount = parseMoney(fields.amount);
+  if (amount === null) return fail("Enter a contribution amount.");
+  if (amount <= 0) return fail("Amount must be greater than zero.");
+  if (amount > MONEY_MAX) return fail("Amount is too large.");
+
+  let occurred_on: string | null = null;
+  {
+    const s = str(fields.occurred_on);
+    if (s !== "") {
+      if (!ISO_DATE.test(s) || Number.isNaN(Date.parse(s))) return fail("Date is invalid.");
+      occurred_on = s;
+    }
+  }
+
+  return { ok: true, error: null, values: { savings_goal_id, amount: round2(amount), occurred_on } };
 }

@@ -311,12 +311,44 @@ export interface Expense {
   updated_at: string;
 }
 
+/** Kind of savings pot. A null/absent type is treated as "general". */
+export type SavingsType =
+  | "general"
+  | "emergency"
+  | "roth_ira"
+  | "hsa"
+  | "brokerage"
+  | "apple_cash"
+  | "christmas_club";
+
+export const SAVINGS_TYPES: readonly SavingsType[] = [
+  "general",
+  "emergency",
+  "roth_ira",
+  "hsa",
+  "brokerage",
+  "apple_cash",
+  "christmas_club",
+] as const;
+
+export const SAVINGS_TYPE_LABELS: Record<SavingsType, string> = {
+  general: "General",
+  emergency: "Emergency",
+  roth_ira: "Roth IRA",
+  hsa: "HSA",
+  brokerage: "Brokerage",
+  apple_cash: "Apple Cash",
+  christmas_club: "Christmas Club",
+};
+
 export interface SavingsGoal {
   id: string;
   profile_id: string;
   name: string;
   target_amount: number | null;
   current_amount: number;
+  /** Kind of pot (migration 0012); null is treated as "general". */
+  type: SavingsType | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;

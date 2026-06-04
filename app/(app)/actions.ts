@@ -8,6 +8,7 @@ import {
   validateIncomeInput,
   validateIncomeOverrideInput,
   validateSavingsGoalInput,
+  validateContributionInput,
   validateTransactionInput,
   parseMoney,
   round2,
@@ -354,18 +355,77 @@ export async function archiveExpense(_p: FinanceActionState, formData: FormData)
 }
 
 // Savings pots
+/**
+ * `type` only matters once migration 0012 lands; omitting it for "general" pots (the default)
+ * keeps writes working before then — only typed pots depend on the column.
+ */
+function savingsPayload(values: import("@/lib/finance/validation").SavingsGoalValues): Record<string, unknown> {
+  const payload = { ...values } as Record<string, unknown>;
+  if (values.type === "general") delete payload.type;
+  return payload;
+}
+
 export async function createSavingsGoal(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const r = validateSavingsGoalInput(Object.fromEntries(formData));
   if (!r.ok || !r.values) return { error: r.error };
-  return insertOwned("savings_goals", SAVINGS_PATH, r.values as unknown as Record<string, unknown>);
+  return insertOwned("savings_goals", SAVINGS_PATH, savingsPayload(r.values));
 }
 export async function updateSavingsGoal(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const r = validateSavingsGoalInput(Object.fromEntries(formData));
   if (!r.ok || !r.values) return { error: r.error };
-  return updateOwned("savings_goals", SAVINGS_PATH, idOf(formData), r.values as unknown as Record<string, unknown>);
+  return updateOwned("savings_goals", SAVINGS_PATH, idOf(formData), savingsPayload(r.values));
 }
 export async function archiveSavingsGoal(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   return archiveOwned("savings_goals", SAVINGS_PATH, idOf(formData));
+}
+
+/**
+ * Record a deposit into a savings pot: a `contribution` transaction (tagged with
+ * `savings_goal_id`) plus a read-modify-write bump of `savings_goals.current_amount` — same
+ * shape as `adjustDebtBalance`. The pot is server-read (RLS-scoped) so the client can't move a
+ * balance it doesn't own. Not atomic under true concurrency — fine for single-user manual entry.
+ */
+export async function addContribution(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return SIGNED_OUT;
+
+  const r = validateContributionInput(Object.fromEntries(formData));
+  if (!r.ok || !r.values) return { error: r.error };
+  const { savings_goal_id, amount, occurred_on } = r.values;
+
+  const { data: goal, error: readErr } = await supabase
+    .from("savings_goals")
+    .select("current_amount")
+    .eq("id", savings_goal_id)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (readErr) return dbFailure(readErr, "addContribution.read", "Couldn't load the pot. Please try again.");
+  if (!goal) return { error: "That savings pot isn't available." };
+
+  const { error: insertErr } = await supabase.from("transactions").insert({
+    profile_id: userId,
+    savings_goal_id,
+    kind: "contribution",
+    amount,
+    ...(occurred_on ? { occurred_on } : {}),
+  });
+  if (insertErr) return dbFailure(insertErr, "addContribution.insert", "Couldn't record the contribution. Please try again.");
+
+  const newAmount = round2(Number(goal.current_amount) + amount);
+  const { error: bumpErr } = await supabase
+    .from("savings_goals")
+    .update({ current_amount: newAmount })
+    .eq("id", savings_goal_id);
+  if (bumpErr) {
+    return dbFailure(
+      bumpErr,
+      "addContribution.bump",
+      "Recorded the contribution, but the pot total didn't update. Refresh and check.",
+    );
+  }
+
+  revalidatePath(SAVINGS_PATH);
+  return { error: null, ok: true };
 }
 
 const PLANNER_PATH = "/app/planner";
