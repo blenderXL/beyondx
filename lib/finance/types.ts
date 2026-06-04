@@ -69,6 +69,44 @@ export function cardExtrasApply(type: DebtType): boolean {
   return type === "credit_card";
 }
 
+/** Higher-level groupings of debt types for the category view + category breakdown. */
+export type DebtBucket = "credit_cards" | "mortgage" | "auto" | "loans" | "other";
+
+export const DEBT_BUCKETS: readonly DebtBucket[] = [
+  "credit_cards",
+  "mortgage",
+  "auto",
+  "loans",
+  "other",
+] as const;
+
+export const DEBT_BUCKET_LABELS: Record<DebtBucket, string> = {
+  credit_cards: "Credit cards",
+  mortgage: "Mortgage & home",
+  auto: "Auto",
+  loans: "Loans",
+  other: "Other",
+};
+
+const TYPE_TO_BUCKET: Record<DebtType, DebtBucket> = {
+  credit_card: "credit_cards",
+  mortgage: "mortgage",
+  home_equity: "mortgage",
+  auto: "auto",
+  personal_loan: "loans",
+  student: "loans",
+  loan_401k: "loans",
+  loan: "loans",
+  medical: "other",
+  savings_club: "other",
+  other: "other",
+};
+
+/** The higher-level bucket a debt type rolls up into. */
+export function typeBucket(type: DebtType): DebtBucket {
+  return TYPE_TO_BUCKET[type];
+}
+
 /** Charges raise a debt's balance; payments lower it. `contribution` is reserved for Phase 2 savings. */
 export type TransactionKind = "charge" | "payment" | "contribution";
 
