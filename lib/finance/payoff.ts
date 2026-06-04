@@ -24,11 +24,20 @@ export interface PayoffDebtInput {
   type?: DebtType;
 }
 
+/** Per-debt detail for one month of the schedule (for the amortization table / CSV). */
+export interface PayoffDebtMonth {
+  payment: number;
+  balance: number;
+  interest: number;
+}
+
 export interface PayoffMonth {
   month: number;
   totalBalance: number;
   totalInterest: number;
   totalPaid: number;
+  /** Keyed by debt id — every debt appears each month (paid-off debts read 0/0/balance≈0). */
+  byDebt: Record<string, PayoffDebtMonth>;
 }
 
 export interface PayoffResult {
@@ -96,10 +105,12 @@ export function computePayoff(
 
     // 1. Accrue interest.
     let interestThisMonth = 0;
+    const interestByDebt = new Map<string, number>();
     for (const s of active) {
       const interest = round2((s.balance * s.apr) / 100 / 12);
       s.balance = round2(s.balance + interest);
       interestThisMonth = round2(interestThisMonth + interest);
+      interestByDebt.set(s.id, interest);
     }
 
     // 2. Minimum payments (capped at the balance). Infeasible if the budget can't cover them.
@@ -117,22 +128,32 @@ export function computePayoff(
 
     // 3. Extra cascades into the target debts by method order.
     let extra = round2(monthlyBudget - sumMin);
+    const extraByDebt = new Map<string, number>();
     for (const s of orderDebts(active, method)) {
       if (extra <= ACTIVE) break;
       if (s.balance <= ACTIVE) continue;
       const pay = Math.min(extra, s.balance);
       s.balance = round2(s.balance - pay);
       extra = round2(extra - pay);
+      extraByDebt.set(s.id, round2((extraByDebt.get(s.id) ?? 0) + pay));
     }
 
-    // 4. Record payoffs + the month's totals.
+    // 4. Record payoffs, per-debt rows, and the month's totals.
     for (const s of active) {
       if (s.balance <= ACTIVE && perDebtPayoffMonth[s.id] === undefined) perDebtPayoffMonth[s.id] = month;
+    }
+    const byDebt: Record<string, PayoffDebtMonth> = {};
+    for (const s of sims) {
+      byDebt[s.id] = {
+        payment: round2((minDue.get(s.id) ?? 0) + (extraByDebt.get(s.id) ?? 0)),
+        balance: round2(Math.max(0, s.balance)),
+        interest: interestByDebt.get(s.id) ?? 0,
+      };
     }
     const totalBalance = round2(sims.reduce((sum, s) => sum + Math.max(0, s.balance), 0));
     const totalPaid = round2(monthlyBudget - extra);
     totalInterest = round2(totalInterest + interestThisMonth);
-    schedule.push({ month, totalBalance, totalInterest: interestThisMonth, totalPaid });
+    schedule.push({ month, totalBalance, totalInterest: interestThisMonth, totalPaid, byDebt });
 
     if (totalBalance <= ACTIVE) break;
     // No meaningful progress → the budget only services interest. Infeasible.
