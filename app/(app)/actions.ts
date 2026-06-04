@@ -266,19 +266,30 @@ async function assertLinkedDebtOwned(debtId: string | null): Promise<FinanceActi
   return null;
 }
 
+/**
+ * `pct_of_income` only matters for the "offering" group (migration 0009). Omitting it for
+ * every other expense keeps inserts/updates working even before that migration reaches the
+ * DB — only the new offering feature depends on the column.
+ */
+function expensePayload(values: import("@/lib/finance/validation").ExpenseValues): Record<string, unknown> {
+  const payload = { ...values } as Record<string, unknown>;
+  if (values.expense_group !== "offering") delete payload.pct_of_income;
+  return payload;
+}
+
 export async function createExpense(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const r = validateExpenseInput(Object.fromEntries(formData));
   if (!r.ok || !r.values) return { error: r.error };
   const linkError = await assertLinkedDebtOwned(r.values.debt_id);
   if (linkError) return linkError;
-  return insertOwned("expenses", EXPENSES_PATH, r.values as unknown as Record<string, unknown>);
+  return insertOwned("expenses", EXPENSES_PATH, expensePayload(r.values));
 }
 export async function updateExpense(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const r = validateExpenseInput(Object.fromEntries(formData));
   if (!r.ok || !r.values) return { error: r.error };
   const linkError = await assertLinkedDebtOwned(r.values.debt_id);
   if (linkError) return linkError;
-  return updateOwned("expenses", EXPENSES_PATH, idOf(formData), r.values as unknown as Record<string, unknown>);
+  return updateOwned("expenses", EXPENSES_PATH, idOf(formData), expensePayload(r.values));
 }
 export async function archiveExpense(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   return archiveOwned("expenses", EXPENSES_PATH, idOf(formData));

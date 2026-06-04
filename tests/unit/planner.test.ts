@@ -30,6 +30,7 @@ const expense = (over: Partial<Expense> & { category: string; amount: number }):
   payee: null,
   due_day: null,
   debt_id: null,
+  pct_of_income: null,
   archived_at: null,
   created_at: "",
   updated_at: "",
@@ -73,12 +74,14 @@ describe("cycleForDay", () => {
 
 describe("buildMonthlyPlan", () => {
   const incomes: Income[] = [
-    income({ source: "Pay1", amount: 3000, pay_day: 1, tithe_mode: "percent", tithe_value: 10 }),
-    income({ source: "Pay2", amount: 3000, pay_day: 15, tithe_mode: "percent", tithe_value: 10 }),
+    income({ source: "Pay1", amount: 3000, pay_day: 1 }),
+    income({ source: "Pay2", amount: 3000, pay_day: 15 }),
   ];
+  // Offerings are now an expense group: 10% of $6,000 monthly income = $600.
   const expenses: Expense[] = [
     expense({ category: "Internet", amount: 115, due_day: 5, expense_group: "utility" }),
     expense({ category: "HOA", amount: 66, due_day: 20, expense_group: "insurance" }),
+    expense({ category: "Tithe", amount: 0, due_day: 1, expense_group: "offering", pct_of_income: 10 }),
   ];
   const debts: PlannerDebt[] = [{ id: "d1", name: "Tesla", min_payment: 200, due_day: 10 }];
 
@@ -106,5 +109,18 @@ describe("buildMonthlyPlan", () => {
     expect(plan.byCycle.first.expenses).toBe(115); // Internet day 5
     expect(plan.byCycle.mid.expenses).toBe(66); // HOA day 20
     expect(plan.byCycle.first.minimums).toBe(200); // Tesla day 10
+  });
+
+  it("counts an offering expense exactly once (no income-tithe double-count)", () => {
+    // Income still carries a percent tithe (legacy field) AND there's a 10% offering expense.
+    // Only the expense counts — offerings must be 10% of 4000 = 400, not 800.
+    const p = buildMonthlyPlan({
+      incomes: [income({ source: "P", amount: 4000, pay_day: 1, tithe_mode: "percent", tithe_value: 10 })],
+      expenses: [expense({ category: "Offering", amount: 0, due_day: 1, expense_group: "offering", pct_of_income: 10 })],
+      debts: [],
+    });
+    expect(p.offerings).toBe(400);
+    expect(p.byGroup.filter((g) => g.group === "Offerings")).toHaveLength(1);
+    expect(p.leftover).toBe(4000 - 400);
   });
 });

@@ -122,12 +122,14 @@ test("bridge: paying a linked expense draws down the debt; un-checking restores 
   await page.getByRole("button", { name: "Add debt" }).click();
   await expect(page.getByRole("list", { name: "Debts" }).locator("li", { hasText: debtName })).toBeVisible();
 
-  // Expense: $200, linked to the debt.
+  // Expense: $200, linked to the debt (redesigned form — choose "Pay toward a debt" first,
+  // pick the debt to prefill, then override the name + amount).
   await page.goto("/app/expenses");
   await page.getByRole("button", { name: "New expense" }).click();
+  await page.getByRole("button", { name: "Pay toward a debt" }).click();
+  await page.getByLabel("Which debt").selectOption({ label: debtName });
   await page.getByLabel("Name").fill(expName);
   await page.getByLabel("Amount").fill("200");
-  await page.getByLabel("Pay toward debt").selectOption({ label: debtName });
   await page.getByLabel("Pay day (1–31)").fill("10");
   await page.getByRole("button", { name: "Add expense" }).click();
   await expect(page.getByRole("list", { name: "Expenses" }).locator("li", { hasText: expName })).toBeVisible();

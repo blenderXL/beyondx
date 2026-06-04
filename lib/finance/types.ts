@@ -232,6 +232,7 @@ export type ExpenseGroup =
   | "healthcare"
   | "subscription"
   | "loan"
+  | "offering"
   | "personal"
   | "other";
 
@@ -245,6 +246,7 @@ export const EXPENSE_GROUPS: readonly ExpenseGroup[] = [
   "healthcare",
   "subscription",
   "loan",
+  "offering",
   "personal",
   "other",
 ] as const;
@@ -259,6 +261,7 @@ export const EXPENSE_GROUP_LABELS: Record<ExpenseGroup, string> = {
   healthcare: "Healthcare",
   subscription: "Subscription",
   loan: "Loan",
+  offering: "Offering",
   personal: "Personal",
   other: "Other",
 };
@@ -274,6 +277,8 @@ export interface Expense {
   due_day: number | null;
   /** Optional link to a debt — paying this expense (in the Budget) draws down that debt. */
   debt_id: string | null;
+  /** For an "offering" expense: a percent (0–100) of total monthly income instead of a fixed amount. */
+  pct_of_income: number | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
