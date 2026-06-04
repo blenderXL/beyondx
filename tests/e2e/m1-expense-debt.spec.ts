@@ -138,15 +138,21 @@ test("bridge: paying a linked expense draws down the debt; un-checking restores 
   await expect(bills).toContainText(expName);
   await expect(bills).not.toContainText(debtName);
 
-  // Mark the linked expense paid → debt balance drops by $200 → $800.
-  await bills.locator("li", { hasText: expName }).getByRole("checkbox").check();
+  // Mark the linked expense paid → wait for the server to reflect it (paid rows get a
+  // line-through) so the togglePaid action has committed before we read the balance.
+  const expRow = bills.locator("li", { hasText: expName });
+  await expRow.getByRole("checkbox").check();
+  await expect(expRow.locator(".line-through")).toBeVisible();
+
+  // Debt balance drops by $200 → $800.
   await page.goto("/app/debts");
   const card = page.getByRole("list", { name: "Debts" }).locator("li", { hasText: debtName });
   await expect(card.getByText("$800.00")).toBeVisible();
 
   // Un-check → balance restored to $1,000.
   await page.goto("/app/planner");
-  await bills.locator("li", { hasText: expName }).getByRole("checkbox").uncheck();
+  await expRow.getByRole("checkbox").uncheck();
+  await expect(expRow.locator(".line-through")).toHaveCount(0);
   await page.goto("/app/debts");
   await expect(card.getByText("$1,000.00")).toBeVisible();
 });
