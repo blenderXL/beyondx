@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Download } from "lucide-react";
 import { StatCard } from "@/components/layout/StatCard";
 import { computePayoff, orderDebts, type PayoffDebtInput, type PayoffMethod } from "@/lib/finance/payoff";
+import { buildAmortizationCsv } from "@/lib/finance/amortizationCsv";
 import { formatUsd, formatPercent } from "@/lib/finance/derive";
-import { inputClass, labelClass } from "@/components/finance/formStyles";
+import { inputClass, labelClass, ghostButtonClass } from "@/components/finance/formStyles";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { FieldHint } from "@/components/finance/FieldHint";
 import { PLAN_HINTS } from "@/lib/finance/fieldHints";
@@ -28,6 +30,13 @@ function monthsToLabel(months: number): string {
   const rem = months % 12;
   const human = yrs > 0 ? `${yrs}y ${rem}m` : `${rem}m`;
   return `${human} · ${date}`;
+}
+
+/** Calendar label for schedule month index N (1 = the current month). */
+function monthLabel(index: number): string {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + (index - 1), 1);
+  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
 export function PlansClient({ debts }: { debts: PayoffDebtInput[] }) {
@@ -68,6 +77,23 @@ export function PlansClient({ debts }: { debts: PayoffDebtInput[] }) {
 
   const result = useMemo(() => computePayoff(debts, budget, method), [debts, budget, method]);
   const ordered = useMemo(() => orderDebts(debts, method), [debts, method]);
+  const monthLabels = useMemo(() => result.schedule.map((m) => monthLabel(m.month)), [result.schedule]);
+
+  function downloadCsv() {
+    const csv = buildAmortizationCsv(
+      debts.map((d) => ({ id: d.id, name: d.name })),
+      result.schedule,
+      monthLabels,
+    );
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `payoff-${method}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 
   if (debts.length === 0) {
     return (
@@ -178,6 +204,58 @@ export function PlansClient({ debts }: { debts: PayoffDebtInput[] }) {
           })}
         </ul>
       </section>
+
+      {result.feasible && result.schedule.length > 0 ? (
+        <section className="mt-8">
+          <div className="flex items-end justify-between gap-4">
+            <p className={labelClass}>// month-by-month</p>
+            <button type="button" onClick={downloadCsv} className={ghostButtonClass} aria-label="Export CSV">
+              <Download className="mr-2 size-3.5" aria-hidden />
+              Export CSV
+            </button>
+          </div>
+          <div className="mt-3 max-h-[28rem] overflow-auto rounded-[var(--radius-card)] border border-[var(--color-border-subtle)]">
+            <table aria-label="Month-by-month payoff schedule" className="w-full border-collapse font-mono text-[11px]">
+              <thead className="sticky top-0 z-10 bg-[var(--color-elevated)] text-[var(--color-text-muted)]">
+                <tr>
+                  <th scope="col" className="px-3 py-2 text-left font-normal">Month</th>
+                  {debts.map((d) => (
+                    <th key={d.id} scope="col" className="whitespace-nowrap px-3 py-2 text-right font-normal">
+                      {d.name}
+                    </th>
+                  ))}
+                  <th scope="col" className="px-3 py-2 text-right font-normal">Interest</th>
+                  <th scope="col" className="px-3 py-2 text-right font-normal">Balance</th>
+                  <th scope="col" className="px-3 py-2 text-right font-normal">Total paid</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.schedule.map((m, i) => (
+                  <tr key={m.month} className="border-t border-[var(--color-border-subtle)]">
+                    <td className="whitespace-nowrap px-3 py-1.5 text-left text-[var(--color-text-secondary)]">
+                      {monthLabels[i]}
+                    </td>
+                    {debts.map((d) => (
+                      <td key={d.id} className="px-3 py-1.5 text-right tabular-nums text-[var(--color-text-secondary)]">
+                        {formatUsd(m.byDebt[d.id]?.payment ?? 0)}
+                      </td>
+                    ))}
+                    <td className="px-3 py-1.5 text-right tabular-nums text-[var(--color-text-secondary)]">
+                      {formatUsd(m.totalInterest)}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-[var(--color-text-primary)]">
+                      {formatUsd(m.totalBalance)}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-[var(--color-text-secondary)]">
+                      {formatUsd(m.totalPaid)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

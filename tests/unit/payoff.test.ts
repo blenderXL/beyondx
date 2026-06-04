@@ -73,6 +73,24 @@ describe("computePayoff", () => {
     expect(snow.feasible).toBe(true);
   });
 
+  it("emits per-debt monthly rows (payment, balance, interest)", () => {
+    const r = computePayoff([d({ id: "A", balance: 1000, apr: 0, min_payment: 0 })], 500, "snowball");
+    expect(r.schedule[0]!.byDebt.A).toEqual({ payment: 500, balance: 500, interest: 0 });
+    expect(r.schedule[1]!.byDebt.A).toEqual({ payment: 500, balance: 0, interest: 0 });
+  });
+
+  it("splits minimums + cascaded extra across debts per month", () => {
+    // A (300, min 50) is the snowball target; B (700, min 50). Budget 200 → 100 minimums +
+    // 100 extra, all extra to A. Month 1: A pays 150 → 150 left; B pays 50 → 650 left.
+    const debts = [
+      d({ id: "A", balance: 300, apr: 0, min_payment: 50 }),
+      d({ id: "B", balance: 700, apr: 0, min_payment: 50 }),
+    ];
+    const r = computePayoff(debts, 200, "snowball");
+    expect(r.schedule[0]!.byDebt.A).toMatchObject({ payment: 150, balance: 150 });
+    expect(r.schedule[0]!.byDebt.B).toMatchObject({ payment: 50, balance: 650 });
+  });
+
   it("rolls freed minimums forward (fixed-budget snowball) — total ≥ sum of balances", () => {
     const debts = [
       d({ id: "A", balance: 300, apr: 0, min_payment: 50 }),
