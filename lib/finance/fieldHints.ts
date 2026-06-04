@@ -13,6 +13,9 @@ export const DEBT_HINTS = {
   next_due_date: "When the next payment is due.",
   issuer: "The bank or lender (e.g. Chase, Capital One).",
   promo: "A temporary intro rate. Turn this on to enter the promo rate, its end date, and whether interest is deferred.",
+  start_details: "Optional: record the loan's original amount and when it started, for richer payoff context.",
+  original_balance: "The amount you originally borrowed. Used as the baseline for your \"% paid off\" progress.",
+  start_date: "When the loan or account began.",
 } as const;
 
 export const EXPENSE_HINTS = {

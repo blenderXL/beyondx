@@ -67,6 +67,10 @@ export interface DebtValues {
   min_payment: number;
   next_due_date: string | null;
   credit_limit: number | null;
+  /** User-editable starting baseline for "% paid off" (defaults to `balance` on create). */
+  original_balance: number | null;
+  /** Optional loan/account start date (installment debts). */
+  start_date: string | null;
   issuer: string | null;
   promo_apr: number | null;
   promo_until: string | null;
@@ -160,6 +164,20 @@ export function validateDebtInput(
   const creditLimit = optionalMoney(fields.credit_limit, "Credit limit");
   if (creditLimit.error) return fail(creditLimit.error);
 
+  // Original balance — optional, user-editable. createDebt defaults it to `balance` when blank.
+  const originalBalance = optionalMoney(fields.original_balance, "Starting balance");
+  if (originalBalance.error) return fail(originalBalance.error);
+
+  // Start date — optional ISO date (installment debts).
+  let start_date: string | null = null;
+  {
+    const s = str(fields.start_date);
+    if (s !== "") {
+      if (!ISO_DATE.test(s) || Number.isNaN(Date.parse(s))) return fail("Start date is invalid.");
+      start_date = s;
+    }
+  }
+
   const issuer = str(fields.issuer) || null;
   if (issuer && issuer.length > 120) return fail("Issuer is too long (max 120 characters).");
 
@@ -203,6 +221,8 @@ export function validateDebtInput(
       min_payment: minP.value ?? 0,
       next_due_date,
       credit_limit: creditLimit.value,
+      original_balance: originalBalance.value,
+      start_date,
       issuer,
       promo_apr,
       promo_until,

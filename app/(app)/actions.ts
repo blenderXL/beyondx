@@ -48,6 +48,19 @@ function dbFailure(error: unknown, action: string, message: string): FinanceActi
   return { error: message };
 }
 
+/**
+ * `start_date` only matters once migration 0011 lands; omitting it when blank keeps debt
+ * writes working before then. `original_balance` is omitted when blank so editing a debt
+ * (without touching the optional starting-balance field) never wipes its baseline — create
+ * supplies the default explicitly.
+ */
+function debtPayload(values: import("@/lib/finance/validation").DebtValues): Record<string, unknown> {
+  const payload = { ...values } as Record<string, unknown>;
+  if (values.original_balance === null) delete payload.original_balance;
+  if (values.start_date === null) delete payload.start_date;
+  return payload;
+}
+
 export async function createDebt(
   _prev: FinanceActionState,
   formData: FormData,
@@ -58,11 +71,11 @@ export async function createDebt(
   const result = validateDebtInput(Object.fromEntries(formData));
   if (!result.ok || !result.values) return { error: result.error };
 
-  // Capture the starting balance as the baseline for "% paid off" — the user only
-  // ever types current balance; the baseline stays fixed as they pay it down.
-  const { error } = await supabase
-    .from("debts")
-    .insert({ profile_id: userId, ...result.values, original_balance: result.values.balance });
+  // Baseline for "% paid off": use the user's starting balance if they set one, else the
+  // current balance. It stays fixed as they pay the debt down.
+  const payload = debtPayload(result.values);
+  payload.original_balance = result.values.original_balance ?? result.values.balance;
+  const { error } = await supabase.from("debts").insert({ profile_id: userId, ...payload });
   if (error) return dbFailure(error, "createDebt", "Couldn't save the debt. Please try again.");
 
   revalidatePath(DEBTS_PATH);
@@ -85,7 +98,7 @@ export async function updateDebt(
   // `.select()` lets us tell "updated nothing" (wrong id / not yours via RLS) from a real error.
   const { data, error } = await supabase
     .from("debts")
-    .update(result.values)
+    .update(debtPayload(result.values))
     .eq("id", id)
     .select("id");
   if (error) return dbFailure(error, "updateDebt", "Couldn't update the debt. Please try again.");
