@@ -69,6 +69,18 @@ export function cardExtrasApply(type: DebtType): boolean {
   return type === "credit_card";
 }
 
+/** Installment debts can carry an explicit starting balance + loan start date. */
+const TYPES_WITH_START_DETAILS: readonly DebtType[] = [
+  "mortgage",
+  "auto",
+  "home_equity",
+  "personal_loan",
+  "student",
+];
+export function startDetailsApply(type: DebtType): boolean {
+  return TYPES_WITH_START_DETAILS.includes(type);
+}
+
 /** Higher-level groupings of debt types for the category view + category breakdown. */
 export type DebtBucket = "credit_cards" | "mortgage" | "auto" | "loans" | "other";
 
@@ -126,6 +138,8 @@ export interface Debt {
   updated_at: string;
   credit_limit: number | null;
   original_balance: number | null;
+  /** Optional loan/account start date (installment debts) — migration 0011. */
+  start_date: string | null;
   issuer: string | null;
   promo_apr: number | null;
   promo_until: string | null;

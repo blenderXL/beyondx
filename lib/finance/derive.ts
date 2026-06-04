@@ -17,6 +17,18 @@ export function payoffProgress(balance: number, originalBalance: number | null):
   return Math.min(1, Math.max(0, paid));
 }
 
+/**
+ * A suggested monthly minimum for a revolving balance: roughly 1% of the balance plus that
+ * month's interest, floored at $25 (the common card-issuer formula). Shown as an editable
+ * hint — it never overwrites a typed value. APR is a percentage (e.g. 24.24).
+ */
+export function suggestedMinimum(balance: number, apr: number): number {
+  if (balance <= 0) return 0;
+  const monthlyInterest = (balance * (apr / 100)) / 12;
+  const raw = 0.01 * balance + monthlyInterest;
+  return Math.max(25, Math.round((raw + Number.EPSILON) * 100) / 100);
+}
+
 /** "$1,234.50" — single place for USD formatting across the finance UI. */
 export function formatUsd(value: number): string {
   return value.toLocaleString("en-US", { style: "currency", currency: "USD" });

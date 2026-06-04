@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { utilization, payoffProgress, formatUsd, formatPercent, formatDueDate } from "@/lib/finance/derive";
+import {
+  utilization,
+  payoffProgress,
+  suggestedMinimum,
+  formatUsd,
+  formatPercent,
+  formatDueDate,
+} from "@/lib/finance/derive";
 
 describe("utilization", () => {
   it("is balance over limit", () => {
@@ -21,6 +28,26 @@ describe("payoffProgress", () => {
   it("is null without an original balance", () => {
     expect(payoffProgress(50, null)).toBeNull();
     expect(payoffProgress(50, 0)).toBeNull();
+  });
+});
+
+describe("suggestedMinimum", () => {
+  it("is 1% of balance + this month's interest", () => {
+    // $5,000 @ 24% → 1%·5000 ($50) + interest (5000·0.24/12 = $100) = $150.
+    expect(suggestedMinimum(5000, 24)).toBe(150);
+    // $2,000 @ 0% → 1%·2000 ($20) floored to the $25 minimum.
+    expect(suggestedMinimum(2000, 0)).toBe(25);
+  });
+  it("never drops below $25", () => {
+    expect(suggestedMinimum(100, 20)).toBe(25);
+  });
+  it("is 0 for a zero/negative balance", () => {
+    expect(suggestedMinimum(0, 24)).toBe(0);
+    expect(suggestedMinimum(-10, 24)).toBe(0);
+  });
+  it("rounds to cents", () => {
+    // $1,234.56 @ 19.99% → 12.3456 + 20.563... = 32.908... → 32.91
+    expect(suggestedMinimum(1234.56, 19.99)).toBe(32.91);
   });
 });
 

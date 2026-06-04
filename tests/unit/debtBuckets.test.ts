@@ -18,6 +18,7 @@ const debt = (over: Partial<Debt> & { name: string; type: Debt["type"] }): Debt 
   updated_at: "",
   credit_limit: null,
   original_balance: null,
+  start_date: null,
   issuer: null,
   promo_apr: null,
   promo_until: null,

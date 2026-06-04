@@ -66,15 +66,15 @@ test("mark a source variable, set this month's actual, Budget total reflects it"
   await page.getByRole("button", { name: "Add income" }).click();
   await expect(page.getByRole("list", { name: "Income" }).locator("li", { hasText: SOURCE })).toBeVisible();
 
-  // Budget page: the variable source gets an inline "this month's actual" editor.
+  // Budget page: the variable source gets an inline "this month's actual" editor. Scope to
+  // THIS source's row — the shared test user may have other variable sources (parallel projects).
   await page.goto("/app/planner");
   const editor = page.getByRole("region", { name: "Variable income" });
-  await expect(editor).toContainText(SOURCE);
-  await expect(editor).toContainText(/using the base amount this month/i);
+  const row = editor.getByRole("listitem").filter({ hasText: SOURCE });
+  await expect(row).toContainText(/using the base amount this month/i);
 
   // Set this month's actual to $2,500 and confirm it sticks.
-  const actual = page.getByLabel(`This month's actual for ${SOURCE}`);
-  await actual.fill("2500");
-  await page.getByRole("button", { name: "Set" }).click();
-  await expect(editor).toContainText(/using \$2,500/i);
+  await row.getByLabel(`This month's actual for ${SOURCE}`).fill("2500");
+  await row.getByRole("button", { name: "Set" }).click();
+  await expect(row).toContainText(/using \$2,500/i);
 });

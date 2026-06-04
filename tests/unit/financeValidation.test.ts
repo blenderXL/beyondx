@@ -108,6 +108,18 @@ describe("validateDebtInput", () => {
     expect(validateDebtInput({ ...base, balance: "" }).error).toMatch(/current balance/i);
   });
 
+  it("accepts an optional editable original_balance (null when blank)", () => {
+    expect(validateDebtInput(base).values?.original_balance).toBeNull();
+    expect(validateDebtInput({ ...base, original_balance: "$1,500.00" }).values?.original_balance).toBe(1500);
+    expect(validateDebtInput({ ...base, original_balance: "-5" }).error).toMatch(/starting balance/i);
+  });
+
+  it("accepts an optional ISO start_date and rejects a malformed one", () => {
+    expect(validateDebtInput(base).values?.start_date).toBeNull();
+    expect(validateDebtInput({ ...base, start_date: "2024-01-15" }).values?.start_date).toBe("2024-01-15");
+    expect(validateDebtInput({ ...base, start_date: "Jan 2024" }).error).toMatch(/start date/i);
+  });
+
   it("rejects a negative balance", () => {
     expect(validateDebtInput({ ...base, balance: "-5" }).error).toMatch(/negative/i);
   });

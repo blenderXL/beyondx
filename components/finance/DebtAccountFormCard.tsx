@@ -7,9 +7,12 @@ import {
   creditLimitApplies,
   dueDateApplies,
   cardExtrasApply,
+  startDetailsApply,
   type Debt,
   type DebtType,
 } from "@/lib/finance/types";
+import { suggestedMinimum } from "@/lib/finance/derive";
+import { parseMoney } from "@/lib/finance/validation";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { DebtTypeSelect } from "@/components/finance/DebtTypeSelect";
 import { FieldHint } from "@/components/finance/FieldHint";
@@ -59,11 +62,14 @@ function CurrencyInput({
   ariaLabel,
   defaultValue,
   required,
+  onValue,
 }: {
   name: string;
   ariaLabel: string;
   defaultValue?: number | null;
   required?: boolean;
+  /** Called on blur with the parsed number (NaN when blank) — for derived hints. */
+  onValue?: (n: number) => void;
 }) {
   return (
     <input
@@ -77,6 +83,7 @@ function CurrencyInput({
       onBlur={(e) => {
         const n = Number(stripMoney(e.target.value));
         if (e.target.value.trim() !== "" && Number.isFinite(n)) e.target.value = formatCurrency(n);
+        onValue?.(Number(stripMoney(e.target.value)));
       }}
       placeholder="$0.00"
       className={inputClass}
@@ -104,11 +111,29 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
   const showCreditLimit = creditLimitApplies(type);
   const showDueDate = dueDateApplies(type);
   const showCardExtras = cardExtrasApply(type);
+  const showStartDetails = startDetailsApply(type);
   // Promo fields are gated behind an explicit toggle so an empty promo-end date doesn't
   // look like it needs filling. Default on when editing a debt that already has a promo.
   const [hasPromo, setHasPromo] = useState(
     Boolean(debt?.promo_apr || debt?.promo_until || debt?.deferred_interest),
   );
+  // Optional starting balance + loan date for installment debts (same gate pattern).
+  const [hasStartDetails, setHasStartDetails] = useState(Boolean(debt?.start_date));
+
+  // Suggested credit-card minimum (1% of balance + this month's interest, floored at $25),
+  // recomputed as the balance / APR fields blur. Shown as a hint that fills the empty min field.
+  const [balance, setBalance] = useState(debt?.balance ?? 0);
+  const [apr, setApr] = useState(debt?.apr ?? 0);
+  const suggestedMin = suggestedMinimum(balance, apr);
+
+  // Fill the minimum-payment field with the suggestion — but never overwrite a typed value.
+  const useSuggestedMin = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const form = e.currentTarget.closest("form");
+    const min = form?.elements.namedItem("min_payment");
+    if (min instanceof HTMLInputElement && min.value.trim() === "") {
+      min.value = formatCurrency(suggestedMin);
+    }
+  };
 
   return (
     <form
@@ -168,7 +193,13 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
             <Req />
             <FieldHint text={DEBT_HINTS.balance} label="current balance" />
           </span>
-          <CurrencyInput name="balance" ariaLabel="Current balance" defaultValue={debt?.balance} required />
+          <CurrencyInput
+            name="balance"
+            ariaLabel="Current balance"
+            defaultValue={debt?.balance}
+            required
+            onValue={(n) => setBalance(Number.isFinite(n) ? n : 0)}
+          />
           <Helper>We track current balance only — your first entry is saved as the starting baseline.</Helper>
         </label>
 
@@ -179,6 +210,18 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
             <FieldHint text={DEBT_HINTS.min_payment} label="minimum payment" />
           </span>
           <CurrencyInput name="min_payment" ariaLabel="Minimum payment" defaultValue={debt?.min_payment} required />
+          {showCardExtras && suggestedMin > 0 ? (
+            <Helper>
+              Suggested: {formatCurrency(suggestedMin)}/mo ·{" "}
+              <button
+                type="button"
+                onClick={useSuggestedMin}
+                className="underline decoration-dotted underline-offset-2 hover:text-[var(--color-text-secondary)]"
+              >
+                use suggested
+              </button>
+            </Helper>
+          ) : null}
         </label>
 
         <label className="block">
@@ -194,6 +237,7 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
             defaultValue={debt?.apr ?? ""}
             placeholder="0.000"
             className={inputClass}
+            onBlur={(e) => setApr(parseMoney(e.target.value) ?? 0)}
           />
           <Helper>Up to 3 decimals (e.g. 24.750).</Helper>
         </label>
@@ -298,6 +342,56 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
                     className="size-4 accent-[var(--color-accent-amber)]"
                   />
                   <span className={labelClass}>Deferred interest (e.g. promotional financing)</span>
+                </label>
+              </>
+            ) : null}
+          </>
+        ) : null}
+
+        {/* Installment debts: optional starting balance + loan start date, gated behind a
+            toggle (same pattern as promo). Default on when the debt already has a start date. */}
+        {showStartDetails ? (
+          <>
+            <label className="flex items-center gap-3 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={hasStartDetails}
+                onChange={(e) => setHasStartDetails(e.target.checked)}
+                aria-label="Set starting balance and loan date"
+                className="size-4 accent-[var(--color-accent-blue)]"
+              />
+              <span className={labelClass}>
+                Set starting balance / loan date?
+                <FieldHint text={DEBT_HINTS.start_details} label="starting balance and loan date" />
+              </span>
+            </label>
+
+            {hasStartDetails ? (
+              <>
+                <label className="block">
+                  <span className={labelClass}>
+                    Starting balance
+                    <FieldHint text={DEBT_HINTS.original_balance} label="starting balance" />
+                  </span>
+                  <CurrencyInput
+                    name="original_balance"
+                    ariaLabel="Starting balance"
+                    defaultValue={debt?.original_balance}
+                  />
+                  <Helper>The original loan amount — the baseline for &quot;% paid off&quot;.</Helper>
+                </label>
+                <label className="block">
+                  <span className={labelClass}>
+                    Loan start date
+                    <FieldHint text={DEBT_HINTS.start_date} label="loan start date" />
+                  </span>
+                  <input
+                    type="date"
+                    name="start_date"
+                    aria-label="Loan start date"
+                    defaultValue={debt?.start_date ?? ""}
+                    className={dateInputClass}
+                  />
                 </label>
               </>
             ) : null}
