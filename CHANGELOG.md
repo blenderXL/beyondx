@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.1.6](https://github.com/blenderXL/beyondx/compare/v0.1.5...v0.1.6) (2026-06-04)
+
+
+### Features
+
+* **debts:** category view, reverse sorts, type-dynamic metrics, category rail ([#26](https://github.com/blenderXL/beyondx/issues/26)) ([0eecfc9](https://github.com/blenderXL/beyondx/commit/0eecfc9e33c5f9e20270732bba5b8fcaecd7bca9))
+* **debts:** list controls — search, type filter, sort, card/list view ([#22](https://github.com/blenderXL/beyondx/issues/22)) ([a27fac5](https://github.com/blenderXL/beyondx/commit/a27fac5b4d856a4cc929187700c11d55d0448705))
+* **debts:** starting balance + loan date, suggested card minimum ([#30](https://github.com/blenderXL/beyondx/issues/30)) ([c9e5e7c](https://github.com/blenderXL/beyondx/commit/c9e5e7ca7fa80bcf59ab16edb7b7ddc715f59ff8))
+* **expenses:** form redesign, offerings-as-group, money-toward + subscriptions rail ([#27](https://github.com/blenderXL/beyondx/issues/27)) ([9e4114e](https://github.com/blenderXL/beyondx/commit/9e4114e0e9bb74cf15ae9fefeb8cb161d52425fd))
+* **finance:** expense⇄debt payment bridge, richer groups, promo gate, field info-icons ([#21](https://github.com/blenderXL/beyondx/issues/21)) ([23b9e5d](https://github.com/blenderXL/beyondx/commit/23b9e5dad0c7033fba2b5100b7a58386e3054884))
+* **income:** variable monthly income with per-month overrides ([#29](https://github.com/blenderXL/beyondx/issues/29)) ([0ee8607](https://github.com/blenderXL/beyondx/commit/0ee86073492e6e88f4f04fcb1bca1568c961319e))
+* **planner:** paid-toggle checkboxes for this month's bills ([3794daf](https://github.com/blenderXL/beyondx/commit/3794daf64e06af3c3e7372ff0aa9bf891e7fcd7f))
+* **planner:** paid-toggle checkboxes for this month's bills ([e4b57d1](https://github.com/blenderXL/beyondx/commit/e4b57d1f08638ac42cad7910ca5de53d448c6e54))
+* **plans:** month-by-month amortization table + CSV export ([#23](https://github.com/blenderXL/beyondx/issues/23)) ([f7615f6](https://github.com/blenderXL/beyondx/commit/f7615f6016e59f55f91391efc41c501254376858))
+* **savings:** pot types, contributions ledger, savings trajectory ([#31](https://github.com/blenderXL/beyondx/issues/31)) ([b3146ed](https://github.com/blenderXL/beyondx/commit/b3146ed2ed3ee540ef5d6a4e6e18b3cd428f785d))
+* **settings:** portfolio export/import + account deletion ([#24](https://github.com/blenderXL/beyondx/issues/24)) ([a21799b](https://github.com/blenderXL/beyondx/commit/a21799bb1a820ead6ca01fdbd643360134e0026a))
+* **shell:** responsive app shell — mobile drawer, hamburger, scroll fix ([#25](https://github.com/blenderXL/beyondx/issues/25)) ([1cd0eb9](https://github.com/blenderXL/beyondx/commit/1cd0eb93255e7b04514ad968bd382b86e65e8a55))
+* **telemetry:** PostHog product analytics with privacy-first replay ([#19](https://github.com/blenderXL/beyondx/issues/19)) ([bf25436](https://github.com/blenderXL/beyondx/commit/bf25436b51ae4b62e9bf83050ae8dace3feab9e4))
+* **telemetry:** Sentry error monitoring + telemetry seam ([#18](https://github.com/blenderXL/beyondx/issues/18)) ([95669a3](https://github.com/blenderXL/beyondx/commit/95669a36305d7905591ddf45ba478eeb2c3e5b8e))
+* **ux:** clearer nav names, %-tolerant rate input, persistent payoff selections ([#20](https://github.com/blenderXL/beyondx/issues/20)) ([2462d02](https://github.com/blenderXL/beyondx/commit/2462d02e7d5427df3591bf0d234d7f99701aafee))
+
+
+### Bug Fixes
+
+* **expenses:** default a new offering to percent-of-income ([#28](https://github.com/blenderXL/beyondx/issues/28)) ([22eee37](https://github.com/blenderXL/beyondx/commit/22eee3701d9fbe09d1757c1ad7a6ebfd533102c9))
+
+
+### Documentation
+
+* record mobile/feature overhaul phases 1–6 ([#32](https://github.com/blenderXL/beyondx/issues/32)) ([e353c00](https://github.com/blenderXL/beyondx/commit/e353c0066f4c9ac86334cfbb473785486a8a61cd))
+
 ## [0.1.5](https://github.com/blenderXL/beyondx/compare/v0.1.4...v0.1.5) (2026-06-02)
 
 
