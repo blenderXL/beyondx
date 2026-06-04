@@ -75,8 +75,10 @@ function ExpenseForm({
   const [category, setCategory] = useState(expense?.category ?? "");
   const [group, setGroup] = useState<string>(expense?.expense_group ?? "");
   const [amount, setAmount] = useState(expense?.amount != null ? String(expense.amount) : "");
+  // New offerings default to percent (tithe is usually a % of income); when editing, follow
+  // whatever the saved expense uses.
   const [offeringMode, setOfferingMode] = useState<"fixed" | "percent">(
-    expense?.pct_of_income != null ? "percent" : "fixed",
+    expense ? (expense.pct_of_income != null ? "percent" : "fixed") : "percent",
   );
   const [pct, setPct] = useState(expense?.pct_of_income != null ? String(expense.pct_of_income) : "");
 
