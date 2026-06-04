@@ -79,6 +79,79 @@ export function BarList({ items, ariaLabel }: { items: BarItem[]; ariaLabel: str
   );
 }
 
+export interface DonutSlice {
+  label: string;
+  value: number;
+  accentVar: string;
+}
+
+/**
+ * SVG donut of proportional slices. Segments are drawn as a single stroked ring using
+ * `stroke-dasharray` (segment length) + a cumulative negative `stroke-dashoffset`, rotated
+ * so the first slice starts at 12 o'clock. The center shows an optional total.
+ */
+export function DonutChart({
+  slices,
+  ariaLabel,
+  centerLabel,
+  centerValue,
+}: {
+  slices: DonutSlice[];
+  ariaLabel: string;
+  centerLabel?: string;
+  centerValue?: string;
+}) {
+  const total = slices.reduce((s, x) => s + Math.max(0, x.value), 0);
+  if (total <= 0) {
+    return <p className="font-mono text-[11px] text-[var(--color-text-muted)]">// nothing to show yet</p>;
+  }
+  const size = 132;
+  const stroke = 18;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  let offset = 0;
+
+  return (
+    <div className="relative mx-auto w-fit">
+      <svg viewBox={`0 0 ${size} ${size}`} className="size-36" role="img" aria-label={ariaLabel}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-elevated)" strokeWidth={stroke} />
+        <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+          {slices.map((s) => {
+            const dash = (Math.max(0, s.value) / total) * circ;
+            const seg = (
+              <circle
+                key={s.label}
+                cx={size / 2}
+                cy={size / 2}
+                r={r}
+                fill="none"
+                stroke={`var(${s.accentVar})`}
+                strokeWidth={stroke}
+                strokeDasharray={`${dash} ${circ - dash}`}
+                strokeDashoffset={-offset}
+              />
+            );
+            offset += dash;
+            return seg;
+          })}
+        </g>
+      </svg>
+      {centerValue ? (
+        <div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
+          {centerLabel ? (
+            <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+              {centerLabel}
+            </span>
+          ) : null}
+          <span className="font-sans text-sm font-medium tabular-nums text-[var(--color-text-primary)]">
+            {centerValue}
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 /** A simple utilization gauge (0–100%+). */
 export function UtilizationGauge({ pct }: { pct: number }) {
   const clamped = Math.min(1, Math.max(0, pct));

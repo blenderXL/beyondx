@@ -5,13 +5,25 @@
  */
 import type { Debt, DebtType } from "./types";
 
-export type DebtSort = "balance_desc" | "apr_desc" | "due_asc" | "name_asc";
+export type DebtSort =
+  | "balance_desc"
+  | "balance_asc"
+  | "apr_desc"
+  | "apr_asc"
+  | "due_asc"
+  | "due_desc"
+  | "name_asc"
+  | "name_desc";
 
 export const DEBT_SORTS: readonly { value: DebtSort; label: string }[] = [
   { value: "balance_desc", label: "Balance (high → low)" },
+  { value: "balance_asc", label: "Balance (low → high)" },
   { value: "apr_desc", label: "Interest (high → low)" },
+  { value: "apr_asc", label: "Interest (low → high)" },
   { value: "due_asc", label: "Due date (soonest)" },
+  { value: "due_desc", label: "Due date (latest)" },
   { value: "name_asc", label: "Name (A → Z)" },
+  { value: "name_desc", label: "Name (Z → A)" },
 ] as const;
 
 export interface DebtViewOptions {
@@ -43,14 +55,26 @@ export function filterAndSortDebts(debts: Debt[], opts: DebtViewOptions): Debt[]
     case "balance_desc":
       sorted.sort((a, b) => Number(b.balance) - Number(a.balance));
       break;
+    case "balance_asc":
+      sorted.sort((a, b) => Number(a.balance) - Number(b.balance));
+      break;
     case "apr_desc":
       sorted.sort((a, b) => Number(b.apr) - Number(a.apr));
+      break;
+    case "apr_asc":
+      sorted.sort((a, b) => Number(a.apr) - Number(b.apr));
       break;
     case "due_asc":
       sorted.sort((a, b) => dueKey(a).localeCompare(dueKey(b)));
       break;
+    case "due_desc":
+      sorted.sort((a, b) => dueKey(b).localeCompare(dueKey(a)));
+      break;
     case "name_asc":
       sorted.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+    case "name_desc":
+      sorted.sort((a, b) => b.name.localeCompare(a.name));
       break;
   }
   return sorted;

@@ -5,7 +5,14 @@
  */
 
 import { round2 } from "./validation";
-import { DEBT_TYPE_LABELS, type DebtType } from "./types";
+import {
+  DEBT_TYPE_LABELS,
+  DEBT_BUCKETS,
+  DEBT_BUCKET_LABELS,
+  typeBucket,
+  type DebtType,
+  type DebtBucket,
+} from "./types";
 
 export interface InsightDebt {
   type: DebtType;
@@ -32,6 +39,40 @@ export function debtDistribution(debts: InsightDebt[]): DistributionSlice[] {
   if (grand <= 0) return [];
   return [...totals.entries()]
     .map(([type, total]) => ({ type, label: DEBT_TYPE_LABELS[type], total, pct: total / grand }))
+    .sort((a, b) => b.total - a.total);
+}
+
+export interface BucketSlice {
+  bucket: DebtBucket;
+  label: string;
+  total: number;
+  pct: number; // fraction of the grand total
+  accentVar: string;
+}
+
+const BUCKET_ACCENT: Record<DebtBucket, string> = {
+  credit_cards: "--color-accent-blue",
+  mortgage: "--color-accent-emerald",
+  auto: "--color-accent-amber",
+  loans: "--color-accent-purple",
+  other: "--color-accent-pink",
+};
+
+/** Total balance grouped by higher-level debt bucket, descending, with each bucket's share. */
+export function bucketDistribution(debts: InsightDebt[]): BucketSlice[] {
+  const totals = new Map<DebtBucket, number>();
+  for (const d of debts) {
+    if (d.balance <= 0) continue;
+    const bucket = typeBucket(d.type);
+    totals.set(bucket, round2((totals.get(bucket) ?? 0) + d.balance));
+  }
+  const grand = [...totals.values()].reduce((s, v) => s + v, 0);
+  if (grand <= 0) return [];
+  return DEBT_BUCKETS.filter((b) => totals.has(b))
+    .map((bucket) => {
+      const total = totals.get(bucket)!;
+      return { bucket, label: DEBT_BUCKET_LABELS[bucket], total, pct: total / grand, accentVar: BUCKET_ACCENT[bucket] };
+    })
     .sort((a, b) => b.total - a.total);
 }
 
