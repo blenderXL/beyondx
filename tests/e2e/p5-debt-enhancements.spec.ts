@@ -78,10 +78,11 @@ test("installment debt: starting balance + loan date persist", async ({ page }) 
   await page.getByLabel("Minimum payment").fill("400");
   await page.getByLabel("Next due date").fill("2026-07-01");
 
-  // Reveal + fill the optional starting balance and loan date.
+  // Reveal + fill the optional starting balance and loan date. Exact labels — "Starting
+  // balance" is a substring of the toggle's own label, so an inexact match is ambiguous.
   await page.getByLabel("Set starting balance and loan date").check();
-  await page.getByLabel("Starting balance").fill("25000");
-  await page.getByLabel("Loan start date").fill("2024-01-15");
+  await page.getByLabel("Starting balance", { exact: true }).fill("25000");
+  await page.getByLabel("Loan start date", { exact: true }).fill("2024-01-15");
   await page.getByRole("button", { name: "Add debt" }).click();
 
   const card = page.getByRole("list", { name: "Debts" }).locator("li", { hasText: name });
@@ -89,6 +90,6 @@ test("installment debt: starting balance + loan date persist", async ({ page }) 
 
   // Re-open the editor: the toggle defaults on (start date present) and both fields prefill.
   await card.getByRole("button", { name: "Edit" }).click();
-  await expect(page.getByLabel("Loan start date")).toHaveValue("2024-01-15");
-  await expect(page.getByLabel("Starting balance")).toHaveValue("$25,000.00");
+  await expect(page.getByLabel("Loan start date", { exact: true })).toHaveValue("2024-01-15");
+  await expect(page.getByLabel("Starting balance", { exact: true })).toHaveValue("$25,000.00");
 });

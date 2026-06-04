@@ -4,6 +4,7 @@ import {
   validateExpenseInput,
   validateSavingsGoalInput,
   validateIncomeOverrideInput,
+  validateContributionInput,
 } from "@/lib/finance/validation";
 
 describe("validateIncomeInput", () => {
@@ -153,5 +154,32 @@ describe("validateSavingsGoalInput", () => {
 
   it("rejects negative amounts", () => {
     expect(validateSavingsGoalInput({ name: "X", current_amount: "-1" }).ok).toBe(false);
+  });
+
+  it("defaults type to general and accepts a valid type", () => {
+    expect(validateSavingsGoalInput({ name: "X" }).values?.type).toBe("general");
+    expect(validateSavingsGoalInput({ name: "X", type: "roth_ira" }).values?.type).toBe("roth_ira");
+    expect(validateSavingsGoalInput({ name: "X", type: "crypto" }).ok).toBe(false);
+  });
+});
+
+describe("validateContributionInput", () => {
+  const base = { savings_goal_id: "11111111-2222-4333-8444-555555555555", amount: "250" };
+
+  it("accepts a valid contribution", () => {
+    const r = validateContributionInput(base);
+    expect(r.ok).toBe(true);
+    expect(r.values).toMatchObject({ savings_goal_id: base.savings_goal_id, amount: 250, occurred_on: null });
+  });
+
+  it("accepts an optional ISO date", () => {
+    expect(validateContributionInput({ ...base, occurred_on: "2026-06-01" }).values?.occurred_on).toBe("2026-06-01");
+    expect(validateContributionInput({ ...base, occurred_on: "nope" }).ok).toBe(false);
+  });
+
+  it("rejects a malformed pot id and non-positive amounts", () => {
+    expect(validateContributionInput({ ...base, savings_goal_id: "x" }).ok).toBe(false);
+    expect(validateContributionInput({ ...base, amount: "0" }).ok).toBe(false);
+    expect(validateContributionInput({ ...base, amount: "-5" }).ok).toBe(false);
   });
 });
