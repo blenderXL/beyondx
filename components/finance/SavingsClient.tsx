@@ -6,6 +6,8 @@ import { createSavingsGoal, updateSavingsGoal, archiveSavingsGoal } from "@/app/
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
 import type { SavingsGoal } from "@/lib/finance/types";
 import { formatUsd } from "@/lib/finance/derive";
+import { FieldHint } from "@/components/finance/FieldHint";
+import { SAVINGS_HINTS } from "@/lib/finance/fieldHints";
 import {
   inputClass,
   labelClass,
@@ -42,10 +44,14 @@ function SavingsForm({ goal, onDone, onCancel }: { goal?: SavingsGoal; onDone: (
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block sm:col-span-2">
-          <span className={labelClass}>Name</span>
+          <span className={labelClass}>
+            Name
+            <FieldHint text={SAVINGS_HINTS.name} label="name" />
+          </span>
           <input
             type="text"
             name="name"
+            aria-label="Name"
             required
             maxLength={120}
             defaultValue={goal?.name}
@@ -55,11 +61,15 @@ function SavingsForm({ goal, onDone, onCancel }: { goal?: SavingsGoal; onDone: (
         </label>
 
         <label className="block">
-          <span className={labelClass}>Current amount</span>
+          <span className={labelClass}>
+            Current amount
+            <FieldHint text={SAVINGS_HINTS.current_amount} label="current amount" />
+          </span>
           <input
             type="text"
             inputMode="decimal"
             name="current_amount"
+            aria-label="Current amount"
             defaultValue={goal?.current_amount ?? ""}
             placeholder="0.00"
             className={inputClass}
@@ -67,11 +77,15 @@ function SavingsForm({ goal, onDone, onCancel }: { goal?: SavingsGoal; onDone: (
         </label>
 
         <label className="block">
-          <span className={labelClass}>Target (optional)</span>
+          <span className={labelClass}>
+            Target (optional)
+            <FieldHint text={SAVINGS_HINTS.target_amount} label="target" />
+          </span>
           <input
             type="text"
             inputMode="decimal"
             name="target_amount"
+            aria-label="Target"
             defaultValue={goal?.target_amount ?? ""}
             placeholder="0.00"
             className={inputClass}

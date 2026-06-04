@@ -12,6 +12,8 @@ import {
   type Expense,
 } from "@/lib/finance/types";
 import { formatUsd } from "@/lib/finance/derive";
+import { FieldHint } from "@/components/finance/FieldHint";
+import { EXPENSE_HINTS } from "@/lib/finance/fieldHints";
 import {
   inputClass,
   labelClass,
@@ -20,7 +22,23 @@ import {
   errorClass,
 } from "@/components/finance/formStyles";
 
-function ExpenseForm({ expense, onDone, onCancel }: { expense?: Expense; onDone: () => void; onCancel: () => void }) {
+/** Minimal debt shape the expense form needs for the "Pay toward debt" picker. */
+export interface DebtOption {
+  id: string;
+  name: string;
+}
+
+function ExpenseForm({
+  expense,
+  debts,
+  onDone,
+  onCancel,
+}: {
+  expense?: Expense;
+  debts: DebtOption[];
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const editing = Boolean(expense);
   const [state, formAction, pending] = useActionState(
     editing ? updateExpense : createExpense,
@@ -43,10 +61,14 @@ function ExpenseForm({ expense, onDone, onCancel }: { expense?: Expense; onDone:
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block sm:col-span-2">
-          <span className={labelClass}>Name</span>
+          <span className={labelClass}>
+            Name
+            <FieldHint text={EXPENSE_HINTS.category} label="name" />
+          </span>
           <input
             type="text"
             name="category"
+            aria-label="Name"
             required
             maxLength={120}
             defaultValue={expense?.category}
@@ -56,7 +78,10 @@ function ExpenseForm({ expense, onDone, onCancel }: { expense?: Expense; onDone:
         </label>
 
         <label className="block">
-          <span className={labelClass}>Group</span>
+          <span className={labelClass}>
+            Group
+            <FieldHint text={EXPENSE_HINTS.group} label="group" />
+          </span>
           <select name="expense_group" aria-label="Group" defaultValue={expense?.expense_group ?? ""} className={inputClass}>
             <option value="">—</option>
             {EXPENSE_GROUPS.map((g) => (
@@ -68,10 +93,14 @@ function ExpenseForm({ expense, onDone, onCancel }: { expense?: Expense; onDone:
         </label>
 
         <label className="block">
-          <span className={labelClass}>Payee</span>
+          <span className={labelClass}>
+            Payee
+            <FieldHint text={EXPENSE_HINTS.payee} label="payee" />
+          </span>
           <input
             type="text"
             name="payee"
+            aria-label="Payee"
             maxLength={120}
             defaultValue={expense?.payee ?? ""}
             placeholder="Optimum, CoServ…"
@@ -80,11 +109,15 @@ function ExpenseForm({ expense, onDone, onCancel }: { expense?: Expense; onDone:
         </label>
 
         <label className="block">
-          <span className={labelClass}>Amount</span>
+          <span className={labelClass}>
+            Amount
+            <FieldHint text={EXPENSE_HINTS.amount} label="amount" />
+          </span>
           <input
             type="text"
             inputMode="decimal"
             name="amount"
+            aria-label="Amount"
             required
             defaultValue={expense?.amount ?? ""}
             placeholder="0.00"
@@ -93,7 +126,10 @@ function ExpenseForm({ expense, onDone, onCancel }: { expense?: Expense; onDone:
         </label>
 
         <label className="block">
-          <span className={labelClass}>Frequency</span>
+          <span className={labelClass}>
+            Frequency
+            <FieldHint text={EXPENSE_HINTS.cadence} label="frequency" />
+          </span>
           <select name="cadence" aria-label="Frequency" defaultValue={expense?.cadence ?? "monthly"} className={inputClass}>
             {EXPENSE_CADENCES.map((c) => (
               <option key={c} value={c}>
@@ -104,10 +140,14 @@ function ExpenseForm({ expense, onDone, onCancel }: { expense?: Expense; onDone:
         </label>
 
         <label className="block">
-          <span className={labelClass}>Due day (1–31)</span>
+          <span className={labelClass}>
+            Pay day (1–31)
+            <FieldHint text={EXPENSE_HINTS.pay_day} label="pay day" />
+          </span>
           <input
             type="number"
             name="due_day"
+            aria-label="Pay day (1–31)"
             min={1}
             max={31}
             step={1}
@@ -115,6 +155,32 @@ function ExpenseForm({ expense, onDone, onCancel }: { expense?: Expense; onDone:
             placeholder="1–31"
             className={inputClass}
           />
+          <span className="mt-1 block font-mono text-[10px] text-[var(--color-text-muted)]">
+            The day this month you plan to pay it.
+          </span>
+        </label>
+
+        <label className="block sm:col-span-2">
+          <span className={labelClass}>
+            Pay toward debt (optional)
+            <FieldHint text={EXPENSE_HINTS.debt_id} label="pay toward debt" />
+          </span>
+          <select
+            name="debt_id"
+            aria-label="Pay toward debt"
+            defaultValue={expense?.debt_id ?? ""}
+            className={inputClass}
+          >
+            <option value="">— None —</option>
+            {debts.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block font-mono text-[10px] text-[var(--color-text-muted)]">
+            Linked: marking this paid in the Budget draws down that debt&apos;s balance.
+          </span>
         </label>
       </div>
 
@@ -138,7 +204,7 @@ function ExpenseForm({ expense, onDone, onCancel }: { expense?: Expense; onDone:
 
 type Mode = { kind: "list" } | { kind: "create" } | { kind: "edit"; expense: Expense };
 
-export function ExpensesClient({ expenses }: { expenses: Expense[] }) {
+export function ExpensesClient({ expenses, debts }: { expenses: Expense[]; debts: DebtOption[] }) {
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const toList = useCallback(() => setMode({ kind: "list" }), []);
   const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
@@ -159,8 +225,10 @@ export function ExpensesClient({ expenses }: { expenses: Expense[] }) {
         ) : null}
       </header>
 
-      {mode.kind === "create" ? <ExpenseForm onDone={toList} onCancel={toList} /> : null}
-      {mode.kind === "edit" ? <ExpenseForm expense={mode.expense} onDone={toList} onCancel={toList} /> : null}
+      {mode.kind === "create" ? <ExpenseForm debts={debts} onDone={toList} onCancel={toList} /> : null}
+      {mode.kind === "edit" ? (
+        <ExpenseForm expense={mode.expense} debts={debts} onDone={toList} onCancel={toList} />
+      ) : null}
 
       {mode.kind === "list" ? (
         <>
@@ -198,7 +266,7 @@ export function ExpensesClient({ expenses }: { expenses: Expense[] }) {
                   </div>
                   <p className="mt-3 font-mono text-[11px] text-[var(--color-text-secondary)]">
                     {EXPENSE_CADENCE_LABELS[expense.cadence]}
-                    {expense.due_day ? ` · due day ${expense.due_day}` : ""}
+                    {expense.due_day ? ` · pay day ${expense.due_day}` : ""}
                   </p>
                   <div className="mt-5 flex flex-wrap items-center gap-2">
                     <button onClick={() => setMode({ kind: "edit", expense })} className={ghostButtonClass}>

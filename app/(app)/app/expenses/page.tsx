@@ -18,11 +18,12 @@ export default async function ExpensesPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data } = await supabase
-    .from("expenses")
-    .select("*")
-    .is("archived_at", null)
-    .order("created_at", { ascending: true });
+  const [expensesRes, debtsRes] = await Promise.all([
+    supabase.from("expenses").select("*").is("archived_at", null).order("created_at", { ascending: true }),
+    supabase.from("debts").select("id, name").is("archived_at", null).order("name", { ascending: true }),
+  ]);
 
-  return <ExpensesClient expenses={(data ?? []) as Expense[]} />;
+  const debts = (debtsRes.data ?? []) as { id: string; name: string }[];
+
+  return <ExpensesClient expenses={(expensesRes.data ?? []) as Expense[]} debts={debts} />;
 }

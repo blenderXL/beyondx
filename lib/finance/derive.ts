@@ -26,3 +26,19 @@ export function formatUsd(value: number): string {
 export function formatPercent(value: number): string {
   return `${value.toLocaleString("en-US", { maximumFractionDigits: 4 })}%`;
 }
+
+/**
+ * Due-date label for a debt card. Prefers the real `next_due_date` (formatted in UTC so
+ * an ISO date never slips a day across timezones), falls back to the legacy `due_day`
+ * ("day N"), and shows an em dash when neither is set. New debts only have
+ * `next_due_date`, which is why the card showed "—" when it read `due_day` alone.
+ */
+export function formatDueDate(nextDueDate: string | null, dueDay: number | null): string {
+  if (nextDueDate) {
+    const d = new Date(`${nextDueDate}T00:00:00Z`);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    }
+  }
+  return dueDay ? `day ${dueDay}` : "—";
+}

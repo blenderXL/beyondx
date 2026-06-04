@@ -12,6 +12,8 @@ import {
 } from "@/lib/finance/types";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { DebtTypeSelect } from "@/components/finance/DebtTypeSelect";
+import { FieldHint } from "@/components/finance/FieldHint";
+import { DEBT_HINTS } from "@/lib/finance/fieldHints";
 import {
   inputClass,
   dateInputClass,
@@ -102,6 +104,11 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
   const showCreditLimit = creditLimitApplies(type);
   const showDueDate = dueDateApplies(type);
   const showCardExtras = cardExtrasApply(type);
+  // Promo fields are gated behind an explicit toggle so an empty promo-end date doesn't
+  // look like it needs filling. Default on when editing a debt that already has a promo.
+  const [hasPromo, setHasPromo] = useState(
+    Boolean(debt?.promo_apr || debt?.promo_until || debt?.deferred_interest),
+  );
 
   return (
     <form
@@ -132,6 +139,7 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
           <span className={labelClass}>
             Debt nickname / description
             <Req />
+            <FieldHint text={DEBT_HINTS.name} label="the debt name" />
           </span>
           <input
             type="text"
@@ -149,6 +157,7 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
           <span className={labelClass}>
             Type of debt
             <Req />
+            <FieldHint text={DEBT_HINTS.type} label="debt type" />
           </span>
           <DebtTypeSelect value={type} onChange={setType} />
         </div>
@@ -157,6 +166,7 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
           <span className={labelClass}>
             Current balance
             <Req />
+            <FieldHint text={DEBT_HINTS.balance} label="current balance" />
           </span>
           <CurrencyInput name="balance" ariaLabel="Current balance" defaultValue={debt?.balance} required />
           <Helper>We track current balance only — your first entry is saved as the starting baseline.</Helper>
@@ -166,12 +176,16 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
           <span className={labelClass}>
             Minimum payment
             <Req />
+            <FieldHint text={DEBT_HINTS.min_payment} label="minimum payment" />
           </span>
           <CurrencyInput name="min_payment" ariaLabel="Minimum payment" defaultValue={debt?.min_payment} required />
         </label>
 
         <label className="block">
-          <span className={labelClass}>Interest rate (%)</span>
+          <span className={labelClass}>
+            Interest rate (%)
+            <FieldHint text={DEBT_HINTS.apr} label="interest rate" />
+          </span>
           <input
             type="text"
             inputMode="decimal"
@@ -187,7 +201,10 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
         {/* Credit limit — credit cards only */}
         {showCreditLimit ? (
           <label className="block">
-            <span className={labelClass}>Credit limit</span>
+            <span className={labelClass}>
+              Credit limit
+              <FieldHint text={DEBT_HINTS.credit_limit} label="credit limit" />
+            </span>
             <CurrencyInput name="credit_limit" ariaLabel="Credit limit" defaultValue={debt?.credit_limit} />
             <Helper>Used for credit-utilization.</Helper>
           </label>
@@ -199,6 +216,7 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
             <span className={labelClass}>
               Next due date
               <Req />
+              <FieldHint text={DEBT_HINTS.next_due_date} label="next due date" />
             </span>
             <input
               type="date"
@@ -212,49 +230,77 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
           </label>
         ) : null}
 
-        {/* Card-only: issuer + promotional financing */}
+        {/* Card-only: issuer + (gated) promotional financing */}
         {showCardExtras ? (
           <>
             <label className="block">
-              <span className={labelClass}>Issuer</span>
+              <span className={labelClass}>
+                Issuer
+                <FieldHint text={DEBT_HINTS.issuer} label="issuer" />
+              </span>
               <input
                 type="text"
                 name="issuer"
+                aria-label="Issuer"
                 maxLength={120}
                 defaultValue={debt?.issuer ?? ""}
                 placeholder="Chase, Capital One…"
                 className={inputClass}
               />
             </label>
-            <label className="block">
-              <span className={labelClass}>Promo APR (%)</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                name="promo_apr"
-                defaultValue={debt?.promo_apr ?? ""}
-                placeholder="0.000"
-                className={inputClass}
-              />
-            </label>
-            <label className="block">
-              <span className={labelClass}>Promo ends</span>
-              <input
-                type="date"
-                name="promo_until"
-                defaultValue={debt?.promo_until ?? ""}
-                className={dateInputClass}
-              />
-            </label>
+
             <label className="flex items-center gap-3 sm:col-span-2">
               <input
                 type="checkbox"
-                name="deferred_interest"
-                defaultChecked={debt?.deferred_interest ?? false}
+                checked={hasPromo}
+                onChange={(e) => setHasPromo(e.target.checked)}
+                aria-label="Has a promotional offer"
                 className="size-4 accent-[var(--color-accent-amber)]"
               />
-              <span className={labelClass}>Deferred interest (e.g. promotional financing)</span>
+              <span className={labelClass}>
+                Has a promotional offer?
+                <FieldHint text={DEBT_HINTS.promo} label="promotional offer" />
+              </span>
             </label>
+
+            {/* Promo fields only render (and only save) when the toggle is on. Because the
+                validator always emits these keys, leaving them unrendered clears them. */}
+            {hasPromo ? (
+              <>
+                <label className="block">
+                  <span className={labelClass}>Promo APR (%)</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    name="promo_apr"
+                    aria-label="Promo APR (%)"
+                    defaultValue={debt?.promo_apr ?? ""}
+                    placeholder="0.000"
+                    className={inputClass}
+                  />
+                </label>
+                <label className="block">
+                  <span className={labelClass}>Promo ends</span>
+                  <input
+                    type="date"
+                    name="promo_until"
+                    aria-label="Promo ends"
+                    defaultValue={debt?.promo_until ?? ""}
+                    className={dateInputClass}
+                  />
+                </label>
+                <label className="flex items-center gap-3 sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    name="deferred_interest"
+                    defaultChecked={debt?.deferred_interest ?? false}
+                    aria-label="Deferred interest"
+                    className="size-4 accent-[var(--color-accent-amber)]"
+                  />
+                  <span className={labelClass}>Deferred interest (e.g. promotional financing)</span>
+                </label>
+              </>
+            ) : null}
           </>
         ) : null}
 

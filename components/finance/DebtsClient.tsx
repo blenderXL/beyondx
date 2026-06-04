@@ -8,7 +8,7 @@ import { archiveDebt } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
 import { DEBT_TYPE_LABELS, type Debt, type TransactionKind } from "@/lib/finance/types";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
-import { formatUsd, formatPercent, utilization, payoffProgress } from "@/lib/finance/derive";
+import { formatUsd, formatPercent, utilization, payoffProgress, formatDueDate } from "@/lib/finance/derive";
 import {
   labelClass,
   primaryButtonClass,
@@ -149,7 +149,7 @@ function DebtCard({ debt, onEdit, onTxn }: { debt: Debt; onEdit: () => void; onT
       <dl className="mt-4 grid grid-cols-2 gap-y-2 font-mono text-[11px] text-[var(--color-text-secondary)] sm:grid-cols-4">
         <Stat label="APR" value={formatPercent(Number(debt.apr))} />
         <Stat label="Min" value={formatUsd(Number(debt.min_payment))} />
-        <Stat label="Due" value={debt.due_day ? `day ${debt.due_day}` : "—"} />
+        <Stat label="Due" value={formatDueDate(debt.next_due_date, debt.due_day)} />
         <Stat label="Util" value={util === null ? "—" : `${Math.round(util * 100)}%`} />
       </dl>
 

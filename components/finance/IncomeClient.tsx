@@ -12,6 +12,8 @@ import {
   type TitheMode,
 } from "@/lib/finance/types";
 import { formatUsd } from "@/lib/finance/derive";
+import { FieldHint } from "@/components/finance/FieldHint";
+import { INCOME_HINTS } from "@/lib/finance/fieldHints";
 import {
   inputClass,
   labelClass,
@@ -55,10 +57,14 @@ function IncomeForm({ income, onDone, onCancel }: { income?: Income; onDone: () 
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block sm:col-span-2">
-          <span className={labelClass}>Source</span>
+          <span className={labelClass}>
+            Source
+            <FieldHint text={INCOME_HINTS.source} label="source" />
+          </span>
           <input
             type="text"
             name="source"
+            aria-label="Source"
             required
             maxLength={120}
             defaultValue={income?.source}
@@ -68,11 +74,15 @@ function IncomeForm({ income, onDone, onCancel }: { income?: Income; onDone: () 
         </label>
 
         <label className="block">
-          <span className={labelClass}>Amount</span>
+          <span className={labelClass}>
+            Amount
+            <FieldHint text={INCOME_HINTS.amount} label="amount" />
+          </span>
           <input
             type="text"
             inputMode="decimal"
             name="amount"
+            aria-label="Amount"
             required
             defaultValue={income?.amount ?? ""}
             placeholder="0.00"
@@ -81,7 +91,10 @@ function IncomeForm({ income, onDone, onCancel }: { income?: Income; onDone: () 
         </label>
 
         <label className="block">
-          <span className={labelClass}>Pay frequency</span>
+          <span className={labelClass}>
+            Pay frequency
+            <FieldHint text={INCOME_HINTS.cadence} label="pay frequency" />
+          </span>
           <select name="cadence" aria-label="Pay frequency" defaultValue={income?.cadence ?? "semimonthly"} className={inputClass}>
             {INCOME_CADENCES.map((c) => (
               <option key={c} value={c}>
@@ -92,10 +105,14 @@ function IncomeForm({ income, onDone, onCancel }: { income?: Income; onDone: () 
         </label>
 
         <label className="block">
-          <span className={labelClass}>Pay day (1–31)</span>
+          <span className={labelClass}>
+            Pay day (1–31)
+            <FieldHint text={INCOME_HINTS.pay_day} label="pay day" />
+          </span>
           <input
             type="number"
             name="pay_day"
+            aria-label="Pay day (1–31)"
             min={1}
             max={31}
             step={1}
@@ -106,7 +123,10 @@ function IncomeForm({ income, onDone, onCancel }: { income?: Income; onDone: () 
         </label>
 
         <label className="block">
-          <span className={labelClass}>Offering / tithe</span>
+          <span className={labelClass}>
+            Offering / tithe
+            <FieldHint text={INCOME_HINTS.tithe_mode} label="offering" />
+          </span>
           <select name="tithe_mode" aria-label="Offering / tithe" defaultValue={income?.tithe_mode ?? "none"} className={inputClass}>
             {TITHE_MODES.map((m) => (
               <option key={m} value={m}>
@@ -117,11 +137,15 @@ function IncomeForm({ income, onDone, onCancel }: { income?: Income; onDone: () 
         </label>
 
         <label className="block sm:col-span-2">
-          <span className={labelClass}>Offering value (% if percent, $ if fixed)</span>
+          <span className={labelClass}>
+            Offering value (% if percent, $ if fixed)
+            <FieldHint text={INCOME_HINTS.tithe_value} label="offering value" />
+          </span>
           <input
             type="text"
             inputMode="decimal"
             name="tithe_value"
+            aria-label="Offering value"
             defaultValue={income?.tithe_value ?? ""}
             placeholder="10  ·  or  250.00"
             className={inputClass}
