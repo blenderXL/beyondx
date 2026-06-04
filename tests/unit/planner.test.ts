@@ -29,6 +29,7 @@ const expense = (over: Partial<Expense> & { category: string; amount: number }):
   expense_group: null,
   payee: null,
   due_day: null,
+  debt_id: null,
   archived_at: null,
   created_at: "",
   updated_at: "",

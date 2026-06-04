@@ -57,6 +57,7 @@ function parseIntStrict(raw: unknown): number | null {
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface DebtValues {
   name: string;
@@ -322,6 +323,7 @@ export interface ExpenseValues {
   expense_group: ExpenseGroup | null;
   payee: string | null;
   due_day: number | null;
+  debt_id: string | null;
 }
 
 export function validateExpenseInput(fields: RawFields): ValidationResult<ExpenseValues> {
@@ -351,13 +353,23 @@ export function validateExpenseInput(fields: RawFields): ValidationResult<Expens
   const payee = str(fields.payee) || null;
   if (payee && payee.length > 120) return fail("Payee is too long (max 120 characters).");
 
-  const dueDay = optionalDayOfMonth(fields.due_day, "Due day");
+  const dueDay = optionalDayOfMonth(fields.due_day, "Pay day");
   if (dueDay.error) return fail(dueDay.error);
+
+  // Optional link to a debt; ownership of the referenced debt is enforced in the action.
+  let debt_id: string | null = null;
+  {
+    const s = str(fields.debt_id);
+    if (s !== "") {
+      if (!UUID.test(s)) return fail("Choose a valid debt to link.");
+      debt_id = s;
+    }
+  }
 
   return {
     ok: true,
     error: null,
-    values: { category, amount: round2(amount), cadence, expense_group, payee, due_day: dueDay.value },
+    values: { category, amount: round2(amount), cadence, expense_group, payee, due_day: dueDay.value, debt_id },
   };
 }
 

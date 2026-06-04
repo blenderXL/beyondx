@@ -6,6 +6,8 @@ import { computePayoff, orderDebts, type PayoffDebtInput, type PayoffMethod } fr
 import { formatUsd, formatPercent } from "@/lib/finance/derive";
 import { inputClass, labelClass } from "@/components/finance/formStyles";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
+import { FieldHint } from "@/components/finance/FieldHint";
+import { PLAN_HINTS } from "@/lib/finance/fieldHints";
 
 const METHODS: { value: PayoffMethod; label: string; blurb: string }[] = [
   { value: "avalanche", label: "Avalanche", blurb: "Highest APR first — least interest paid." },
@@ -86,7 +88,10 @@ export function PlansClient({ debts }: { debts: PayoffDebtInput[] }) {
 
       <div className="mb-8 grid gap-4 rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6 sm:grid-cols-2">
         <label className="block">
-          <span className={labelClass}>Method</span>
+          <span className={labelClass}>
+            Method
+            <FieldHint text={PLAN_HINTS.method} label="method" />
+          </span>
           <select
             aria-label="Method"
             value={method}
@@ -104,7 +109,10 @@ export function PlansClient({ debts }: { debts: PayoffDebtInput[] }) {
           </span>
         </label>
         <label className="block">
-          <span className={labelClass}>Monthly budget</span>
+          <span className={labelClass}>
+            Monthly budget
+            <FieldHint text={PLAN_HINTS.budget} label="monthly budget" />
+          </span>
           <input
             type="number"
             aria-label="Monthly budget"

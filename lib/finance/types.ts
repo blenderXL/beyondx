@@ -188,16 +188,26 @@ export type ExpenseGroup =
   | "utility"
   | "insurance"
   | "housing"
+  | "credit_card"
+  | "transportation"
+  | "food"
+  | "healthcare"
   | "subscription"
   | "loan"
+  | "personal"
   | "other";
 
 export const EXPENSE_GROUPS: readonly ExpenseGroup[] = [
   "utility",
   "insurance",
   "housing",
+  "credit_card",
+  "transportation",
+  "food",
+  "healthcare",
   "subscription",
   "loan",
+  "personal",
   "other",
 ] as const;
 
@@ -205,8 +215,13 @@ export const EXPENSE_GROUP_LABELS: Record<ExpenseGroup, string> = {
   utility: "Utility",
   insurance: "Insurance",
   housing: "Housing",
+  credit_card: "Credit card",
+  transportation: "Transportation",
+  food: "Food & groceries",
+  healthcare: "Healthcare",
   subscription: "Subscription",
   loan: "Loan",
+  personal: "Personal",
   other: "Other",
 };
 
@@ -219,6 +234,8 @@ export interface Expense {
   expense_group: ExpenseGroup | null;
   payee: string | null;
   due_day: number | null;
+  /** Optional link to a debt — paying this expense (in the Budget) draws down that debt. */
+  debt_id: string | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;

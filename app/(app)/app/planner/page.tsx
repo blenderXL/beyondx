@@ -38,7 +38,12 @@ export default async function PlannerPage() {
 
   const expenses = (expensesRes.data ?? []) as Expense[];
   type DebtRow = { id: string; name: string; min_payment: number; due_day: number | null; next_due_date: string | null };
-  const debts = (debtsRes.data ?? []) as DebtRow[];
+  const allDebts = (debtsRes.data ?? []) as DebtRow[];
+
+  // A debt linked to an expense is paid via that expense's line — drop the debt's own
+  // min-payment line so it isn't counted (or shown) twice (the expense represents it).
+  const linkedDebtIds = new Set(expenses.map((e) => e.debt_id).filter((id): id is string => Boolean(id)));
+  const debts = allDebts.filter((d) => !linkedDebtIds.has(d.id));
 
   const plan = buildMonthlyPlan({
     incomes: (incomesRes.data ?? []) as Income[],

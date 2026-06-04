@@ -247,14 +247,37 @@ export async function archiveIncome(_p: FinanceActionState, formData: FormData):
 }
 
 // Expenses
+/**
+ * Reject an expense→debt link that isn't the user's own active debt. RLS scopes the
+ * lookup, so a debt id that returns no row is either someone else's or doesn't exist.
+ */
+async function assertLinkedDebtOwned(debtId: string | null): Promise<FinanceActionState | null> {
+  if (!debtId) return null;
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return SIGNED_OUT;
+  const { data, error } = await supabase
+    .from("debts")
+    .select("id")
+    .eq("id", debtId)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (error) return dbFailure(error, "expense.linkDebt", "Couldn't verify the linked debt. Please try again.");
+  if (!data) return { error: "That debt isn't available to link." };
+  return null;
+}
+
 export async function createExpense(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const r = validateExpenseInput(Object.fromEntries(formData));
   if (!r.ok || !r.values) return { error: r.error };
+  const linkError = await assertLinkedDebtOwned(r.values.debt_id);
+  if (linkError) return linkError;
   return insertOwned("expenses", EXPENSES_PATH, r.values as unknown as Record<string, unknown>);
 }
 export async function updateExpense(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const r = validateExpenseInput(Object.fromEntries(formData));
   if (!r.ok || !r.values) return { error: r.error };
+  const linkError = await assertLinkedDebtOwned(r.values.debt_id);
+  if (linkError) return linkError;
   return updateOwned("expenses", EXPENSES_PATH, idOf(formData), r.values as unknown as Record<string, unknown>);
 }
 export async function archiveExpense(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
@@ -280,10 +303,36 @@ const PLANNER_PATH = "/app/planner";
 const ISO_MONTH = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Planner "paid this month" toggle. Tracking-only: records (or removes) a `payment`
- * transaction stamped with `billing_month` against an expense or debt, building payment
- * history without mutating debt balances (those stay the source of truth on /app/debts).
- * Idempotent — one paid mark per item per month.
+ * Read-modify-write a debt's stored balance by one transaction. Returns a Result on a DB
+ * error, or null on success / when the debt no longer exists. Floors at zero via
+ * `applyTransactionToBalance` (a `payment` clamped at 0 over-restores on reversal — an
+ * accepted edge case for single-user manual entry, same as `addTransaction`).
+ */
+async function adjustDebtBalance(
+  supabase: Awaited<ReturnType<typeof getSupabaseServerClient>>,
+  debtId: string,
+  kind: "payment" | "charge",
+  amount: number,
+): Promise<FinanceActionState | null> {
+  const { data: debt, error: readErr } = await supabase
+    .from("debts")
+    .select("balance")
+    .eq("id", debtId)
+    .maybeSingle();
+  if (readErr) return dbFailure(readErr, "togglePaid.balance.read", "Couldn't update the balance. Please try again.");
+  if (!debt) return null; // debt archived/deleted — nothing to adjust
+  const newBalance = applyTransactionToBalance(Number(debt.balance), kind, amount);
+  const { error } = await supabase.from("debts").update({ balance: newBalance }).eq("id", debtId);
+  if (error) return dbFailure(error, "togglePaid.balance.update", "Couldn't update the balance. Please try again.");
+  return null;
+}
+
+/**
+ * Planner "paid this month" toggle. Records (or removes) a `payment` transaction stamped
+ * with `billing_month`, idempotent (one paid mark per item per month). For an expense
+ * LINKED to a debt, the payment also draws down that debt's balance (and un-checking
+ * restores it). Plain expenses and direct debt bills stay tracking-only — their balances
+ * are managed on /app/debts.
  */
 export async function togglePaid(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const { supabase, userId } = await requireUserId();
@@ -298,6 +347,22 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
   }
   const col = kind === "expense" ? "expense_id" : "debt_id";
 
+  // For a linked expense, server-read the authoritative amount + debt link (never trust the
+  // client). This is the only path that moves a debt balance.
+  let linkedDebtId: string | null = null;
+  let expenseAmount = 0;
+  if (kind === "expense") {
+    const { data: exp, error: expErr } = await supabase
+      .from("expenses")
+      .select("amount, debt_id")
+      .eq("id", itemId)
+      .maybeSingle();
+    if (expErr) return dbFailure(expErr, "togglePaid.readExpense", "Couldn't update. Please try again.");
+    if (!exp) return { error: "Expense not found." };
+    linkedDebtId = (exp.debt_id as string | null) ?? null;
+    expenseAmount = Number(exp.amount);
+  }
+
   if (checked) {
     const { data: existing } = await supabase
       .from("transactions")
@@ -308,14 +373,32 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
       .limit(1);
     if (!existing || existing.length === 0) {
       // amount must be > 0 (column check); use the planned amount, floored at one cent.
-      const planned = parseMoney(formData.get("amount")) ?? 0;
+      const planned = kind === "expense" ? expenseAmount : (parseMoney(formData.get("amount")) ?? 0);
       const amount = Math.max(round2(planned), 0.01);
-      const { error } = await supabase
-        .from("transactions")
-        .insert({ profile_id: userId, [col]: itemId, kind: "payment", amount, billing_month: billingMonth });
+      const { error } = await supabase.from("transactions").insert({
+        profile_id: userId,
+        [col]: itemId,
+        ...(linkedDebtId ? { debt_id: linkedDebtId } : {}),
+        kind: "payment",
+        amount,
+        billing_month: billingMonth,
+      });
       if (error) return dbFailure(error, "togglePaid.insert", "Couldn't mark it paid. Please try again.");
+      // Linked expense → draw the debt balance down.
+      if (linkedDebtId) {
+        const adj = await adjustDebtBalance(supabase, linkedDebtId, "payment", amount);
+        if (adj) return adj;
+      }
     }
   } else {
+    // Read before deleting so a linked expense's reduction can be reversed (charge it back).
+    const { data: removed, error: readErr } = await supabase
+      .from("transactions")
+      .select("amount, debt_id")
+      .eq(col, itemId)
+      .eq("billing_month", billingMonth)
+      .eq("kind", "payment");
+    if (readErr) return dbFailure(readErr, "togglePaid.read", "Couldn't update. Please try again.");
     const { error } = await supabase
       .from("transactions")
       .delete()
@@ -323,8 +406,19 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
       .eq("billing_month", billingMonth)
       .eq("kind", "payment");
     if (error) return dbFailure(error, "togglePaid.delete", "Couldn't update. Please try again.");
+    // Reverse balance reductions from linked-expense payments (those carry debt_id). Direct
+    // debt-bill payments never moved a balance, so this only fires for the linked path.
+    if (kind === "expense") {
+      for (const t of (removed ?? []) as { amount: number; debt_id: string | null }[]) {
+        if (t.debt_id) {
+          const adj = await adjustDebtBalance(supabase, t.debt_id, "charge", Number(t.amount));
+          if (adj) return adj;
+        }
+      }
+    }
   }
 
   revalidatePath(PLANNER_PATH);
+  revalidatePath(DEBTS_PATH);
   return { error: null, ok: true };
 }

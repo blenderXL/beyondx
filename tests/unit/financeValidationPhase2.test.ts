@@ -77,6 +77,24 @@ describe("validateExpenseInput", () => {
   it("due_day must be 1–31 when present", () => {
     expect(validateExpenseInput({ ...base, due_day: "40" }).ok).toBe(false);
   });
+
+  it("accepts the expanded groups (credit card, transportation, etc.)", () => {
+    for (const g of ["credit_card", "transportation", "food", "healthcare", "personal"]) {
+      expect(validateExpenseInput({ ...base, expense_group: g }).ok).toBe(true);
+    }
+  });
+
+  it("accepts a UUID debt_id and defaults it to null when omitted", () => {
+    const linked = validateExpenseInput({ ...base, debt_id: "11111111-2222-4333-8444-555555555555" });
+    expect(linked.ok).toBe(true);
+    expect(linked.values?.debt_id).toBe("11111111-2222-4333-8444-555555555555");
+    expect(validateExpenseInput(base).values?.debt_id).toBe(null);
+    expect(validateExpenseInput({ ...base, debt_id: "" }).values?.debt_id).toBe(null);
+  });
+
+  it("rejects a malformed debt_id", () => {
+    expect(validateExpenseInput({ ...base, debt_id: "not-a-uuid" }).ok).toBe(false);
+  });
 });
 
 describe("validateSavingsGoalInput", () => {

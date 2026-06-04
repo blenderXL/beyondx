@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { utilization, payoffProgress, formatUsd, formatPercent } from "@/lib/finance/derive";
+import { utilization, payoffProgress, formatUsd, formatPercent, formatDueDate } from "@/lib/finance/derive";
 
 describe("utilization", () => {
   it("is balance over limit", () => {
@@ -32,5 +32,18 @@ describe("formatting", () => {
   it("formats APR as a percentage", () => {
     expect(formatPercent(24.24)).toBe("24.24%");
     expect(formatPercent(0)).toBe("0%");
+  });
+});
+
+describe("formatDueDate", () => {
+  it("formats the real next due date (UTC, no off-by-one)", () => {
+    expect(formatDueDate("2026-07-01", null)).toBe("Jul 1");
+    expect(formatDueDate("2026-12-31", null)).toBe("Dec 31");
+  });
+  it("falls back to the legacy day-of-month", () => {
+    expect(formatDueDate(null, 5)).toBe("day 5");
+  });
+  it("is an em dash when neither is set", () => {
+    expect(formatDueDate(null, null)).toBe("—");
   });
 });
