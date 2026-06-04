@@ -1,19 +1,24 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { DayNightToggle } from "@/components/landing/DayNightToggle";
 import { resetUser } from "@/lib/telemetry/capture";
+import { useSidebar } from "@/components/layout/SidebarProvider";
 
 interface Props {
   email: string | null;
   displayName: string | null;
   tier: "free" | "pro";
+  /** id of the nav drawer this bar's hamburger controls (for aria-controls). */
+  drawerId: string;
 }
 
-export function TopBar({ email, displayName, tier }: Props) {
+export function TopBar({ email, displayName, tier, drawerId }: Props) {
   const router = useRouter();
+  const { open, toggle } = useSidebar();
+
   async function signOut() {
     const supabase = getSupabaseBrowserClient();
     await supabase.auth.signOut();
@@ -26,13 +31,23 @@ export function TopBar({ email, displayName, tier }: Props) {
   const initial = (label[0] ?? "?").toUpperCase();
 
   return (
-    <header className="flex h-16 items-center justify-between border-b border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-4 sm:px-6">
       <div className="flex items-center gap-3">
-        <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-muted)]">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label="Open navigation"
+          aria-expanded={open}
+          aria-controls={drawerId}
+          className="rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-2 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] md:hidden"
+        >
+          <Menu className="size-4" />
+        </button>
+        <p className="hidden font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--color-text-muted)] sm:block">
           // last updated · {new Date().toLocaleDateString()}
         </p>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         <DayNightToggle />
         <span
           className="rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.22em]"

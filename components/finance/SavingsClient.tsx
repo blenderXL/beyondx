@@ -151,7 +151,7 @@ export function SavingsClient({ goals }: { goals: SavingsGoal[] }) {
               </p>
             </div>
           ) : (
-            <ul aria-label="Savings pots" className="grid gap-4 lg:grid-cols-2">
+            <ul aria-label="Savings pots" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {goals.map((goal) => {
                 const progress = potProgress(goal);
                 return (

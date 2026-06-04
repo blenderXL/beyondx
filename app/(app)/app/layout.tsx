@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { TopBar } from "@/components/layout/TopBar";
-import { IdentifyUser } from "@/components/telemetry/IdentifyUser";
+import { AppShell } from "@/components/layout/AppShell";
+import { SidebarProvider } from "@/components/layout/SidebarProvider";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getEntitlements } from "@/lib/entitlements/getEntitlements";
 import { getFlagProvider } from "@/lib/flags/server";
@@ -25,18 +24,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { tier } = await getEntitlements();
   const enabledFlags = await getFlagProvider().allFlags();
 
+  // The shell is a client component (owns the responsive grid + drawer state); this layout
+  // stays a server component so auth/profile/flags resolve on the server.
   return (
-    <div className="grid h-screen grid-cols-[15rem_1fr] overflow-hidden bg-[var(--color-canvas)]">
-      <IdentifyUser userId={user.id} />
-      <Sidebar enabledFlags={enabledFlags} />
-      <div className="grid grid-rows-[auto_1fr] overflow-hidden">
-        <TopBar
-          email={profile?.email ?? user.email ?? null}
-          displayName={profile?.display_name ?? null}
-          tier={tier}
-        />
-        <main className="overflow-y-auto px-8 py-8">{children}</main>
-      </div>
-    </div>
+    <SidebarProvider>
+      <AppShell
+        userId={user.id}
+        enabledFlags={enabledFlags}
+        email={profile?.email ?? user.email ?? null}
+        displayName={profile?.display_name ?? null}
+        tier={tier}
+      >
+        {children}
+      </AppShell>
+    </SidebarProvider>
   );
 }

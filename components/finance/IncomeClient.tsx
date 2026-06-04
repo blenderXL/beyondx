@@ -214,7 +214,7 @@ export function IncomeClient({ incomes }: { incomes: Income[] }) {
               </p>
             </div>
           ) : (
-            <ul aria-label="Income" className="grid gap-4 lg:grid-cols-2">
+            <ul aria-label="Income" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {incomes.map((income) => (
                 <li
                   key={income.id}
