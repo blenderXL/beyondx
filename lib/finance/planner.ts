@@ -98,25 +98,33 @@ export function buildMonthlyPlan(inputs: {
   };
 
   let income = 0;
-  let offerings = 0;
   for (const inc of incomes) {
     const m = monthlyAmount(inc.amount, inc.cadence);
-    const t = monthlyTithe(inc);
     income = round2(income + m);
-    offerings = round2(offerings + t);
-    const c = cycleForDay(inc.pay_day);
-    byCycle[c].income = round2(byCycle[c].income + m);
-    byCycle[c].offerings = round2(byCycle[c].offerings + t);
+    byCycle[cycleForDay(inc.pay_day)].income = round2(byCycle[cycleForDay(inc.pay_day)].income + m);
   }
 
+  // Offerings are now an expense group (single source of truth — see migration 0009). A
+  // percent offering is that % of total monthly income; otherwise it's a normal amount.
+  // The income-tithe sum was removed from the loop above so nothing is counted twice.
   let expensesTotal = 0;
+  let offerings = 0;
   const groupTotals = new Map<string, number>();
   for (const exp of expenses) {
+    const c = cycleForDay(exp.due_day);
+    if (exp.expense_group === "offering") {
+      const m =
+        exp.pct_of_income != null
+          ? round2((income * exp.pct_of_income) / 100)
+          : monthlyAmount(exp.amount, exp.cadence);
+      offerings = round2(offerings + m);
+      byCycle[c].offerings = round2(byCycle[c].offerings + m);
+      continue;
+    }
     const m = monthlyAmount(exp.amount, exp.cadence);
     expensesTotal = round2(expensesTotal + m);
     const label = exp.expense_group ? EXPENSE_GROUP_LABELS[exp.expense_group] : "Ungrouped";
     groupTotals.set(label, round2((groupTotals.get(label) ?? 0) + m));
-    const c = cycleForDay(exp.due_day);
     byCycle[c].expenses = round2(byCycle[c].expenses + m);
   }
 

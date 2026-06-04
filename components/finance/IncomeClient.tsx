@@ -4,13 +4,7 @@ import { useActionState, useCallback, useEffect, useState } from "react";
 import { StatCard } from "@/components/layout/StatCard";
 import { createIncome, updateIncome, archiveIncome } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
-import {
-  INCOME_CADENCES,
-  INCOME_CADENCE_LABELS,
-  TITHE_MODES,
-  type Income,
-  type TitheMode,
-} from "@/lib/finance/types";
+import { INCOME_CADENCES, INCOME_CADENCE_LABELS, type Income } from "@/lib/finance/types";
 import { formatUsd } from "@/lib/finance/derive";
 import { FieldHint } from "@/components/finance/FieldHint";
 import { INCOME_HINTS } from "@/lib/finance/fieldHints";
@@ -21,18 +15,6 @@ import {
   ghostButtonClass,
   errorClass,
 } from "@/components/finance/formStyles";
-
-const TITHE_LABELS: Record<TitheMode, string> = {
-  none: "No offering",
-  percent: "Percent of paycheck",
-  fixed: "Fixed amount",
-};
-
-function titheSummary(i: Income): string {
-  if (i.tithe_mode === "percent") return `${i.tithe_value ?? 0}% offering`;
-  if (i.tithe_mode === "fixed") return `${formatUsd(i.tithe_value ?? 0)} offering`;
-  return "no offering";
-}
 
 function IncomeForm({ income, onDone, onCancel }: { income?: Income; onDone: () => void; onCancel: () => void }) {
   const editing = Boolean(income);
@@ -121,37 +103,11 @@ function IncomeForm({ income, onDone, onCancel }: { income?: Income; onDone: () 
             className={inputClass}
           />
         </label>
-
-        <label className="block">
-          <span className={labelClass}>
-            Offering / tithe
-            <FieldHint text={INCOME_HINTS.tithe_mode} label="offering" />
-          </span>
-          <select name="tithe_mode" aria-label="Offering / tithe" defaultValue={income?.tithe_mode ?? "none"} className={inputClass}>
-            {TITHE_MODES.map((m) => (
-              <option key={m} value={m}>
-                {TITHE_LABELS[m]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="block sm:col-span-2">
-          <span className={labelClass}>
-            Offering value (% if percent, $ if fixed)
-            <FieldHint text={INCOME_HINTS.tithe_value} label="offering value" />
-          </span>
-          <input
-            type="text"
-            inputMode="decimal"
-            name="tithe_value"
-            aria-label="Offering value"
-            defaultValue={income?.tithe_value ?? ""}
-            placeholder="10  ·  or  250.00"
-            className={inputClass}
-          />
-        </label>
       </div>
+
+      <p className="mt-4 font-mono text-[10px] text-[var(--color-text-muted)]">
+        // offerings/tithing now live on the Expenses page as an &quot;Offering&quot; group.
+      </p>
 
       <div className="mt-6 flex items-center gap-3">
         <button type="submit" disabled={pending} className={primaryButtonClass}>
@@ -201,8 +157,9 @@ export function IncomeClient({ incomes }: { incomes: Income[] }) {
           <div className="mb-8 grid gap-4 sm:grid-cols-2">
             <StatCard label="Income sources" value={String(incomes.length)} accentVar="--color-accent-emerald" />
             <StatCard
-              label="With offering"
-              value={String(incomes.filter((i) => i.tithe_mode !== "none").length)}
+              label="Listed total"
+              value={formatUsd(incomes.reduce((s, i) => s + Number(i.amount), 0))}
+              hint="raw, per their cadence"
               accentVar="--color-accent-blue"
             />
           </div>
@@ -234,7 +191,6 @@ export function IncomeClient({ incomes }: { incomes: Income[] }) {
                       {formatUsd(Number(income.amount))}
                     </p>
                   </div>
-                  <p className="mt-3 font-mono text-[11px] text-[var(--color-text-secondary)]">{titheSummary(income)}</p>
                   <div className="mt-5 flex flex-wrap items-center gap-2">
                     <button onClick={() => setMode({ kind: "edit", income })} className={ghostButtonClass}>
                       Edit

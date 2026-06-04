@@ -289,7 +289,9 @@ export function validateIncomeInput(fields: RawFields): ValidationResult<IncomeV
   const cadence = str(fields.cadence) as IncomeCadence;
   if (!INCOME_CADENCES.includes(cadence)) return fail("Choose a valid pay frequency.");
 
-  const tithe_mode = str(fields.tithe_mode) as TitheMode;
+  // Offerings moved to an expense group (see migration 0009); income no longer collects a
+  // tithe, so an absent field defaults to "none". The column stays for one release.
+  const tithe_mode = (str(fields.tithe_mode) || "none") as TitheMode;
   if (!TITHE_MODES.includes(tithe_mode)) return fail("Choose a valid offering option.");
 
   let tithe_value: number | null = null;
@@ -324,6 +326,7 @@ export interface ExpenseValues {
   payee: string | null;
   due_day: number | null;
   debt_id: string | null;
+  pct_of_income: number | null;
 }
 
 export function validateExpenseInput(fields: RawFields): ValidationResult<ExpenseValues> {
@@ -366,10 +369,31 @@ export function validateExpenseInput(fields: RawFields): ValidationResult<Expens
     }
   }
 
+  // Percent-of-income only applies to an "offering" expense; ignored (nulled) otherwise.
+  let pct_of_income: number | null = null;
+  if (expense_group === "offering") {
+    const s = str(fields.pct_of_income);
+    if (s !== "") {
+      const n = parseMoney(s);
+      if (n === null) return fail("Offering percent must be a number.");
+      if (n < 0 || n > 100) return fail("Offering percent must be between 0 and 100.");
+      pct_of_income = round4(n);
+    }
+  }
+
   return {
     ok: true,
     error: null,
-    values: { category, amount: round2(amount), cadence, expense_group, payee, due_day: dueDay.value, debt_id },
+    values: {
+      category,
+      amount: round2(amount),
+      cadence,
+      expense_group,
+      payee,
+      due_day: dueDay.value,
+      debt_id,
+      pct_of_income,
+    },
   };
 }
 
