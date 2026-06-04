@@ -16,6 +16,7 @@ const income = (over: Partial<Income> & { source: string; amount: number }): Inc
   tithe_mode: "none",
   tithe_value: null,
   pay_day: null,
+  is_variable: false,
   archived_at: null,
   created_at: "",
   updated_at: "",
@@ -109,6 +110,63 @@ describe("buildMonthlyPlan", () => {
     expect(plan.byCycle.first.expenses).toBe(115); // Internet day 5
     expect(plan.byCycle.mid.expenses).toBe(66); // HOA day 20
     expect(plan.byCycle.first.minimums).toBe(200); // Tesla day 10
+  });
+
+  describe("variable income overrides", () => {
+    it("uses a current-month override for a variable source, base otherwise", () => {
+      const p = buildMonthlyPlan({
+        incomes: [
+          income({ source: "Gig", amount: 1000, is_variable: true }),
+          income({ source: "Salary", amount: 4000, is_variable: false }),
+        ],
+        expenses: [],
+        debts: [],
+        overrides: { Gig: 2500 },
+      });
+      // Gig: override 2500 (not base 1000). Salary: base 4000 (no override).
+      expect(p.income).toBe(6500);
+    });
+
+    it("ignores an override for a source that isn't flagged variable", () => {
+      const p = buildMonthlyPlan({
+        incomes: [income({ source: "Salary", amount: 4000, is_variable: false })],
+        expenses: [],
+        debts: [],
+        overrides: { Salary: 9999 },
+      });
+      expect(p.income).toBe(4000);
+    });
+
+    it("falls back to base when a variable source has no override this month", () => {
+      const p = buildMonthlyPlan({
+        incomes: [income({ source: "Gig", amount: 1500, is_variable: true })],
+        expenses: [],
+        debts: [],
+        overrides: {},
+      });
+      expect(p.income).toBe(1500);
+    });
+
+    it("applies the cadence multiplier to the override amount", () => {
+      const p = buildMonthlyPlan({
+        incomes: [income({ source: "Gig", amount: 500, cadence: "semimonthly", is_variable: true })],
+        expenses: [],
+        debts: [],
+        overrides: { Gig: 800 }, // per-paycheck → ×2 for semimonthly
+      });
+      expect(p.income).toBe(1600);
+    });
+
+    it("percent offerings reflect the overridden income total", () => {
+      const p = buildMonthlyPlan({
+        incomes: [income({ source: "Gig", amount: 1000, pay_day: 1, is_variable: true })],
+        expenses: [expense({ category: "Offering", amount: 0, due_day: 1, expense_group: "offering", pct_of_income: 10 })],
+        debts: [],
+        overrides: { Gig: 5000 },
+      });
+      expect(p.income).toBe(5000);
+      expect(p.offerings).toBe(500); // 10% of the overridden 5000, not base 1000
+    });
   });
 
   it("counts an offering expense exactly once (no income-tithe double-count)", () => {

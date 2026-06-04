@@ -10,6 +10,7 @@ test.skip(
 const stamp = Date.now();
 const incomeName = `e2e-plan-income-${stamp}`;
 const expenseName = `e2e-plan-exp-${stamp}`;
+const offeringName = `e2e-plan-offering-${stamp}`;
 const debtName = `e2e-plan-debt-${stamp}`;
 const paidExpName = `e2e-plan-paid-${stamp}`;
 
@@ -28,6 +29,7 @@ test.afterAll(async () => {
   await c.auth.signInWithPassword({ email: TEST_USER.email, password: TEST_USER.password });
   await c.from("incomes").delete().eq("source", incomeName);
   await c.from("expenses").delete().eq("category", expenseName);
+  await c.from("expenses").delete().eq("category", offeringName);
   await c.from("expenses").delete().eq("category", paidExpName); // payment txns cascade
   await c.from("debts").delete().eq("name", debtName);
 });
@@ -41,24 +43,19 @@ test("monthly planner: flag ON → computed income/offerings/expenses/rollups re
     password: TEST_USER.password,
   });
   const profile_id = auth.user!.id;
-  // Seed a paycheck with a 10% offering, a utility bill, and a debt minimum.
+  // Seed a paycheck (day 1), a utility bill, an Offering expense (offerings are an expense
+  // group since Phase 3 — migration 0009), and a debt minimum.
   await c.from("incomes").insert({
     profile_id,
     source: incomeName,
     amount: 3000,
     cadence: "monthly",
     pay_day: 1,
-    tithe_mode: "percent",
-    tithe_value: 10,
   });
-  await c.from("expenses").insert({
-    profile_id,
-    category: expenseName,
-    amount: 115,
-    cadence: "monthly",
-    due_day: 5,
-    expense_group: "utility",
-  });
+  await c.from("expenses").insert([
+    { profile_id, category: expenseName, amount: 115, cadence: "monthly", due_day: 5, expense_group: "utility" },
+    { profile_id, category: offeringName, amount: 200, cadence: "monthly", due_day: 1, expense_group: "offering" },
+  ]);
   await c.from("debts").insert({ profile_id, name: debtName, balance: 1000, apr: 0, min_payment: 200, due_day: 10 });
 
   await uiLogin(page);

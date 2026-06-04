@@ -6,6 +6,7 @@ import {
   validateDebtInput,
   validateExpenseInput,
   validateIncomeInput,
+  validateIncomeOverrideInput,
   validateSavingsGoalInput,
   validateTransactionInput,
   parseMoney,
@@ -232,18 +233,62 @@ function idOf(formData: FormData): string {
 }
 
 // Income
+/**
+ * `is_variable` only matters for the new variable-income feature (migration 0010). Omitting it
+ * for ordinary (non-variable) sources keeps inserts/updates working even before that migration
+ * reaches the DB — only the variable path depends on the column. Caveat (expand phase only):
+ * un-marking a variable source therefore doesn't persist the `false` until the migration lands;
+ * acceptable for the brief pre-deploy window (column default is already `false`).
+ */
+function incomePayload(values: import("@/lib/finance/validation").IncomeValues): Record<string, unknown> {
+  const payload = { ...values } as Record<string, unknown>;
+  if (!values.is_variable) delete payload.is_variable;
+  return payload;
+}
+
 export async function createIncome(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const r = validateIncomeInput(Object.fromEntries(formData));
   if (!r.ok || !r.values) return { error: r.error };
-  return insertOwned("incomes", INCOME_PATH, r.values as unknown as Record<string, unknown>);
+  return insertOwned("incomes", INCOME_PATH, incomePayload(r.values));
 }
 export async function updateIncome(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const r = validateIncomeInput(Object.fromEntries(formData));
   if (!r.ok || !r.values) return { error: r.error };
-  return updateOwned("incomes", INCOME_PATH, idOf(formData), r.values as unknown as Record<string, unknown>);
+  return updateOwned("incomes", INCOME_PATH, idOf(formData), incomePayload(r.values));
 }
 export async function archiveIncome(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   return archiveOwned("incomes", INCOME_PATH, idOf(formData));
+}
+
+/**
+ * Set (or replace) the actual amount for a variable income source this billing month
+ * (migration 0010). Upserts on (income_id, billing_month). Ownership of the income is
+ * verified up front (RLS scopes the lookup), and `profile_id` is set explicitly so the
+ * row can never be created against someone else.
+ */
+export async function setIncomeOverride(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return SIGNED_OUT;
+
+  const r = validateIncomeOverrideInput(Object.fromEntries(formData));
+  if (!r.ok || !r.values) return { error: r.error };
+
+  const { data: inc, error: incErr } = await supabase
+    .from("incomes")
+    .select("id")
+    .eq("id", r.values.income_id)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (incErr) return dbFailure(incErr, "setIncomeOverride.read", "Couldn't verify the income source. Please try again.");
+  if (!inc) return { error: "That income source isn't available." };
+
+  const { error } = await supabase
+    .from("income_overrides")
+    .upsert({ profile_id: userId, ...r.values }, { onConflict: "income_id,billing_month" });
+  if (error) return dbFailure(error, "setIncomeOverride", "Couldn't save this month's amount. Please try again.");
+
+  revalidatePath(PLANNER_PATH);
+  return { error: null, ok: true };
 }
 
 // Expenses

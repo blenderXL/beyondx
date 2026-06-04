@@ -32,6 +32,7 @@ export const INCOME_HINTS = {
   pay_day: "The day of the month it lands (e.g. 1 or 15) — used to split the plan by pay cycle.",
   tithe_mode: "Set aside a percentage or a fixed amount as an offering/tithe.",
   tithe_value: "The percent (if percent) or dollar amount (if fixed) to set aside.",
+  is_variable: "Income that changes month to month. The amount above is your baseline; set each month's actual on the Budget page.",
 } as const;
 
 export const SAVINGS_HINTS = {

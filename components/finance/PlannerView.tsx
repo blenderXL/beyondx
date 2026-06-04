@@ -2,6 +2,7 @@ import { StatCard } from "@/components/layout/StatCard";
 import { formatUsd } from "@/lib/finance/derive";
 import type { MonthlyPlan, CycleBreakdown, Cycle } from "@/lib/finance/planner";
 import { PlannerBills, type PlannerBill } from "@/components/finance/PlannerBills";
+import { IncomeOverrideEditor, type VariableIncome } from "@/components/finance/IncomeOverrideEditor";
 import { labelClass } from "@/components/finance/formStyles";
 
 const CYCLE_LABELS: Record<Cycle, string> = {
@@ -48,10 +49,12 @@ export function PlannerView({
   plan,
   bills,
   billingMonth,
+  variableIncomes = [],
 }: {
   plan: MonthlyPlan;
   bills: PlannerBill[];
   billingMonth: string;
+  variableIncomes?: VariableIncome[];
 }) {
   const cycles = (["first", "mid", "none"] as const).filter(
     (c) => plan.byCycle[c].income > 0 || plan.byCycle[c].outflow > 0,
@@ -75,6 +78,8 @@ export function PlannerView({
           accentVar={plan.leftover < 0 ? "--color-accent-red" : "--color-accent-blue"}
         />
       </div>
+
+      <IncomeOverrideEditor incomes={variableIncomes} billingMonth={billingMonth} />
 
       {cycles.length > 0 ? (
         <section className="mb-8">

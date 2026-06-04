@@ -3,6 +3,7 @@ import {
   validateIncomeInput,
   validateExpenseInput,
   validateSavingsGoalInput,
+  validateIncomeOverrideInput,
 } from "@/lib/finance/validation";
 
 describe("validateIncomeInput", () => {
@@ -47,6 +48,43 @@ describe("validateIncomeInput", () => {
     expect(validateIncomeInput({ ...base, pay_day: "15" }).values?.pay_day).toBe(15);
     expect(validateIncomeInput({ ...base, pay_day: "32" }).ok).toBe(false);
     expect(validateIncomeInput({ ...base, pay_day: "0" }).ok).toBe(false);
+  });
+
+  it("is_variable defaults to false and reads the checkbox", () => {
+    expect(validateIncomeInput(base).values?.is_variable).toBe(false);
+    expect(validateIncomeInput({ ...base, is_variable: "on" }).values?.is_variable).toBe(true);
+    expect(validateIncomeInput({ ...base, is_variable: "true" }).values?.is_variable).toBe(true);
+  });
+});
+
+describe("validateIncomeOverrideInput", () => {
+  const base = {
+    income_id: "11111111-2222-4333-8444-555555555555",
+    billing_month: "2026-06-01",
+    amount: "2500",
+  };
+
+  it("accepts a valid override", () => {
+    const r = validateIncomeOverrideInput(base);
+    expect(r.ok).toBe(true);
+    expect(r.values).toMatchObject({
+      income_id: "11111111-2222-4333-8444-555555555555",
+      billing_month: "2026-06-01",
+      amount: 2500,
+    });
+  });
+
+  it("rejects a malformed income_id", () => {
+    expect(validateIncomeOverrideInput({ ...base, income_id: "nope" }).ok).toBe(false);
+  });
+
+  it("rejects a non-ISO billing_month", () => {
+    expect(validateIncomeOverrideInput({ ...base, billing_month: "June" }).ok).toBe(false);
+  });
+
+  it("requires a non-negative amount", () => {
+    expect(validateIncomeOverrideInput({ ...base, amount: "" }).ok).toBe(false);
+    expect(validateIncomeOverrideInput({ ...base, amount: "-1" }).ok).toBe(false);
   });
 });
 
