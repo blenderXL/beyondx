@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ShieldCheck, ChevronRight } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getEntitlements } from "@/lib/entitlements/getEntitlements";
+import { PortfolioControls } from "@/components/settings/PortfolioControls";
+import { DangerZone } from "@/components/settings/DangerZone";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +64,10 @@ export default async function SettingsPage() {
           manage your subscription from here.
         </p>
       </div>
+
+      <PortfolioControls />
+
+      {user?.email ? <DangerZone email={user.email} /> : null}
     </div>
   );
 }
