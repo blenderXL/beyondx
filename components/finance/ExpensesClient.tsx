@@ -244,7 +244,7 @@ export function ExpensesClient({ expenses, debts }: { expenses: Expense[]; debts
               </p>
             </div>
           ) : (
-            <ul aria-label="Expenses" className="grid gap-4 lg:grid-cols-2">
+            <ul aria-label="Expenses" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {expenses.map((expense) => (
                 <li
                   key={expense.id}

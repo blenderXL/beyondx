@@ -161,7 +161,7 @@ export function DebtsClient({ debts, recent }: Props) {
                   </p>
                 </div>
               ) : view === "card" ? (
-                <ul aria-label="Debts" className="grid gap-4 lg:grid-cols-2">
+                <ul aria-label="Debts" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   {visibleDebts.map((debt) => (
                     <DebtCard
                       key={debt.id}
@@ -347,21 +347,21 @@ function DebtCard({ debt, onEdit, onTxn }: { debt: Debt; onEdit: () => void; onT
   return (
     <li className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
+        <div className="flex min-w-0 items-start gap-3">
           <span className="mt-0.5 shrink-0 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-2 text-[var(--color-text-secondary)]">
             <DebtTypeIcon type={debt.type} className="size-4" />
           </span>
-          <div>
-            <p className="font-sans text-base font-medium text-[var(--color-text-primary)]">
+          <div className="min-w-0">
+            <p className="font-sans text-base font-medium break-words text-[var(--color-text-primary)]">
               {debt.name}
             </p>
-            <p className="mt-1 font-mono text-[11px] tracking-[0.18em] text-[var(--color-text-muted)] uppercase">
+            <p className="mt-1 font-mono text-[11px] tracking-[0.18em] break-words text-[var(--color-text-muted)] uppercase">
               {DEBT_TYPE_LABELS[debt.type]}
               {debt.issuer ? ` · ${debt.issuer}` : ""}
             </p>
           </div>
         </div>
-        <p className="font-sans text-2xl font-medium text-[var(--color-text-primary)] tabular-nums">
+        <p className="shrink-0 font-sans text-2xl font-medium text-[var(--color-text-primary)] tabular-nums">
           {formatUsd(Number(debt.balance))}
         </p>
       </div>
