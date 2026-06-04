@@ -1,20 +1,27 @@
 "use client";
 
-import { useActionState, useCallback, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { LayoutGrid, List, Search } from "lucide-react";
 import { StatCard } from "@/components/layout/StatCard";
 import { DebtAccountFormCard } from "@/components/finance/DebtAccountFormCard";
 import { TransactionForm } from "@/components/finance/TransactionForm";
 import { archiveDebt } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
-import { DEBT_TYPE_LABELS, type Debt, type TransactionKind } from "@/lib/finance/types";
+import { DEBT_TYPE_LABELS, DEBT_TYPES, type Debt, type DebtType, type TransactionKind } from "@/lib/finance/types";
+import { filterAndSortDebts, DEBT_SORTS, type DebtSort } from "@/lib/finance/debtsView";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { formatUsd, formatPercent, utilization, payoffProgress, formatDueDate } from "@/lib/finance/derive";
 import {
+  inputClass,
   labelClass,
   primaryButtonClass,
   ghostButtonClass,
   errorClass,
 } from "@/components/finance/formStyles";
+
+type DebtView = "card" | "list";
+const VIEW_KEY = "nzx.debts.view";
+const SORT_KEY = "nzx.debts.sort";
 
 export interface RecentActivity {
   id: string;
@@ -42,6 +49,45 @@ export function DebtsClient({ debts, recent }: Props) {
 
   const totalBalance = debts.reduce((sum, d) => sum + Number(d.balance), 0);
   const totalMin = debts.reduce((sum, d) => sum + Number(d.min_payment), 0);
+
+  // List controls (client-side over the loaded debts).
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<DebtType | "all">("all");
+  const [sort, setSort] = useState<DebtSort>("balance_desc");
+  const [view, setView] = useState<DebtView>("card");
+
+  // Persist view + sort across reloads (validated; hydrated post-mount to avoid SSR mismatch).
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(VIEW_KEY);
+      if (v === "card" || v === "list") setView(v);
+      const s = localStorage.getItem(SORT_KEY);
+      if (s && DEBT_SORTS.some((o) => o.value === s)) setSort(s as DebtSort);
+    } catch {
+      /* storage unavailable — use defaults */
+    }
+    setHydrated(true);
+  }, []);
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(VIEW_KEY, view);
+      localStorage.setItem(SORT_KEY, sort);
+    } catch {
+      /* ignore */
+    }
+  }, [hydrated, view, sort]);
+
+  // Only offer type-filter options for types the user actually has.
+  const presentTypes = useMemo(
+    () => DEBT_TYPES.filter((t) => debts.some((d) => d.type === t)),
+    [debts],
+  );
+  const visibleDebts = useMemo(
+    () => filterAndSortDebts(debts, { query, type: typeFilter, sort }),
+    [debts, query, typeFilter, sort],
+  );
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -95,21 +141,195 @@ export function DebtsClient({ debts, recent }: Props) {
               </p>
             </div>
           ) : (
-            <ul aria-label="Debts" className="grid gap-4 lg:grid-cols-2">
-              {debts.map((debt) => (
-                <DebtCard
-                  key={debt.id}
-                  debt={debt}
-                  onEdit={() => setMode({ kind: "edit", debt })}
-                  onTxn={() => setMode({ kind: "txn", debt })}
-                />
-              ))}
-            </ul>
+            <>
+              <DebtControls
+                query={query}
+                onQuery={setQuery}
+                typeFilter={typeFilter}
+                onTypeFilter={setTypeFilter}
+                presentTypes={presentTypes}
+                sort={sort}
+                onSort={setSort}
+                view={view}
+                onView={setView}
+              />
+
+              {visibleDebts.length === 0 ? (
+                <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
+                  <p className="font-mono text-sm text-[var(--color-text-muted)]">
+                    // no debts match your search or filter
+                  </p>
+                </div>
+              ) : view === "card" ? (
+                <ul aria-label="Debts" className="grid gap-4 lg:grid-cols-2">
+                  {visibleDebts.map((debt) => (
+                    <DebtCard
+                      key={debt.id}
+                      debt={debt}
+                      onEdit={() => setMode({ kind: "edit", debt })}
+                      onTxn={() => setMode({ kind: "txn", debt })}
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <ul
+                  aria-label="Debts"
+                  className="divide-y divide-[var(--color-border-subtle)] overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)]"
+                >
+                  {visibleDebts.map((debt) => (
+                    <DebtRow
+                      key={debt.id}
+                      debt={debt}
+                      onEdit={() => setMode({ kind: "edit", debt })}
+                      onTxn={() => setMode({ kind: "txn", debt })}
+                    />
+                  ))}
+                </ul>
+              )}
+            </>
           )}
 
           <ActivityCard recent={recent} />
         </>
       ) : null}
+    </div>
+  );
+}
+
+function DebtControls({
+  query,
+  onQuery,
+  typeFilter,
+  onTypeFilter,
+  presentTypes,
+  sort,
+  onSort,
+  view,
+  onView,
+}: {
+  query: string;
+  onQuery: (v: string) => void;
+  typeFilter: DebtType | "all";
+  onTypeFilter: (v: DebtType | "all") => void;
+  presentTypes: readonly DebtType[];
+  sort: DebtSort;
+  onSort: (v: DebtSort) => void;
+  view: DebtView;
+  onView: (v: DebtView) => void;
+}) {
+  const selectClass = `${inputClass} mt-0 h-10`;
+  return (
+    <div className="mb-6 flex flex-wrap items-center gap-3">
+      <div className="relative min-w-[12rem] flex-1">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-muted)]"
+          aria-hidden
+        />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          aria-label="Search debts"
+          placeholder="Search by name or issuer…"
+          className={`${inputClass} mt-0 h-10 pl-9`}
+        />
+      </div>
+
+      <select
+        value={typeFilter}
+        onChange={(e) => onTypeFilter(e.target.value as DebtType | "all")}
+        aria-label="Filter by type"
+        className={`${selectClass} w-auto`}
+      >
+        <option value="all">All types</option>
+        {presentTypes.map((t) => (
+          <option key={t} value={t}>
+            {DEBT_TYPE_LABELS[t]}
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={sort}
+        onChange={(e) => onSort(e.target.value as DebtSort)}
+        aria-label="Sort debts"
+        className={`${selectClass} w-auto`}
+      >
+        {DEBT_SORTS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+
+      <div className="flex h-10 items-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-0.5">
+        {(
+          [
+            { v: "card" as const, Icon: LayoutGrid, label: "Card view" },
+            { v: "list" as const, Icon: List, label: "List view" },
+          ]
+        ).map(({ v, Icon, label }) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onView(v)}
+            aria-label={label}
+            aria-pressed={view === v}
+            className={`flex size-8 items-center justify-center rounded ${
+              view === v
+                ? "bg-[var(--color-surface)] text-[var(--color-text-primary)]"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+            }`}
+          >
+            <Icon className="size-4" aria-hidden />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DebtRow({ debt, onEdit, onTxn }: { debt: Debt; onEdit: () => void; onTxn: () => void }) {
+  const util = utilization(
+    Number(debt.balance),
+    debt.credit_limit === null ? null : Number(debt.credit_limit),
+  );
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4">
+      <span className="shrink-0 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-2 text-[var(--color-text-secondary)]">
+        <DebtTypeIcon type={debt.type} className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-sans text-sm font-medium text-[var(--color-text-primary)]">{debt.name}</p>
+        <p className="truncate font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+          {DEBT_TYPE_LABELS[debt.type]}
+        </p>
+      </div>
+      <dl className="flex shrink-0 items-center gap-x-5 font-mono text-[11px] text-[var(--color-text-secondary)]">
+        <RowStat label="Bal" value={formatUsd(Number(debt.balance))} />
+        <RowStat label="APR" value={formatPercent(Number(debt.apr))} />
+        <RowStat label="Min" value={formatUsd(Number(debt.min_payment))} />
+        <RowStat label="Due" value={formatDueDate(debt.next_due_date, debt.due_day)} />
+        <RowStat label="Util" value={util === null ? "—" : `${Math.round(util * 100)}%`} />
+      </dl>
+      <div className="flex shrink-0 items-center gap-2">
+        <button onClick={onTxn} className={ghostButtonClass}>
+          Add transaction
+        </button>
+        <button onClick={onEdit} className={ghostButtonClass}>
+          Edit
+        </button>
+        <ArchiveButton debt={debt} />
+      </div>
+    </li>
+  );
+}
+
+function RowStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="text-right">
+      <dt className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">{label}</dt>
+      <dd className="tabular-nums text-[var(--color-text-primary)]">{value}</dd>
     </div>
   );
 }
