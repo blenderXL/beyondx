@@ -14,6 +14,7 @@ import {
   round2,
 } from "@/lib/finance/validation";
 import { applyTransactionToBalance } from "@/lib/finance/balance";
+import { isPayoffMethod, type PayoffMethod } from "@/lib/finance/payoff";
 import { captureError } from "@/lib/telemetry/capture";
 import type { FinanceActionState } from "@/lib/finance/actionState";
 
@@ -182,6 +183,27 @@ export async function addTransaction(
 
   revalidatePath(DEBTS_PATH);
   return { error: null, ok: true };
+}
+
+const PLANS_PATH = "/app/plans";
+const INSIGHTS_PATH = "/app/insights";
+
+/**
+ * Persist the user's chosen payoff strategy on their profile so the Payoff Plan and Insights
+ * read the same method. Called directly (not a form) from the method select; an invalid value
+ * is ignored. A failed write is captured but not surfaced — it's a preference, not data.
+ */
+export async function setPayoffMethod(method: PayoffMethod): Promise<void> {
+  if (!isPayoffMethod(method)) return;
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return;
+  const { error } = await supabase.from("profiles").update({ payoff_method: method }).eq("id", userId);
+  if (error) {
+    captureError(error, { action: "setPayoffMethod" });
+    return;
+  }
+  revalidatePath(PLANS_PATH);
+  revalidatePath(INSIGHTS_PATH);
 }
 
 /* ---- Phase 2: income / expenses / savings ----

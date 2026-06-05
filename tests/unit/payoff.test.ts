@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { orderDebts, computePayoff, type PayoffDebtInput } from "@/lib/finance/payoff";
+import {
+  orderDebts,
+  computePayoff,
+  resolvePayoffMethod,
+  PAYOFF_METHODS,
+  type PayoffDebtInput,
+} from "@/lib/finance/payoff";
 
 const d = (over: Partial<PayoffDebtInput> & { id: string; balance: number }): PayoffDebtInput => ({
   name: over.id,
@@ -22,6 +28,50 @@ describe("orderDebts", () => {
   it("custom orders by payoff_order (nulls last)", () => {
     const c = d({ id: "C", balance: 1, payoff_order: null });
     expect(orderDebts([a, b, c], "custom").map((x) => x.id)).toEqual(["B", "A", "C"]);
+  });
+
+  it("cfi orders by ascending balance ÷ min_payment (frees monthly cash first)", () => {
+    const a2 = d({ id: "A", balance: 1000, min_payment: 500 }); // cfi 2 — pay first
+    const b2 = d({ id: "B", balance: 600, min_payment: 100 }); //  cfi 6
+    expect(orderDebts([b2, a2], "cfi").map((x) => x.id)).toEqual(["A", "B"]);
+  });
+  it("cfi sends a zero-minimum debt last (infinite index)", () => {
+    const a2 = d({ id: "A", balance: 1000, min_payment: 100 }); // cfi 10
+    const z = d({ id: "Z", balance: 50, min_payment: 0 }); //       cfi ∞
+    expect(orderDebts([z, a2], "cfi").map((x) => x.id)).toEqual(["A", "Z"]);
+  });
+  it("highest_balance orders by descending balance", () => {
+    const a2 = d({ id: "A", balance: 1000, min_payment: 100 });
+    const b2 = d({ id: "B", balance: 600, min_payment: 500 });
+    expect(orderDebts([b2, a2], "highest_balance").map((x) => x.id)).toEqual(["A", "B"]);
+  });
+  it("highest_payment orders by descending minimum payment", () => {
+    const a2 = d({ id: "A", balance: 1000, min_payment: 100 });
+    const b2 = d({ id: "B", balance: 600, min_payment: 500 });
+    expect(orderDebts([a2, b2], "highest_payment").map((x) => x.id)).toEqual(["B", "A"]);
+  });
+});
+
+describe("resolvePayoffMethod", () => {
+  it("passes through every known method", () => {
+    for (const m of PAYOFF_METHODS) {
+      expect(resolvePayoffMethod(m.value)).toBe(m.value);
+    }
+  });
+  it("falls back to avalanche for null/unknown/tampered values", () => {
+    expect(resolvePayoffMethod(null)).toBe("avalanche");
+    expect(resolvePayoffMethod(undefined)).toBe("avalanche");
+    expect(resolvePayoffMethod("garbage")).toBe("avalanche");
+  });
+  it("offers all six strategies", () => {
+    expect(PAYOFF_METHODS.map((m) => m.value)).toEqual([
+      "avalanche",
+      "snowball",
+      "cfi",
+      "highest_balance",
+      "highest_payment",
+      "custom",
+    ]);
   });
 });
 

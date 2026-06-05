@@ -3,7 +3,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { featureState } from "@/lib/flags/server";
 import { ComingSoon } from "@/components/finance/ComingSoon";
 import { PlansClient } from "@/components/finance/PlansClient";
-import type { PayoffDebtInput } from "@/lib/finance/payoff";
+import { resolvePayoffMethod, type PayoffDebtInput } from "@/lib/finance/payoff";
 import type { Debt } from "@/lib/finance/types";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +18,17 @@ export default async function PlansPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  // Pre-migration-safe: `payoff_method` only exists on nzx-dev/prod after 0013 lands
+  // (deploy-dev on merge). Reading it before then errors → fall back to the default.
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("payoff_method")
+    .eq("id", user.id)
+    .maybeSingle();
+  const initialMethod = resolvePayoffMethod(
+    profileErr ? null : (profile as { payoff_method?: unknown } | null)?.payoff_method,
+  );
 
   const { data } = await supabase
     .from("debts")
@@ -35,5 +46,5 @@ export default async function PlansPage() {
     payoff_order: d.payoff_order,
   }));
 
-  return <PlansClient debts={debts} />;
+  return <PlansClient debts={debts} initialMethod={initialMethod} />;
 }

@@ -3,7 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { StatCard } from "@/components/layout/StatCard";
-import { computePayoff, orderDebts, type PayoffDebtInput, type PayoffMethod } from "@/lib/finance/payoff";
+import {
+  computePayoff,
+  orderDebts,
+  PAYOFF_METHODS,
+  type PayoffDebtInput,
+  type PayoffMethod,
+} from "@/lib/finance/payoff";
+import { setPayoffMethod } from "@/app/(app)/actions";
 import { buildAmortizationCsv } from "@/lib/finance/amortizationCsv";
 import { formatUsd, formatPercent } from "@/lib/finance/derive";
 import { inputClass, labelClass, ghostButtonClass } from "@/components/finance/formStyles";
@@ -11,14 +18,7 @@ import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { FieldHint } from "@/components/finance/FieldHint";
 import { PLAN_HINTS } from "@/lib/finance/fieldHints";
 
-const METHODS: { value: PayoffMethod; label: string; blurb: string }[] = [
-  { value: "avalanche", label: "Avalanche", blurb: "Highest APR first — least interest paid." },
-  { value: "snowball", label: "Snowball", blurb: "Smallest balance first — fastest wins." },
-  { value: "custom", label: "Custom order", blurb: "Your chosen payoff order." },
-];
-
-/** localStorage keys for the user's last payoff selections. */
-const METHOD_KEY = "nzx.plans.method";
+/** localStorage key for the user's last monthly budget (method is persisted on the profile). */
 const BUDGET_KEY = "nzx.plans.budget";
 
 function monthsToLabel(months: number): string {
@@ -39,22 +39,27 @@ function monthLabel(index: number): string {
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
-export function PlansClient({ debts }: { debts: PayoffDebtInput[] }) {
+export function PlansClient({
+  debts,
+  initialMethod,
+}: {
+  debts: PayoffDebtInput[];
+  /** The method persisted on the profile (server-resolved; defaults to avalanche). */
+  initialMethod: PayoffMethod;
+}) {
   const totalMin = useMemo(() => debts.reduce((s, d) => s + d.min_payment, 0), [debts]);
   const totalBalance = useMemo(() => debts.reduce((s, d) => s + d.balance, 0), [debts]);
-  const [method, setMethod] = useState<PayoffMethod>("avalanche");
+  const [method, setMethod] = useState<PayoffMethod>(initialMethod);
   // Default budget: minimums + 10% of balance-ish, but at least minimums + $100.
   const [budget, setBudget] = useState<number>(Math.max(Math.round(totalMin) + 100, Math.round(totalMin)));
 
-  // Persist the user's last method + budget across reloads (client-only, no backend).
-  // Read once on mount AFTER first render so SSR/CSR markup matches (no hydration flash of
-  // stored values); the `hydrated` gate stops the save effect from clobbering storage with
-  // defaults before the read runs. Values are validated before use (ignore tampered input).
+  // The method is persisted on the profile (shared with Insights); only the budget stays
+  // client-only. Read it once AFTER first render so SSR/CSR markup matches (no hydration
+  // flash); the `hydrated` gate stops the save effect from clobbering storage with the
+  // default before the read runs.
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     try {
-      const m = localStorage.getItem(METHOD_KEY);
-      if (m && METHODS.some((x) => x.value === m)) setMethod(m as PayoffMethod);
       const b = localStorage.getItem(BUDGET_KEY);
       if (b !== null) {
         const n = Number(b);
@@ -68,12 +73,17 @@ export function PlansClient({ debts }: { debts: PayoffDebtInput[] }) {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      localStorage.setItem(METHOD_KEY, method);
       localStorage.setItem(BUDGET_KEY, String(budget));
     } catch {
       /* ignore quota / availability errors */
     }
-  }, [hydrated, method, budget]);
+  }, [hydrated, budget]);
+
+  /** Update local state immediately, then persist the choice to the profile. */
+  function changeMethod(next: PayoffMethod) {
+    setMethod(next);
+    void setPayoffMethod(next);
+  }
 
   const result = useMemo(() => computePayoff(debts, budget, method), [debts, budget, method]);
   const ordered = useMemo(() => orderDebts(debts, method), [debts, method]);
@@ -121,17 +131,17 @@ export function PlansClient({ debts }: { debts: PayoffDebtInput[] }) {
           <select
             aria-label="Method"
             value={method}
-            onChange={(e) => setMethod(e.target.value as PayoffMethod)}
+            onChange={(e) => changeMethod(e.target.value as PayoffMethod)}
             className={inputClass}
           >
-            {METHODS.map((m) => (
+            {PAYOFF_METHODS.map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
               </option>
             ))}
           </select>
           <span className="mt-1 block font-mono text-[10px] text-[var(--color-text-muted)]">
-            {METHODS.find((m) => m.value === method)?.blurb}
+            {PAYOFF_METHODS.find((m) => m.value === method)?.blurb}
           </span>
         </label>
         <label className="block">

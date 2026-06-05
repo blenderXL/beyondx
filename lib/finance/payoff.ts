@@ -11,7 +11,35 @@
 import { round2 } from "./validation";
 import type { DebtType } from "./types";
 
-export type PayoffMethod = "snowball" | "avalanche" | "custom";
+export type PayoffMethod =
+  | "snowball"
+  | "avalanche"
+  | "cfi"
+  | "highest_balance"
+  | "highest_payment"
+  | "custom";
+
+/** The strategies the user can pick, with UI copy. Order is the select order. */
+export const PAYOFF_METHODS: { value: PayoffMethod; label: string; blurb: string }[] = [
+  { value: "avalanche", label: "Avalanche", blurb: "Highest APR first — least interest paid." },
+  { value: "snowball", label: "Snowball", blurb: "Smallest balance first — fastest wins." },
+  { value: "cfi", label: "Cash-flow index", blurb: "Balance ÷ min payment — frees monthly cash fastest." },
+  { value: "highest_balance", label: "Highest balance", blurb: "Largest balances first — clears big debts." },
+  { value: "highest_payment", label: "Highest payment", blurb: "Largest minimum first — frees the most cash soonest." },
+  { value: "custom", label: "Custom order", blurb: "Your own ranked order." },
+];
+
+/** What an unset/legacy `profiles.payoff_method` (null) resolves to. */
+export const DEFAULT_PAYOFF_METHOD: PayoffMethod = "avalanche";
+
+export function isPayoffMethod(v: unknown): v is PayoffMethod {
+  return typeof v === "string" && PAYOFF_METHODS.some((m) => m.value === v);
+}
+
+/** Coerce a stored/posted value to a valid method, defaulting when null/unknown/tampered. */
+export function resolvePayoffMethod(v: unknown): PayoffMethod {
+  return isPayoffMethod(v) ? v : DEFAULT_PAYOFF_METHOD;
+}
 
 export interface PayoffDebtInput {
   id: string;
@@ -51,20 +79,36 @@ export interface PayoffResult {
 const ACTIVE = 0.005; // a balance at/below half a cent is "paid off"
 const MAX_MONTHS = 1200; // 100-year guard against a budget that never amortizes
 
-/** Order debts by the chosen strategy. Stable (input order breaks ties). */
-export function orderDebts<T extends { balance: number; apr: number; payoff_order?: number | null }>(
-  debts: T[],
-  method: PayoffMethod,
-): T[] {
+/** Order debts by the chosen strategy. A deterministic tie-break keeps equal keys stable. */
+export function orderDebts<
+  T extends { balance: number; apr: number; min_payment: number; payoff_order?: number | null },
+>(debts: T[], method: PayoffMethod): T[] {
   const copy = [...debts];
-  if (method === "snowball") return copy.sort((a, b) => a.balance - b.balance);
-  if (method === "avalanche") return copy.sort((a, b) => b.apr - a.apr);
-  // custom: ascending payoff_order, nulls last.
-  return copy.sort((a, b) => {
-    const ao = a.payoff_order ?? Number.POSITIVE_INFINITY;
-    const bo = b.payoff_order ?? Number.POSITIVE_INFINITY;
-    return ao - bo;
-  });
+  // Ties resolve to highest APR, then smallest balance — so the ordering is fully determined.
+  const tie = (a: T, b: T) => b.apr - a.apr || a.balance - b.balance;
+  switch (method) {
+    case "snowball": // smallest balance first
+      return copy.sort((a, b) => a.balance - b.balance || tie(a, b));
+    case "avalanche": // highest APR first
+      return copy.sort((a, b) => b.apr - a.apr || tie(a, b));
+    case "highest_balance": // largest balance first
+      return copy.sort((a, b) => b.balance - a.balance || tie(a, b));
+    case "highest_payment": // largest minimum payment first
+      return copy.sort((a, b) => b.min_payment - a.min_payment || tie(a, b));
+    case "cfi": {
+      // Cash-flow index = balance ÷ minimum payment; lowest first frees monthly cash fastest.
+      // A zero-minimum debt has an infinite index, so it sorts last.
+      const cfi = (x: T) => (x.min_payment > 0 ? x.balance / x.min_payment : Number.POSITIVE_INFINITY);
+      return copy.sort((a, b) => cfi(a) - cfi(b) || tie(a, b));
+    }
+    case "custom":
+    default: // ascending payoff_order, nulls last
+      return copy.sort((a, b) => {
+        const ao = a.payoff_order ?? Number.POSITIVE_INFINITY;
+        const bo = b.payoff_order ?? Number.POSITIVE_INFINITY;
+        return ao - bo || tie(a, b);
+      });
+  }
 }
 
 interface Sim {
