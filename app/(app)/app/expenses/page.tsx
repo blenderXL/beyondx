@@ -29,7 +29,7 @@ export default async function ExpensesPage() {
   const now = new Date();
   const billingMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
 
-  const [expensesRes, debtsRes, savingsRes, incomesRes, paymentsRes, contribRes] = await Promise.all([
+  const [expensesRes, debtsRes, savingsRes, incomesRes, paymentsRes, contribRes, overridesRes] = await Promise.all([
     supabase.from("expenses").select("*").is("archived_at", null).order("created_at", { ascending: true }),
     // select("*") so a missing escrow/pmi column (pre-0014) reads as undefined rather than erroring.
     supabase.from("debts").select("*").is("archived_at", null).order("name", { ascending: true }),
@@ -38,6 +38,8 @@ export default async function ExpensesPage() {
     supabase.from("incomes").select("*").is("archived_at", null),
     supabase.from("transactions").select("expense_id, debt_id").eq("kind", "payment").eq("billing_month", billingMonth),
     supabase.from("transactions").select("savings_goal_id").eq("kind", "contribution").eq("billing_month", billingMonth),
+    // Variable-income actuals for this month (migration 0010); degrades to none if absent.
+    supabase.from("income_overrides").select("income_id, amount").eq("billing_month", billingMonth),
   ]);
 
   const payments = (paymentsRes.data ?? []) as { expense_id: string | null; debt_id: string | null }[];
@@ -52,12 +54,19 @@ export default async function ExpensesPage() {
   const savingsRows = (savingsRes.data ?? []) as SavingsGoal[];
   const incomes = (incomesRes.data ?? []) as Income[];
 
+  // income_id → this month's actual amount (variable sources).
+  const overrides: Record<string, number> = {};
+  for (const o of (overridesRes.data ?? []) as { income_id: string; amount: number }[]) {
+    overrides[o.income_id] = Number(o.amount);
+  }
+
   // Rail "money going toward" reuses the planner's group rollup. A linked debt's payment is
   // represented by its expense, so drop it from the debt minimums (same as the Budget page).
   const linkedDebtIds = new Set(expenses.map((e) => e.debt_id).filter((id): id is string => Boolean(id)));
   const plan = buildMonthlyPlan({
     incomes,
     expenses,
+    overrides,
     debts: debtRows
       .filter((d) => !linkedDebtIds.has(d.id))
       .map<PlannerDebt>((d) => ({
@@ -107,6 +116,17 @@ export default async function ExpensesPage() {
       monthly_contribution: Number(g.monthly_contribution),
     }));
 
+  // Variable income sources get an inline "set this month's actual" editor on the hub.
+  const variableIncomes = incomes
+    .filter((i) => i.is_variable)
+    .map((i) => ({
+      id: i.id,
+      source: i.source,
+      base: Number(i.amount),
+      cadence: i.cadence,
+      override: overrides[i.id] ?? null,
+    }));
+
   return (
     <ExpensesClient
       expenses={expenses}
@@ -119,6 +139,8 @@ export default async function ExpensesPage() {
       paidDebtIds={paidDebtIds}
       savingsBills={savingsBills}
       paidSavingsIds={paidSavingsIds}
+      plan={plan}
+      variableIncomes={variableIncomes}
     />
   );
 }
