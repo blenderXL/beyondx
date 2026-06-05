@@ -225,12 +225,19 @@ export function PlansClient({
             </button>
           </div>
           <div className="mt-3 max-h-[28rem] overflow-auto rounded-[var(--radius-card)] border border-[var(--color-border-subtle)]">
-            <table aria-label="Month-by-month payoff schedule" className="w-full border-collapse font-mono text-[11px]">
+            {/* table-fixed + a defined table width makes every column an equal share, regardless
+                of value/header length (long headers truncate). minWidth scales with the column
+                count so the table fills the panel and scrolls sideways once there are many debts. */}
+            <table
+              aria-label="Month-by-month payoff schedule"
+              className="w-full table-fixed border-collapse font-mono text-[11px]"
+              style={{ minWidth: `${(debts.length + 4) * 7}rem` }}
+            >
               <thead className="sticky top-0 z-10 bg-[var(--color-elevated)] text-[var(--color-text-muted)]">
                 <tr>
                   <th scope="col" className="px-3 py-2 text-left font-normal">Month</th>
                   {debts.map((d) => (
-                    <th key={d.id} scope="col" className="whitespace-nowrap px-3 py-2 text-right font-normal">
+                    <th key={d.id} scope="col" title={d.name} className="truncate px-3 py-2 text-right font-normal">
                       {d.name}
                     </th>
                   ))}
