@@ -4,8 +4,8 @@ import { TEST_USER, hasTestCreds, hasServiceRole, uiLogin } from "./helpers/auth
 
 /**
  * N1 quick-polish coverage:
- *  - sidebar reads "Budget" + "Payoff Plan" (the rename),
- *  - the Payoff Plan page remembers method + budget across a reload (localStorage),
+ *  - sidebar shows "Debt payoff planner" and omits the retired items,
+ *  - the payoff planner page remembers method + budget across a reload (localStorage),
  *  - the debt Interest-rate field accepts a value typed with a "%" sign.
  *
  * Needs the test user (UI login) and the service role (to flip the release flags the
@@ -41,11 +41,15 @@ test.afterAll(async () => {
   await c.from("debts").delete().in("name", createdNames);
 });
 
-test("sidebar shows Payoff Plan and omits the retired Income + Budget items", async ({ page }) => {
+test("sidebar shows Debt payoff planner and omits retired Income + Budget + Insights", async ({ page }) => {
   await uiLogin(page);
   await expect(page).toHaveURL(/\/app(\/|$)/);
   const nav = page.getByRole("navigation", { name: "App" });
-  await expect(nav.getByRole("link", { name: "Payoff Plan" })).toBeVisible();
+  // Payoff Plan was renamed to "Debt payoff planner" and moved under Debts.
+  await expect(nav.getByRole("link", { name: "Debt payoff planner" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Payoff Plan", exact: true })).toHaveCount(0);
+  // Insights was merged into the payoff planner; its nav item is gone.
+  await expect(nav.getByRole("link", { name: "Insights", exact: true })).toHaveCount(0);
   // Income + Budget were folded into Expenses (Phase 5C); the old labels are gone.
   await expect(nav.getByRole("link", { name: "Income", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Budget", exact: true })).toHaveCount(0);
