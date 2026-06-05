@@ -15,6 +15,8 @@ import {
   type DebtType,
 } from "@/lib/finance/types";
 import { filterAndSortExpenses, EXPENSE_SORTS, type ExpenseSort } from "@/lib/finance/expensesView";
+import { splitPayment } from "@/lib/finance/payment";
+import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { formatUsd, expenseDisplayAmount } from "@/lib/finance/derive";
 import { BarList } from "@/components/finance/charts";
 import { FieldHint } from "@/components/finance/FieldHint";
@@ -33,6 +35,19 @@ export interface DebtOption {
   name: string;
   type: DebtType;
   min_payment: number;
+}
+
+/** A recurring debt obligation auto-shown as a checkable bill row (not a stored expense). */
+export interface DebtBill {
+  id: string;
+  name: string;
+  type: DebtType;
+  balance: number;
+  apr: number;
+  min_payment: number;
+  escrow: number | null;
+  pmi: number | null;
+  dueDay: number | null;
 }
 
 /** Server-computed summary for the right rail. */
@@ -357,6 +372,8 @@ export function ExpensesClient({
   income,
   billingMonth,
   paidExpenseIds,
+  debtBills,
+  paidDebtIds,
 }: {
   expenses: Expense[];
   debts: DebtOption[];
@@ -367,12 +384,20 @@ export function ExpensesClient({
   billingMonth: string;
   /** Expense ids already checked off (paid) this month. */
   paidExpenseIds: string[];
+  /** Recurring debt obligations auto-shown as bill rows. */
+  debtBills: DebtBill[];
+  /** Debt ids already checked off (paid) this month. */
+  paidDebtIds: string[];
 }) {
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const toList = useCallback(() => setMode({ kind: "list" }), []);
   const total = expenses.reduce((sum, e) => sum + expenseDisplayAmount(e, income), 0);
   const paid = useMemo(() => new Set(paidExpenseIds), [paidExpenseIds]);
-  const allPaid = expenses.length > 0 && expenses.every((e) => paid.has(e.id));
+  const paidDebt = useMemo(() => new Set(paidDebtIds), [paidDebtIds]);
+  const allPaid =
+    expenses.length + debtBills.length > 0 &&
+    expenses.every((e) => paid.has(e.id)) &&
+    debtBills.every((b) => paidDebt.has(b.id));
 
   // List controls (client-side over the loaded expenses).
   const [query, setQuery] = useState("");
@@ -412,7 +437,7 @@ export function ExpensesClient({
       ) : null}
 
       {mode.kind === "list" ? (
-        expenses.length === 0 ? (
+        expenses.length === 0 && debtBills.length === 0 ? (
           <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
             <p className="font-mono text-sm text-[var(--color-text-muted)]">
               // no expenses yet — add your bills to start planning
@@ -420,41 +445,60 @@ export function ExpensesClient({
           </div>
         ) : (
           <>
-            <ExpenseControls
-              query={query}
-              onQuery={setQuery}
-              group={group}
-              onGroup={setGroup}
-              presentGroups={presentGroups}
-              sort={sort}
-              onSort={setSort}
-            />
+            {expenses.length > 0 ? (
+              <>
+                <ExpenseControls
+                  query={query}
+                  onQuery={setQuery}
+                  group={group}
+                  onGroup={setGroup}
+                  presentGroups={presentGroups}
+                  sort={sort}
+                  onSort={setSort}
+                />
 
-            <div className="lg:grid lg:grid-cols-[1fr_17rem] lg:items-start lg:gap-6">
-              <div>
-                {visible.length === 0 ? (
-                  <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
-                    <p className="font-mono text-sm text-[var(--color-text-muted)]">
-                      // no expenses match your search or filter
-                    </p>
+                <div className="lg:grid lg:grid-cols-[1fr_17rem] lg:items-start lg:gap-6">
+                  <div>
+                    {visible.length === 0 ? (
+                      <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
+                        <p className="font-mono text-sm text-[var(--color-text-muted)]">
+                          // no expenses match your search or filter
+                        </p>
+                      </div>
+                    ) : (
+                      <ul aria-label="Expenses" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {visible.map((expense) => (
+                          <ExpenseCard
+                            key={expense.id}
+                            expense={expense}
+                            paid={paid.has(expense.id)}
+                            billingMonth={billingMonth}
+                            onEdit={() => setMode({ kind: "edit", expense })}
+                          />
+                        ))}
+                      </ul>
+                    )}
                   </div>
-                ) : (
-                  <ul aria-label="Expenses" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {visible.map((expense) => (
-                      <ExpenseCard
-                        key={expense.id}
-                        expense={expense}
-                        paid={paid.has(expense.id)}
-                        billingMonth={billingMonth}
-                        onEdit={() => setMode({ kind: "edit", expense })}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </div>
 
-              <ExpensesRailCard rail={rail} count={expenses.length} total={total} />
-            </div>
+                  <ExpensesRailCard rail={rail} count={expenses.length} total={total} />
+                </div>
+              </>
+            ) : null}
+
+            {debtBills.length > 0 ? (
+              <section className="mt-8">
+                <p className={labelClass}>// debt payments this month</p>
+                <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
+                  Your debts, pre-filled with their minimum — edit what you&apos;ll pay, then check it off.
+                  The balance drops by the principal portion.
+                </p>
+                <ul aria-label="Debt payments" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {debtBills.map((b) => (
+                    <DebtBillCard key={b.id} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
+                  ))}
+                </ul>
+              </section>
+            ) : null}
           </>
         )
       ) : null}
@@ -699,6 +743,79 @@ function ExpenseCard({
           // {state.error}
         </p>
       ) : null}
+    </li>
+  );
+}
+
+/**
+ * A recurring debt obligation as a checkable bill. The payment defaults to the minimum and is
+ * editable for the month; checking off records the payment and draws the balance down by the
+ * principal portion (shown live as you edit the amount).
+ */
+function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: boolean; billingMonth: string }) {
+  const [amount, setAmount] = useState(String(bill.min_payment));
+  const [, formAction] = useActionState(togglePaid, INITIAL_FINANCE_STATE);
+  const n = Number(amount);
+  const split = splitPayment({
+    balance: bill.balance,
+    apr: bill.apr,
+    total: Number.isFinite(n) ? n : 0,
+    escrow: bill.escrow ?? 0,
+    pmi: bill.pmi ?? 0,
+  });
+  const extras = split.escrow + split.pmi;
+
+  return (
+    <li className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
+      <form action={formAction}>
+        <input type="hidden" name="kind" value="debt" />
+        <input type="hidden" name="item_id" value={bill.id} />
+        <input type="hidden" name="billing_month" value={billingMonth} />
+
+        <div className="flex min-w-0 items-start gap-3">
+          <input
+            type="checkbox"
+            name="checked"
+            aria-label={`Mark ${bill.name} paid`}
+            defaultChecked={paid}
+            onChange={(e) => e.currentTarget.form?.requestSubmit()}
+            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
+          />
+          <div className="min-w-0">
+            <p
+              className={`font-sans text-sm font-medium break-words ${
+                paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+              }`}
+            >
+              {bill.name}
+            </p>
+            <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] tracking-[0.16em] text-[var(--color-text-muted)] uppercase">
+              <DebtTypeIcon type={bill.type} className="size-3" />
+              Debt{bill.dueDay ? ` · due day ${bill.dueDay}` : ""}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-end gap-3">
+          <label className="flex-1">
+            <span className={inlineLabelClass}>Pay $</span>
+            <input
+              name="amount"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              aria-label={`Payment for ${bill.name}`}
+              className={inlineFieldClass}
+            />
+          </label>
+          <p className="pb-1.5 text-right font-mono text-[11px] tabular-nums text-[var(--color-text-secondary)]">
+            ≈ {formatUsd(split.principal)} principal
+            <span className="block text-[10px] text-[var(--color-text-muted)]">
+              {formatUsd(split.interest)} interest{extras > 0 ? ` · ${formatUsd(extras)} esc/PMI` : ""}
+            </span>
+          </p>
+        </div>
+      </form>
     </li>
   );
 }

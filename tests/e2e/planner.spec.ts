@@ -67,7 +67,7 @@ test("monthly planner: flag ON → computed income/offerings/expenses/rollups re
   const rollups = page.getByRole("list", { name: "Rollups" });
   await expect(rollups).toContainText("Offerings");
   await expect(rollups).toContainText("Utility");
-  await expect(rollups).toContainText("Debt minimums");
+  await expect(rollups).toContainText("Min. debt payments");
   // The 1st-of-month pay cycle column renders (income landed on day 1).
   await expect(page.getByText("1st-of-month")).toBeVisible();
 });
