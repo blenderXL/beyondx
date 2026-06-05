@@ -126,7 +126,7 @@ export function DebtsClient({ debts, recent }: Props) {
           <div className="mb-5 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-5 py-3">
             <SummaryStat label="Total balance" value={formatUsd(totalBalance)} accentVar="--color-accent-red" />
             <SummaryStat label="Active" value={String(debts.length)} accentVar="--color-accent-blue" />
-            <SummaryStat label="Min / mo" value={formatUsd(totalMin)} accentVar="--color-accent-amber" />
+            <SummaryStat label="Min. payments / mo" value={formatUsd(totalMin)} accentVar="--color-accent-amber" />
           </div>
 
           {debts.length === 0 ? (
@@ -291,10 +291,14 @@ function DebtControls({
   view: DebtView;
   onView: (v: DebtView) => void;
 }) {
-  const selectClass = `${inputClass} mt-0 h-10`;
+  // `inputClass` carries `w-full`; force auto width on the selects (!important beats it by
+  // CSS order) so the controls sit compactly on one line instead of stacking full-width.
+  const selectClass = `${inputClass} mt-0 h-10 !w-auto max-w-[12rem]`;
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-3">
-      <div className="relative min-w-[12rem] flex-1">
+    // Search grows; the filter/sort/view controls stay grouped on the same row. Wraps to a
+    // second row only below `sm`, keeping the debt cards close to the top.
+    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="relative flex-1">
         <Search
           className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-muted)]"
           aria-hidden
@@ -309,56 +313,58 @@ function DebtControls({
         />
       </div>
 
-      <select
-        value={typeFilter}
-        onChange={(e) => onTypeFilter(e.target.value as DebtType | "all")}
-        aria-label="Filter by type"
-        className={`${selectClass} w-auto`}
-      >
-        <option value="all">All types</option>
-        {presentTypes.map((t) => (
-          <option key={t} value={t}>
-            {DEBT_TYPE_LABELS[t]}
-          </option>
-        ))}
-      </select>
+      <div className="flex items-center gap-3">
+        <select
+          value={typeFilter}
+          onChange={(e) => onTypeFilter(e.target.value as DebtType | "all")}
+          aria-label="Filter by type"
+          className={selectClass}
+        >
+          <option value="all">All types</option>
+          {presentTypes.map((t) => (
+            <option key={t} value={t}>
+              {DEBT_TYPE_LABELS[t]}
+            </option>
+          ))}
+        </select>
 
-      <select
-        value={sort}
-        onChange={(e) => onSort(e.target.value as DebtSort)}
-        aria-label="Sort debts"
-        className={`${selectClass} w-auto`}
-      >
-        {DEBT_SORTS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        <select
+          value={sort}
+          onChange={(e) => onSort(e.target.value as DebtSort)}
+          aria-label="Sort debts"
+          className={selectClass}
+        >
+          {DEBT_SORTS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
 
-      <div className="flex h-10 items-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-0.5">
-        {(
-          [
-            { v: "card" as const, Icon: LayoutGrid, label: "Card view" },
-            { v: "list" as const, Icon: List, label: "List view" },
-            { v: "category" as const, Icon: Layers, label: "Category view" },
-          ]
-        ).map(({ v, Icon, label }) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => onView(v)}
-            aria-label={label}
-            aria-pressed={view === v}
-            className={`flex size-8 items-center justify-center rounded ${
-              view === v
-                ? "bg-[var(--color-surface)] text-[var(--color-text-primary)]"
-                : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-            }`}
-          >
-            <Icon className="size-4" aria-hidden />
-          </button>
-        ))}
+        <div className="flex h-10 shrink-0 items-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-0.5">
+          {(
+            [
+              { v: "card" as const, Icon: LayoutGrid, label: "Card view" },
+              { v: "list" as const, Icon: List, label: "List view" },
+              { v: "category" as const, Icon: Layers, label: "Category view" },
+            ]
+          ).map(({ v, Icon, label }) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onView(v)}
+              aria-label={label}
+              aria-pressed={view === v}
+              className={`flex size-8 items-center justify-center rounded ${
+                view === v
+                  ? "bg-[var(--color-surface)] text-[var(--color-text-primary)]"
+                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+              }`}
+            >
+              <Icon className="size-4" aria-hidden />
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
