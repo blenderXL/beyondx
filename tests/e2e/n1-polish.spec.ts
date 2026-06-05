@@ -65,6 +65,9 @@ test("Payoff Plan remembers method + budget across a reload", async ({ page }) =
 
   await page.getByLabel("Method").selectOption("snowball");
   await page.getByLabel("Monthly budget").fill("4242");
+  // Budget persists to the profile on blur (shared with the Dashboard); let the write settle.
+  await page.getByLabel("Monthly budget").blur();
+  await page.waitForLoadState("networkidle");
 
   await page.reload();
   await expect(page.getByRole("heading", { name: "Strategy & Projections" })).toBeVisible();

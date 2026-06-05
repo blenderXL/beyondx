@@ -208,6 +208,27 @@ export async function setPayoffMethod(method: PayoffMethod): Promise<void> {
   revalidatePath(PLANS_PATH);
 }
 
+/**
+ * Persist the user's monthly payoff budget on their profile so the Debt payoff planner and the
+ * Dashboard project the same payoff date (no per-browser localStorage drift). Pre-migration
+ * (before 0016) the write errors and is swallowed — the app falls back to its default budget.
+ */
+export async function setPayoffBudget(budget: number): Promise<void> {
+  if (!Number.isFinite(budget) || budget < 0) return;
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return;
+  const { error } = await supabase
+    .from("profiles")
+    .update({ payoff_budget: round2(budget) })
+    .eq("id", userId);
+  if (error) {
+    captureError(error, { action: "setPayoffBudget" });
+    return;
+  }
+  revalidatePath(PLANS_PATH);
+  revalidatePath("/app");
+}
+
 /* ---- Phase 2: income / expenses / savings ----
  * Same shape as the debt actions: server-side validation, explicit `profile_id` on
  * insert, RLS scoping every write, and `.select("id")` to distinguish "not yours /
