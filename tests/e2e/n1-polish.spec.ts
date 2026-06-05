@@ -61,13 +61,13 @@ test("Payoff Plan remembers method + budget across a reload", async ({ page }) =
   await uiLogin(page);
   await expect(page).toHaveURL(/\/app(\/|$)/);
   await page.goto("/app/plans");
-  await expect(page.getByRole("heading", { name: "Payoff plan" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Strategy & Projections" })).toBeVisible();
 
   await page.getByLabel("Method").selectOption("snowball");
   await page.getByLabel("Monthly budget").fill("4242");
 
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Payoff plan" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Strategy & Projections" })).toBeVisible();
   await expect(page.getByLabel("Method")).toHaveValue("snowball");
   await expect(page.getByLabel("Monthly budget")).toHaveValue("4242");
 });

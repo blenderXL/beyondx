@@ -41,7 +41,7 @@ test("amortization table renders and exports a CSV", async ({ page }) => {
   await uiLogin(page);
   await expect(page).toHaveURL(/\/app(\/|$)/);
   await page.goto("/app/plans");
-  await expect(page.getByRole("heading", { name: "Payoff plan" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Strategy & Projections" })).toBeVisible();
 
   // A large budget is feasible regardless of the test user's other debts (parallel specs).
   await page.getByLabel("Monthly budget").fill("9999999");
