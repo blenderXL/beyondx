@@ -20,12 +20,14 @@ import {
   type Expense,
   type ExpenseGroup,
   type DebtType,
+  type Income,
 } from "@/lib/finance/types";
 import { filterAndSortExpenses, EXPENSE_SORTS, type ExpenseSort } from "@/lib/finance/expensesView";
 import { splitPayment } from "@/lib/finance/payment";
 import type { MonthlyPlan } from "@/lib/finance/planner";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { BudgetSummary } from "@/components/finance/BudgetSummary";
+import { IncomeClient } from "@/components/finance/IncomeClient";
 import { IncomeOverrideEditor, type VariableIncome } from "@/components/finance/IncomeOverrideEditor";
 import { formatUsd, expenseDisplayAmount } from "@/lib/finance/derive";
 import { BarList } from "@/components/finance/charts";
@@ -395,6 +397,7 @@ export function ExpensesClient({
   paidSavingsIds,
   plan,
   variableIncomes,
+  incomes,
 }: {
   expenses: Expense[];
   debts: DebtOption[];
@@ -403,6 +406,8 @@ export function ExpensesClient({
   plan: MonthlyPlan;
   /** Variable income sources for the inline "set this month's actual" editor. */
   variableIncomes: VariableIncome[];
+  /** All income sources, for the embedded income manager (add/edit/remove). */
+  incomes: Income[];
   /** Monthly income — resolves a percent offering to its dollar value in the listed total. */
   income: number;
   /** First-of-month ISO date the check-offs are keyed to. */
@@ -470,6 +475,9 @@ export function ExpensesClient({
       {mode.kind === "list" ? (
         <>
           <BudgetSummary plan={plan} />
+          <section className="mb-8">
+            <IncomeClient incomes={incomes} embedded />
+          </section>
           <IncomeOverrideEditor incomes={variableIncomes} billingMonth={billingMonth} />
 
           {expenses.length === 0 && debtBills.length === 0 && savingsBills.length === 0 ? (

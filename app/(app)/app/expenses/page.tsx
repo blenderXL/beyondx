@@ -141,6 +141,7 @@ export default async function ExpensesPage() {
       paidSavingsIds={paidSavingsIds}
       plan={plan}
       variableIncomes={variableIncomes}
+      incomes={incomes}
     />
   );
 }
