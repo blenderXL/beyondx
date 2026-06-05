@@ -48,33 +48,31 @@ test.afterAll(async () => {
 test.describe.configure({ mode: "serial" });
 
 test.describe("Phase 2 — ledger spine behind feature flags", () => {
-  test("release flag OFF → income route shows Coming soon and the nav link is hidden", async ({ page }) => {
-    await setFlag("income", false);
+  test("the Income route redirects to the Expenses hub and has no nav link", async ({ page }) => {
+    // Income was folded into the Expenses hub (Phase 5C); the old route redirects.
+    await setFlag("expenses", true);
     await uiLogin(page);
     await expect(page).toHaveURL(/\/app(\/|$)/);
 
     await page.goto("/app/income");
-    await expect(page.getByText(/coming soon/i)).toBeVisible();
-    // The real CRUD UI must not be reachable, and the nav link must be hidden.
-    await expect(page.getByRole("button", { name: "New income" })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/app\/expenses$/);
     await expect(page.getByRole("link", { name: "Income" })).toHaveCount(0);
   });
 
-  test("income: flag ON → create → edit → archive; server rejects a bad amount", async ({ page }) => {
+  test("income: managed on the hub → create → edit → archive; server rejects a bad amount", async ({ page }) => {
     page.on("dialog", (d) => d.accept());
-    await setFlag("income", true);
+    await setFlag("expenses", true);
     await uiLogin(page);
     await expect(page).toHaveURL(/\/app(\/|$)/);
 
-    await page.goto("/app/income");
-    await expect(page.getByRole("heading", { name: "Your income" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Income" })).toBeVisible();
+    await page.goto("/app/expenses");
+    await expect(page.getByRole("button", { name: "Add income" })).toBeVisible();
 
     const list = page.getByRole("list", { name: "Income" });
     const source = uniqueName("e2e-income");
     createdSources.push(source);
 
-    await page.getByRole("button", { name: "New income" }).click();
+    await page.getByRole("button", { name: "Add income" }).click();
     await page.getByLabel("Source").fill(source);
     await page.getByLabel("Amount", { exact: true }).fill("3000");
     await page.getByLabel("Pay frequency").selectOption("semimonthly");
@@ -93,7 +91,7 @@ test.describe("Phase 2 — ledger spine behind feature flags", () => {
     await expect(card()).toContainText("$3,200.00");
 
     // Server-side validation: a negative amount is rejected.
-    await page.getByRole("button", { name: "New income" }).click();
+    await page.getByRole("button", { name: "Add income" }).click();
     await page.getByLabel("Source").fill(uniqueName("e2e-bad"));
     await page.getByLabel("Amount", { exact: true }).fill("-5");
     await page.getByRole("button", { name: "Add income" }).click();

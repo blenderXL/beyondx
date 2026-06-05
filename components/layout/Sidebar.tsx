@@ -5,10 +5,8 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   CreditCard,
-  TrendingUp,
   Wallet,
   PiggyBank,
-  CalendarDays,
   CalendarRange,
   LineChart,
   Sparkles,
@@ -22,10 +20,9 @@ import type { FlagKey } from "@/lib/flags/registry";
 const NAV = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/app/debts", label: "Debts", icon: CreditCard },
-  { href: "/app/income", label: "Income", icon: TrendingUp, flag: "income" },
-  { href: "/app/expenses", label: "Expenses", icon: Wallet, flag: "expenses" },
   { href: "/app/savings", label: "Savings", icon: PiggyBank, flag: "savings" },
-  { href: "/app/planner", label: "Budget", icon: CalendarDays, flag: "planner" },
+  // Income + Budget were folded into Expenses (Phase 5); their routes redirect to /app/expenses.
+  { href: "/app/expenses", label: "Expenses", icon: Wallet, flag: "expenses" },
   { href: "/app/plans", label: "Payoff Plan", icon: CalendarRange, flag: "payoffEngine" },
   { href: "/app/insights", label: "Insights", icon: LineChart, flag: "insights" },
   { href: "/app/assistant", label: "Assistant", icon: Sparkles, proOnly: true },

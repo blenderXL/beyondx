@@ -25,8 +25,7 @@ async function setFlag(key: string, enabled: boolean) {
 
 test.beforeAll(async () => {
   if (!hasTestCreds() || !hasServiceRole()) return;
-  await setFlag("income", true);
-  await setFlag("planner", true);
+  await setFlag("expenses", true); // income + budget live on the Expenses hub now (Phase 5C)
   // Probe the new table — present only once migration 0010 is applied to nzx-dev.
   const c = ownerClient();
   await c.auth.signInWithPassword({ email: TEST_USER.email, password: TEST_USER.password });
@@ -45,8 +44,8 @@ test.afterAll(async () => {
 test("income form exposes the variable-income checkbox", async ({ page }) => {
   await uiLogin(page);
   await expect(page).toHaveURL(/\/app(\/|$)/);
-  await page.goto("/app/income");
-  await page.getByRole("button", { name: "New income" }).click();
+  await page.goto("/app/expenses");
+  await page.getByRole("button", { name: "Add income" }).click();
   await expect(page.getByLabel("Variable income")).toBeVisible();
 });
 
@@ -56,20 +55,19 @@ test("mark a source variable, set this month's actual, Budget total reflects it"
   await uiLogin(page);
   await expect(page).toHaveURL(/\/app(\/|$)/);
 
-  // Create a variable income source through the form (base $1,000, monthly).
-  await page.goto("/app/income");
-  await page.getByRole("button", { name: "New income" }).click();
+  // Create a variable income source through the hub's income form (base $1,000, monthly).
+  await page.goto("/app/expenses");
+  await page.getByRole("button", { name: "Add income" }).click();
   await page.getByLabel("Source").fill(SOURCE);
-  await page.getByLabel("Amount").fill("1000");
+  await page.getByLabel("Amount", { exact: true }).fill("1000");
   await page.getByLabel("Pay frequency").selectOption("monthly");
   await page.getByLabel("Variable income").check();
   await page.getByRole("button", { name: "Add income" }).click();
   await expect(page.getByRole("list", { name: "Income" }).locator("li", { hasText: SOURCE })).toBeVisible();
 
-  // Budget page: the variable source gets an inline "this month's actual" editor. Scope to
-  // THIS source's row — the shared test user may have other variable sources (parallel projects).
-  await page.goto("/app/planner");
-  const editor = page.getByRole("region", { name: "Variable income" });
+  // The hub's variable-income editor gives the source an inline "this month's actual" row. Scope
+  // to THIS source's row — the shared test user may have other variable sources (parallel projects).
+  const editor = page.getByRole("region", { name: "This month's actuals" });
   const row = editor.getByRole("listitem").filter({ hasText: SOURCE });
   await expect(row).toContainText(/using the base amount this month/i);
 

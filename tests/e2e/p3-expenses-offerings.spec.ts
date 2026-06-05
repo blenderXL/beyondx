@@ -65,9 +65,8 @@ test("redesigned form prefills from a debt; tithe is gone from income; rail rend
   await expect(rail).toContainText(/money going toward/i);
   await expect(rail).toContainText(/active subscription/i);
 
-  // Income form no longer collects a tithe (it moved to expenses).
-  await page.goto("/app/income");
-  await page.getByRole("button", { name: "New income" }).click();
+  // Income is managed on the Expenses hub now (Phase 5C) and the form has no tithe field.
+  await page.getByRole("button", { name: "Add income" }).click();
   await expect(page.getByText("Offering / tithe")).toHaveCount(0);
   await expect(page.getByLabel("Source")).toBeVisible();
 });
