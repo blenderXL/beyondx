@@ -217,7 +217,8 @@ export async function setPayoffMethod(method: PayoffMethod): Promise<void> {
  * helpers remove the create/update/archive boilerplate; the validators guarantee the
  * value shape, so the row payload is passed through opaquely. */
 
-const INCOME_PATH = "/app/income";
+// Income management lives on the Expenses hub now (Phase 5C); revalidate there.
+const INCOME_PATH = "/app/expenses";
 const EXPENSES_PATH = "/app/expenses";
 const SAVINGS_PATH = "/app/savings";
 
@@ -457,7 +458,8 @@ export async function addContribution(_p: FinanceActionState, formData: FormData
   return { error: null, ok: true };
 }
 
-const PLANNER_PATH = "/app/planner";
+// The Budget page was folded into the Expenses hub (Phase 5C); revalidate there.
+const PLANNER_PATH = "/app/expenses";
 const ISO_MONTH = /^\d{4}-\d{2}-\d{2}$/;
 
 /**

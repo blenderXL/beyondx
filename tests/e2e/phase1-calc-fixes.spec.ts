@@ -49,7 +49,7 @@ test.afterAll(async () => {
 });
 
 test("one-time income is included in the budget income total", async ({ page }) => {
-  await setFlag("planner", true);
+  await setFlag("expenses", true); // Budget summary lives on the Expenses hub now (Phase 5C)
   const c = ownerClient();
   const { data: auth } = await c.auth.signInWithPassword({
     email: TEST_USER.email,
@@ -59,7 +59,7 @@ test("one-time income is included in the budget income total", async ({ page }) 
 
   await uiLogin(page);
   await expectOnApp(page);
-  await page.goto("/app/planner");
+  await page.goto("/app/expenses");
 
   const income = statValue(page, "Income");
   const before = parseUsd(await income.innerText());
@@ -79,7 +79,6 @@ test("one-time income is included in the budget income total", async ({ page }) 
 });
 
 test("a percent offering is reflected in the expenses listed total", async ({ page }) => {
-  await setFlag("planner", true);
   await setFlag("expenses", true);
   const c = ownerClient();
   const { data: auth } = await c.auth.signInWithPassword({
@@ -100,11 +99,10 @@ test("a percent offering is reflected in the expenses listed total", async ({ pa
   await uiLogin(page);
   await expectOnApp(page);
 
-  await page.goto("/app/planner");
+  await page.goto("/app/expenses");
   const income = parseUsd(await statValue(page, "Income").innerText());
   expect(income).toBeGreaterThan(0);
 
-  await page.goto("/app/expenses");
   const listed = statValue(page, "Listed total");
   const before = parseUsd(await listed.innerText());
 

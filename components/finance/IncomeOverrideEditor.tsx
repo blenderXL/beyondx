@@ -72,8 +72,10 @@ export function IncomeOverrideEditor({
 }) {
   if (incomes.length === 0) return null;
 
+    // aria-label avoids "Variable income" so it doesn't collide with the income form's
+    // "Variable income" checkbox now that both live on the Expenses hub.
   return (
-    <section className="mb-8" aria-label="Variable income">
+    <section className="mb-8" aria-label="This month's actuals">
       <p className={labelClass}>// variable income — this month&apos;s actuals</p>
       <ul className="mt-3 grid gap-4 sm:grid-cols-2">
         {incomes.map((income) => (

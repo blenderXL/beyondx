@@ -134,27 +134,32 @@ test("bridge: paying a linked expense draws down the debt; un-checking restores 
   await page.getByRole("button", { name: "Add expense" }).click();
   await expect(page.getByRole("list", { name: "Expenses" }).locator("li", { hasText: expName })).toBeVisible();
 
-  // Planner: the debt's own min-payment line is hidden; the linked expense is the bill.
-  await page.goto("/app/planner");
-  const bills = page.getByRole("list", { name: "Bills this month" });
-  await expect(bills).toContainText(expName);
-  await expect(bills).not.toContainText(debtName);
+  // Expenses hub: the linked expense is a checkable card; the debt isn't shown as a separate
+  // bill (its expense represents it). Check it off → wait for the paid line-through so the
+  // togglePaid action has committed before we read the balance.
+  await page.goto("/app/expenses");
+  await page.getByLabel("Search expenses").fill(expName); // isolate the card
+  const expCard = page.getByRole("list", { name: "Expenses" }).locator("li", { hasText: expName });
+  await expect(expCard).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Debt payments" }).getByRole("listitem").filter({ hasText: debtName }),
+  ).toHaveCount(0);
 
-  // Mark the linked expense paid → wait for the server to reflect it (paid rows get a
-  // line-through) so the togglePaid action has committed before we read the balance.
-  const expRow = bills.locator("li", { hasText: expName });
-  await expRow.getByRole("checkbox").check();
-  await expect(expRow.locator(".line-through")).toBeVisible();
+  const checkbox = page.getByRole("checkbox", { name: `Mark ${expName} paid` });
+  await checkbox.check();
+  await expect(expCard.locator(".line-through")).toBeVisible();
 
-  // Debt balance drops by $200 → $800.
+  // The 0%-APR debt's balance drops by the full $200 (principal == payment) → $800.
   await page.goto("/app/debts");
   const card = page.getByRole("list", { name: "Debts" }).locator("li", { hasText: debtName });
   await expect(card.getByText("$800.00")).toBeVisible();
 
   // Un-check → balance restored to $1,000.
-  await page.goto("/app/planner");
-  await expRow.getByRole("checkbox").uncheck();
-  await expect(expRow.locator(".line-through")).toHaveCount(0);
+  await page.goto("/app/expenses");
+  await page.getByLabel("Search expenses").fill(expName);
+  const checkbox2 = page.getByRole("checkbox", { name: `Mark ${expName} paid` });
+  await checkbox2.uncheck();
+  await expect(expCard.locator(".line-through")).toHaveCount(0);
   await page.goto("/app/debts");
   await expect(card.getByText("$1,000.00")).toBeVisible();
 });

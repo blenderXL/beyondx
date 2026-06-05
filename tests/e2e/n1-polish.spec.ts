@@ -30,8 +30,7 @@ async function setFlag(key: string, enabled: boolean) {
 
 test.beforeAll(async () => {
   if (!hasTestCreds() || !hasServiceRole()) return;
-  // The Budget (planner) + Payoff Plan (payoffEngine) nav items only render when their flags are on.
-  await setFlag("planner", true);
+  // The Payoff Plan (payoffEngine) nav item only renders when its flag is on.
   await setFlag("payoffEngine", true);
 });
 
@@ -42,13 +41,14 @@ test.afterAll(async () => {
   await c.from("debts").delete().in("name", createdNames);
 });
 
-test("sidebar shows the renamed Budget + Payoff Plan items", async ({ page }) => {
+test("sidebar shows Payoff Plan and omits the retired Income + Budget items", async ({ page }) => {
   await uiLogin(page);
   await expect(page).toHaveURL(/\/app(\/|$)/);
   const nav = page.getByRole("navigation", { name: "App" });
-  await expect(nav.getByRole("link", { name: "Budget" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Payoff Plan" })).toBeVisible();
-  // The old, confusing labels are gone.
+  // Income + Budget were folded into Expenses (Phase 5C); the old labels are gone.
+  await expect(nav.getByRole("link", { name: "Income", exact: true })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Budget", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Planner", exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Plans", exact: true })).toHaveCount(0);
 });

@@ -1,28 +1,7 @@
 import { redirect } from "next/navigation";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { featureState } from "@/lib/flags/server";
-import { ComingSoon } from "@/components/finance/ComingSoon";
-import { IncomeClient } from "@/components/finance/IncomeClient";
-import type { Income } from "@/lib/finance/types";
 
-export const dynamic = "force-dynamic";
-
-export default async function IncomePage() {
-  // Gate A: hidden until the `income` release flag is flipped on.
-  const { visible } = await featureState("income");
-  if (!visible) return <ComingSoon title="Income" />;
-
-  const supabase = await getSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data } = await supabase
-    .from("incomes")
-    .select("*")
-    .is("archived_at", null)
-    .order("created_at", { ascending: true });
-
-  return <IncomeClient incomes={(data ?? []) as Income[]} />;
+// Income management moved into the Expenses hub (Phase 5C). Kept as a redirect so existing
+// links/bookmarks don't 404; the route file is deleted a release later (expand-contract).
+export default function IncomePage() {
+  redirect("/app/expenses");
 }
