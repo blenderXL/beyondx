@@ -14,7 +14,11 @@ interface Props {
 /** Matches inspiration image 2 — dark card with colored left strip + label + big number. */
 export function StatCard({ label, value, hint, accentVar }: Props) {
   return (
-    <div className="relative overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5">
+    <div
+      role="group"
+      aria-label={label}
+      className="relative overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5"
+    >
       <span
         aria-hidden
         className="absolute left-0 top-4 h-6 w-[2px]"

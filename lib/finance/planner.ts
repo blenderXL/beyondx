@@ -105,7 +105,11 @@ export function buildMonthlyPlan(inputs: {
     // cadence multiplier then applies as usual. Non-variable sources always use the base.
     const override = overrides[inc.id];
     const base = inc.is_variable && override != null ? override : inc.amount;
-    const m = monthlyAmount(base, inc.cadence);
+    // One-time income counts its full amount in the *current* month — unlike a one-time
+    // *expense* (which monthlyFactor zeroes out of the recurring view), money received once
+    // is real cash this month. Phase 5C replaces this with the per-month-actual model scoped
+    // by billing_month; this is the minimal correct interim that unblocks the income total.
+    const m = inc.cadence === "one_time" ? round2(base) : monthlyAmount(base, inc.cadence);
     income = round2(income + m);
     byCycle[cycleForDay(inc.pay_day)].income = round2(byCycle[cycleForDay(inc.pay_day)].income + m);
   }

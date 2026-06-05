@@ -6,6 +6,7 @@ import {
   formatUsd,
   formatPercent,
   formatDueDate,
+  expenseDisplayAmount,
 } from "@/lib/finance/derive";
 
 describe("utilization", () => {
@@ -48,6 +49,22 @@ describe("suggestedMinimum", () => {
   it("rounds to cents", () => {
     // $1,234.56 @ 19.99% → 12.3456 + 20.563... = 32.908... → 32.91
     expect(suggestedMinimum(1234.56, 19.99)).toBe(32.91);
+  });
+});
+
+describe("expenseDisplayAmount", () => {
+  it("is the entered amount for a regular expense", () => {
+    expect(expenseDisplayAmount({ expense_group: "utility", pct_of_income: null, amount: 115 }, 6000)).toBe(115);
+  });
+  it("is the entered amount for a fixed offering", () => {
+    expect(expenseDisplayAmount({ expense_group: "offering", pct_of_income: null, amount: 200 }, 6000)).toBe(200);
+  });
+  it("resolves a percent offering to its dollar value of income (the offering-% bug)", () => {
+    // 10% of $6,000 income → $600, even though the stored amount is 0.
+    expect(expenseDisplayAmount({ expense_group: "offering", pct_of_income: 10, amount: 0 }, 6000)).toBe(600);
+  });
+  it("rounds a percent offering to cents", () => {
+    expect(expenseDisplayAmount({ expense_group: "offering", pct_of_income: 7.5, amount: 0 }, 1234.56)).toBe(92.59);
   });
 });
 
