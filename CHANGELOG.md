@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.7](https://github.com/blenderXL/beyondx/compare/v0.1.6...v0.1.7) (2026-06-05)
+
+
+### Features
+
+* **debts:** principal/interest/escrow payment-split engine + escrow/PMI fields ([#37](https://github.com/blenderXL/beyondx/issues/37)) ([ab50448](https://github.com/blenderXL/beyondx/commit/ab50448fdb0db7728f4b7ed76e69414d8735711b))
+* **expenses:** auto-show debts as bill rows; check-off deducts principal (5B-2) ([#40](https://github.com/blenderXL/beyondx/issues/40)) ([0111d73](https://github.com/blenderXL/beyondx/commit/0111d73e8cc2646dc003b66eec9ddb364c6005a6))
+* **expenses:** manage income sources on the hub (embedded income manager) (5C-2a) ([#43](https://github.com/blenderXL/beyondx/issues/43)) ([bfd1177](https://github.com/blenderXL/beyondx/commit/bfd1177c7c97bf627d55fa970ee8ef38b5e6cc8c))
+* **expenses:** merge the Budget summary + variable-income editor onto the hub (5C-1) ([#42](https://github.com/blenderXL/beyondx/issues/42)) ([ef8bdbd](https://github.com/blenderXL/beyondx/commit/ef8bdbd28b52dfe0085dc25e465895857629a189))
+* **expenses:** month switcher + read-only historical month view (5D) ([#45](https://github.com/blenderXL/beyondx/issues/45)) ([625b0cd](https://github.com/blenderXL/beyondx/commit/625b0cd283c7ebb38eac4bede9ef60e38c8df002))
+* **expenses:** per-card check-off that deducts principal, plus "Pay all" (5B-1) ([#39](https://github.com/blenderXL/beyondx/issues/39)) ([bc84e2d](https://github.com/blenderXL/beyondx/commit/bc84e2d6afadfaf151235c76eeba1b07d9577bea))
+* **expenses:** recurring savings auto-show as checkable bills (5B-3) ([#41](https://github.com/blenderXL/beyondx/issues/41)) ([346da1b](https://github.com/blenderXL/beyondx/commit/346da1b8233c15b446a32be1f4298868f1d70350))
+* **expenses:** search/filter/sort, inline amount + pay-day edit, stats to rail (5A) ([#38](https://github.com/blenderXL/beyondx/issues/38)) ([c921c18](https://github.com/blenderXL/beyondx/commit/c921c185890d1c11cbd74d1ceef3d60562450dfd))
+* **nav:** retire the Income + Budget pages into the Expenses hub (5C-2b) ([#44](https://github.com/blenderXL/beyondx/issues/44)) ([9870f5b](https://github.com/blenderXL/beyondx/commit/9870f5b757bd47a268a625f0efff2ef969917960))
+* **payoff:** persist method + add CFI / highest-balance / highest-payment strategies ([#35](https://github.com/blenderXL/beyondx/issues/35)) ([5be9d80](https://github.com/blenderXL/beyondx/commit/5be9d80f6f7365434f5ecfa4701b77f19e4c96be))
+* **ui:** clearer debt label, one-line debts toolbar, even payoff-table columns ([#36](https://github.com/blenderXL/beyondx/issues/36)) ([8bc1aea](https://github.com/blenderXL/beyondx/commit/8bc1aea81cdfa8f321825fbbd106aa276ef34d0a))
+
+
+### Bug Fixes
+
+* **planner:** count one-time income and percent offerings in totals ([#33](https://github.com/blenderXL/beyondx/issues/33)) ([92f24e3](https://github.com/blenderXL/beyondx/commit/92f24e3e51faadb2d761c506a50bac5b77623dec))
+
 ## [0.1.6](https://github.com/blenderXL/beyondx/compare/v0.1.5...v0.1.6) (2026-06-04)
 
 
