@@ -9,12 +9,18 @@ import {
   type ExpensesRail,
   type SavingsBill,
 } from "@/components/finance/ExpensesClient";
+import { ExpensesHistory } from "@/components/finance/ExpensesHistory";
 import { buildMonthlyPlan, monthlyAmount, type PlannerDebt } from "@/lib/finance/planner";
+import { monthOptions, type HistoryItem } from "@/lib/finance/history";
 import type { Debt, Expense, Income, SavingsGoal } from "@/lib/finance/types";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExpensesPage() {
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
   // Gate A: hidden until the `expenses` release flag is flipped on.
   const { visible } = await featureState("expenses");
   if (!visible) return <ComingSoon title="Expenses" />;
@@ -28,6 +34,47 @@ export default async function ExpensesPage() {
   // The billing month is the first day of the current (UTC) month — keys this month's check-offs.
   const now = new Date();
   const billingMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
+
+  // Month switcher: the current month + the prior 11. A `?month=` from the past is a read-only
+  // history view; anything else (incl. the current month) is the live, editable hub.
+  const months = monthOptions(now.getUTCFullYear(), now.getUTCMonth(), 12);
+  const { month: monthParam } = await searchParams;
+  const selectedMonth = months.some((m) => m.value === monthParam) ? monthParam! : billingMonth;
+
+  if (selectedMonth !== billingMonth) {
+    const { data: txns } = await supabase
+      .from("transactions")
+      .select("id, amount, kind, expenses(category), debts(name), savings_goals(name)")
+      .eq("billing_month", selectedMonth)
+      .in("kind", ["payment", "contribution"])
+      .order("occurred_on", { ascending: true });
+    // PostgREST embeds a to-one relation as a single object (or null) at runtime; the generated
+    // types say array, so cast through unknown.
+    type HistRow = {
+      id: string;
+      amount: number;
+      kind: "payment" | "contribution";
+      expenses: { category: string } | null;
+      debts: { name: string } | null;
+      savings_goals: { name: string } | null;
+    };
+    const items: HistoryItem[] = ((txns ?? []) as unknown as HistRow[]).map((t) => ({
+      id: t.id,
+      name: t.expenses?.category ?? t.debts?.name ?? t.savings_goals?.name ?? "—",
+      kind: t.kind,
+      amount: Number(t.amount),
+    }));
+    const monthLabel = months.find((m) => m.value === selectedMonth)!.label;
+    return (
+      <ExpensesHistory
+        monthLabel={monthLabel}
+        months={months}
+        selected={selectedMonth}
+        currentMonth={billingMonth}
+        items={items}
+      />
+    );
+  }
 
   const [expensesRes, debtsRes, savingsRes, incomesRes, paymentsRes, contribRes, overridesRes] = await Promise.all([
     supabase.from("expenses").select("*").is("archived_at", null).order("created_at", { ascending: true }),
@@ -142,6 +189,8 @@ export default async function ExpensesPage() {
       plan={plan}
       variableIncomes={variableIncomes}
       incomes={incomes}
+      months={months}
+      currentMonth={billingMonth}
     />
   );
 }

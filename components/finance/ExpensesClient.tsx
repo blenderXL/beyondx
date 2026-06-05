@@ -27,6 +27,8 @@ import { splitPayment } from "@/lib/finance/payment";
 import type { MonthlyPlan } from "@/lib/finance/planner";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { BudgetSummary } from "@/components/finance/BudgetSummary";
+import { MonthSwitcher } from "@/components/finance/MonthSwitcher";
+import { type MonthOption } from "@/lib/finance/history";
 import { IncomeClient } from "@/components/finance/IncomeClient";
 import { IncomeOverrideEditor, type VariableIncome } from "@/components/finance/IncomeOverrideEditor";
 import { formatUsd, expenseDisplayAmount } from "@/lib/finance/derive";
@@ -398,6 +400,8 @@ export function ExpensesClient({
   plan,
   variableIncomes,
   incomes,
+  months,
+  currentMonth,
 }: {
   expenses: Expense[];
   debts: DebtOption[];
@@ -422,6 +426,10 @@ export function ExpensesClient({
   savingsBills: SavingsBill[];
   /** Savings ids already contributed this month. */
   paidSavingsIds: string[];
+  /** Month-switcher options (current + prior 11). */
+  months: MonthOption[];
+  /** The current billing month (the live, editable view). */
+  currentMonth: string;
 }) {
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const toList = useCallback(() => setMode({ kind: "list" }), []);
@@ -458,7 +466,8 @@ export function ExpensesClient({
           </h1>
         </div>
         {mode.kind === "list" ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-end gap-2">
+            <MonthSwitcher months={months} selected={currentMonth} currentMonth={currentMonth} />
             {expenses.length > 0 ? <PayAllButton billingMonth={billingMonth} allPaid={allPaid} /> : null}
             <button onClick={() => setMode({ kind: "create" })} className={primaryButtonClass}>
               New expense
