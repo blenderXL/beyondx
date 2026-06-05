@@ -128,9 +128,10 @@ test.describe("Phase 2 — ledger spine behind feature flags", () => {
 
     const card = () => list.locator("li", { hasText: name });
     await expect(card()).toBeVisible();
-    await expect(card()).toContainText("$115.00");
     await expect(card()).toContainText("Optimum");
-    await expect(card()).toContainText(/pay day 5/i);
+    // Amount + pay day are inline-editable inputs on the card (P5A redesign), not static text.
+    await expect(page.getByLabel(`Amount for ${name}`)).toHaveValue("115");
+    await expect(page.getByLabel(`Pay day for ${name}`)).toHaveValue("5");
 
     await card().getByRole("button", { name: "Archive" }).click();
     await expect(card()).toHaveCount(0);

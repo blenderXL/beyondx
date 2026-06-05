@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useState } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { StatCard } from "@/components/layout/StatCard";
 import { createExpense, updateExpense, archiveExpense } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
@@ -13,6 +14,7 @@ import {
   type ExpenseGroup,
   type DebtType,
 } from "@/lib/finance/types";
+import { filterAndSortExpenses, EXPENSE_SORTS, type ExpenseSort } from "@/lib/finance/expensesView";
 import { formatUsd, expenseDisplayAmount } from "@/lib/finance/derive";
 import { BarList } from "@/components/finance/charts";
 import { FieldHint } from "@/components/finance/FieldHint";
@@ -364,9 +366,22 @@ export function ExpensesClient({
   const toList = useCallback(() => setMode({ kind: "list" }), []);
   const total = expenses.reduce((sum, e) => sum + expenseDisplayAmount(e, income), 0);
 
+  // List controls (client-side over the loaded expenses).
+  const [query, setQuery] = useState("");
+  const [group, setGroup] = useState<ExpenseGroup | "all">("all");
+  const [sort, setSort] = useState<ExpenseSort>("amount_desc");
+  const presentGroups = useMemo(
+    () => EXPENSE_GROUPS.filter((g) => expenses.some((e) => e.expense_group === g)),
+    [expenses],
+  );
+  const visible = useMemo(
+    () => filterAndSortExpenses(expenses, { query, group, sort }),
+    [expenses, query, group, sort],
+  );
+
   return (
     <div className="mx-auto max-w-6xl">
-      <header className="mb-8 flex items-end justify-between gap-4">
+      <header className="mb-6 flex items-end justify-between gap-4">
         <div>
           <p className={labelClass}>// expenses</p>
           <h1 className="mt-2 font-sans text-3xl font-medium text-[var(--color-text-primary)]">
@@ -386,68 +401,223 @@ export function ExpensesClient({
       ) : null}
 
       {mode.kind === "list" ? (
-        <>
-          <div className="mb-8 grid gap-4 sm:grid-cols-2">
-            <StatCard label="Expenses tracked" value={String(expenses.length)} accentVar="--color-accent-blue" />
-            <StatCard label="Listed total" value={formatUsd(total)} hint="raw, per their cadence" accentVar="--color-accent-amber" />
+        expenses.length === 0 ? (
+          <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
+            <p className="font-mono text-sm text-[var(--color-text-muted)]">
+              // no expenses yet — add your bills to start planning
+            </p>
           </div>
+        ) : (
+          <>
+            <ExpenseControls
+              query={query}
+              onQuery={setQuery}
+              group={group}
+              onGroup={setGroup}
+              presentGroups={presentGroups}
+              sort={sort}
+              onSort={setSort}
+            />
 
-          {expenses.length === 0 ? (
-            <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
-              <p className="font-mono text-sm text-[var(--color-text-muted)]">
-                // no expenses yet — add your bills to start planning
-              </p>
-            </div>
-          ) : (
             <div className="lg:grid lg:grid-cols-[1fr_17rem] lg:items-start lg:gap-6">
-              <ul aria-label="Expenses" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {expenses.map((expense) => {
-                  const isOffering = expense.expense_group === "offering";
-                  const displayAmount =
-                    isOffering && expense.pct_of_income != null
-                      ? `${expense.pct_of_income}% of income`
-                      : formatUsd(Number(expense.amount));
-                  return (
-                    <li
-                      key={expense.id}
-                      className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-sans text-sm font-medium break-words text-[var(--color-text-primary)]">
-                            {expense.category}
-                          </p>
-                          <p className="mt-0.5 font-mono text-[10px] tracking-[0.16em] break-words text-[var(--color-text-muted)] uppercase">
-                            {expense.expense_group ? EXPENSE_GROUP_LABELS[expense.expense_group] : "Ungrouped"}
-                            {expense.payee ? ` · ${expense.payee}` : ""}
-                          </p>
-                        </div>
-                        <p className="shrink-0 font-sans text-lg font-medium text-[var(--color-text-primary)] tabular-nums">
-                          {displayAmount}
-                        </p>
-                      </div>
-                      <p className="mt-2 font-mono text-[11px] text-[var(--color-text-secondary)]">
-                        {EXPENSE_CADENCE_LABELS[expense.cadence]}
-                        {expense.due_day ? ` · pay day ${expense.due_day}` : ""}
-                        {expense.debt_id ? " · linked to debt" : ""}
-                      </p>
-                      <div className="mt-4 flex flex-wrap items-center gap-2">
-                        <button onClick={() => setMode({ kind: "edit", expense })} className={ghostButtonClass}>
-                          Edit
-                        </button>
-                        <ArchiveButton id={expense.id} name={expense.category} />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+              <div>
+                {visible.length === 0 ? (
+                  <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
+                    <p className="font-mono text-sm text-[var(--color-text-muted)]">
+                      // no expenses match your search or filter
+                    </p>
+                  </div>
+                ) : (
+                  <ul aria-label="Expenses" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {visible.map((expense) => (
+                      <ExpenseCard
+                        key={expense.id}
+                        expense={expense}
+                        onEdit={() => setMode({ kind: "edit", expense })}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </div>
 
-              <ExpensesRailCard rail={rail} />
+              <ExpensesRailCard rail={rail} count={expenses.length} total={total} />
             </div>
-          )}
-        </>
+          </>
+        )
       ) : null}
     </div>
+  );
+}
+
+/** One-line search + group filter + sort toolbar (mirrors the debts toolbar). */
+function ExpenseControls({
+  query,
+  onQuery,
+  group,
+  onGroup,
+  presentGroups,
+  sort,
+  onSort,
+}: {
+  query: string;
+  onQuery: (v: string) => void;
+  group: ExpenseGroup | "all";
+  onGroup: (v: ExpenseGroup | "all") => void;
+  presentGroups: readonly ExpenseGroup[];
+  sort: ExpenseSort;
+  onSort: (v: ExpenseSort) => void;
+}) {
+  // `inputClass` carries `w-full`; force auto width on the selects so they sit compactly.
+  const selectClass = `${inputClass} mt-0 h-10 !w-auto max-w-[12rem]`;
+  return (
+    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="relative flex-1">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-muted)]"
+          aria-hidden
+        />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          aria-label="Search expenses"
+          placeholder="Search by name or payee…"
+          className={`${inputClass} mt-0 h-10 pl-9`}
+        />
+      </div>
+      <div className="flex items-center gap-3">
+        <select
+          value={group}
+          onChange={(e) => onGroup(e.target.value as ExpenseGroup | "all")}
+          aria-label="Filter by group"
+          className={selectClass}
+        >
+          <option value="all">All groups</option>
+          {presentGroups.map((g) => (
+            <option key={g} value={g}>
+              {EXPENSE_GROUP_LABELS[g]}
+            </option>
+          ))}
+        </select>
+        <select
+          value={sort}
+          onChange={(e) => onSort(e.target.value as ExpenseSort)}
+          aria-label="Sort expenses"
+          className={selectClass}
+        >
+          {EXPENSE_SORTS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+const inlineFieldClass =
+  "mt-1 block h-9 w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-2 font-mono text-sm text-[var(--color-text-primary)] tabular-nums outline-none focus:border-[var(--color-text-primary)]";
+const inlineLabelClass = "font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]";
+
+/**
+ * Expense card with inline quick-edit of amount + pay day (no full-form round trip). The
+ * unchanged fields ride along as hidden inputs so the server validator gets a complete
+ * expense; a percent offering keeps its % display and only its pay day is editable.
+ */
+function ExpenseCard({ expense, onEdit }: { expense: Expense; onEdit: () => void }) {
+  const isPercentOffering = expense.expense_group === "offering" && expense.pct_of_income != null;
+  const [state, formAction, pending] = useActionState(updateExpense, INITIAL_FINANCE_STATE);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    if (state.ok) setDirty(false);
+  }, [state.ok]);
+
+  return (
+    <li className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-sans text-sm font-medium break-words text-[var(--color-text-primary)]">
+            {expense.category}
+          </p>
+          <p className="mt-0.5 font-mono text-[10px] tracking-[0.16em] break-words text-[var(--color-text-muted)] uppercase">
+            {expense.expense_group ? EXPENSE_GROUP_LABELS[expense.expense_group] : "Ungrouped"}
+            {expense.payee ? ` · ${expense.payee}` : ""}
+          </p>
+        </div>
+        {isPercentOffering ? (
+          <p className="shrink-0 font-sans text-lg font-medium text-[var(--color-text-primary)] tabular-nums">
+            {expense.pct_of_income}% of income
+          </p>
+        ) : null}
+      </div>
+
+      <form action={formAction} className="mt-3 flex items-end gap-2">
+        <input type="hidden" name="id" value={expense.id} />
+        <input type="hidden" name="category" value={expense.category} />
+        <input type="hidden" name="expense_group" value={expense.expense_group ?? ""} />
+        <input type="hidden" name="payee" value={expense.payee ?? ""} />
+        <input type="hidden" name="cadence" value={expense.cadence} />
+        <input type="hidden" name="debt_id" value={expense.debt_id ?? ""} />
+        {isPercentOffering ? (
+          <>
+            <input type="hidden" name="pct_of_income" value={String(expense.pct_of_income)} />
+            <input type="hidden" name="amount" value="0" />
+          </>
+        ) : (
+          <label className="flex-1">
+            <span className={inlineLabelClass}>Amount $</span>
+            <input
+              name="amount"
+              inputMode="decimal"
+              defaultValue={String(expense.amount)}
+              aria-label={`Amount for ${expense.category}`}
+              onChange={() => setDirty(true)}
+              className={inlineFieldClass}
+            />
+          </label>
+        )}
+        <label className="w-20">
+          <span className={inlineLabelClass}>Pay day</span>
+          <input
+            name="due_day"
+            type="number"
+            min={1}
+            max={31}
+            step={1}
+            defaultValue={expense.due_day ?? ""}
+            aria-label={`Pay day for ${expense.category}`}
+            onChange={() => setDirty(true)}
+            className={inlineFieldClass}
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={!dirty || pending}
+          className="flex h-9 shrink-0 items-center rounded-md bg-[var(--color-text-primary)] px-3 font-mono text-[10px] tracking-[0.18em] text-[var(--color-canvas)] uppercase transition-opacity hover:opacity-90 disabled:opacity-40"
+        >
+          {pending ? "…" : "Save"}
+        </button>
+      </form>
+
+      <p className="mt-2 font-mono text-[11px] text-[var(--color-text-secondary)]">
+        {EXPENSE_CADENCE_LABELS[expense.cadence]}
+        {expense.debt_id ? " · linked to debt" : ""}
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button onClick={onEdit} className={ghostButtonClass}>
+          Edit
+        </button>
+        <ArchiveButton id={expense.id} name={expense.category} />
+      </div>
+
+      {state.error ? (
+        <p role="alert" className={`mt-2 ${errorClass}`}>
+          // {state.error}
+        </p>
+      ) : null}
+    </li>
   );
 }
 
@@ -460,17 +630,19 @@ const RAIL_ACCENTS = [
   "--color-accent-red",
 ];
 
-function ExpensesRailCard({ rail }: { rail: ExpensesRail }) {
-  const total = rail.byGroup.reduce((s, g) => s + g.amount, 0);
+function ExpensesRailCard({ rail, count, total }: { rail: ExpensesRail; count: number; total: number }) {
+  const barTotal = rail.byGroup.reduce((s, g) => s + g.amount, 0);
   const items = rail.byGroup.map((g, i) => ({
     label: g.group,
     amount: g.amount,
-    pct: total > 0 ? g.amount / total : 0,
+    pct: barTotal > 0 ? g.amount / barTotal : 0,
     accentVar: RAIL_ACCENTS[i % RAIL_ACCENTS.length],
   }));
 
   return (
     <aside aria-label="Where your money goes" className="mt-6 space-y-4 lg:mt-0">
+      <StatCard label="Expenses tracked" value={String(count)} accentVar="--color-accent-blue" />
+      <StatCard label="Listed total" value={formatUsd(total)} hint="incl. offerings" accentVar="--color-accent-amber" />
       <div className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5">
         <p className={labelClass}>// money going toward</p>
         <div className="mt-4">
