@@ -45,6 +45,7 @@ export const SAVINGS_HINTS = {
   current_amount: "How much is in the pot right now.",
   target_amount: "An optional goal — the bar shows progress toward it.",
   type: "What kind of account this is (e.g. Roth IRA, HSA, Emergency).",
+  monthly_contribution: "An optional recurring amount you add each month. Set it and the pot shows on Expenses as a bill to check off.",
 } as const;
 
 export const PLAN_HINTS = {

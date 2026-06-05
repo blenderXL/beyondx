@@ -3,7 +3,14 @@
 import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { StatCard } from "@/components/layout/StatCard";
-import { createExpense, updateExpense, archiveExpense, togglePaid, payAllExpenses } from "@/app/(app)/actions";
+import {
+  createExpense,
+  updateExpense,
+  archiveExpense,
+  togglePaid,
+  toggleSavingsPaid,
+  payAllExpenses,
+} from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
 import {
   EXPENSE_CADENCES,
@@ -48,6 +55,13 @@ export interface DebtBill {
   escrow: number | null;
   pmi: number | null;
   dueDay: number | null;
+}
+
+/** A recurring savings contribution auto-shown as a checkable bill row. */
+export interface SavingsBill {
+  id: string;
+  name: string;
+  monthly_contribution: number;
 }
 
 /** Server-computed summary for the right rail. */
@@ -374,6 +388,8 @@ export function ExpensesClient({
   paidExpenseIds,
   debtBills,
   paidDebtIds,
+  savingsBills,
+  paidSavingsIds,
 }: {
   expenses: Expense[];
   debts: DebtOption[];
@@ -388,16 +404,22 @@ export function ExpensesClient({
   debtBills: DebtBill[];
   /** Debt ids already checked off (paid) this month. */
   paidDebtIds: string[];
+  /** Recurring savings contributions auto-shown as bill rows. */
+  savingsBills: SavingsBill[];
+  /** Savings ids already contributed this month. */
+  paidSavingsIds: string[];
 }) {
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const toList = useCallback(() => setMode({ kind: "list" }), []);
   const total = expenses.reduce((sum, e) => sum + expenseDisplayAmount(e, income), 0);
   const paid = useMemo(() => new Set(paidExpenseIds), [paidExpenseIds]);
   const paidDebt = useMemo(() => new Set(paidDebtIds), [paidDebtIds]);
+  const paidSavings = useMemo(() => new Set(paidSavingsIds), [paidSavingsIds]);
   const allPaid =
-    expenses.length + debtBills.length > 0 &&
+    expenses.length + debtBills.length + savingsBills.length > 0 &&
     expenses.every((e) => paid.has(e.id)) &&
-    debtBills.every((b) => paidDebt.has(b.id));
+    debtBills.every((b) => paidDebt.has(b.id)) &&
+    savingsBills.every((b) => paidSavings.has(b.id));
 
   // List controls (client-side over the loaded expenses).
   const [query, setQuery] = useState("");
@@ -437,7 +459,7 @@ export function ExpensesClient({
       ) : null}
 
       {mode.kind === "list" ? (
-        expenses.length === 0 && debtBills.length === 0 ? (
+        expenses.length === 0 && debtBills.length === 0 && savingsBills.length === 0 ? (
           <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
             <p className="font-mono text-sm text-[var(--color-text-muted)]">
               // no expenses yet — add your bills to start planning
@@ -495,6 +517,20 @@ export function ExpensesClient({
                 <ul aria-label="Debt payments" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {debtBills.map((b) => (
                     <DebtBillCard key={b.id} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {savingsBills.length > 0 ? (
+              <section className="mt-8">
+                <p className={labelClass}>// savings this month</p>
+                <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
+                  Recurring contributions — check one off to add it to the pot.
+                </p>
+                <ul aria-label="Savings contributions" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {savingsBills.map((b) => (
+                    <SavingsBillCard key={b.id} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
                   ))}
                 </ul>
               </section>
@@ -815,6 +851,55 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
             </span>
           </p>
         </div>
+      </form>
+    </li>
+  );
+}
+
+/** A recurring savings contribution as a checkable bill. Checking it off adds the amount to the pot. */
+function SavingsBillCard({ bill, paid, billingMonth }: { bill: SavingsBill; paid: boolean; billingMonth: string }) {
+  const [amount, setAmount] = useState(String(bill.monthly_contribution));
+  const [, formAction] = useActionState(toggleSavingsPaid, INITIAL_FINANCE_STATE);
+  return (
+    <li className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
+      <form action={formAction}>
+        <input type="hidden" name="item_id" value={bill.id} />
+        <input type="hidden" name="billing_month" value={billingMonth} />
+
+        <div className="flex min-w-0 items-start gap-3">
+          <input
+            type="checkbox"
+            name="checked"
+            aria-label={`Mark ${bill.name} contributed`}
+            defaultChecked={paid}
+            onChange={(e) => e.currentTarget.form?.requestSubmit()}
+            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
+          />
+          <div className="min-w-0">
+            <p
+              className={`font-sans text-sm font-medium break-words ${
+                paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+              }`}
+            >
+              {bill.name}
+            </p>
+            <p className="mt-0.5 font-mono text-[10px] tracking-[0.16em] text-[var(--color-text-muted)] uppercase">
+              Savings · monthly
+            </p>
+          </div>
+        </div>
+
+        <label className="mt-3 block">
+          <span className={inlineLabelClass}>Contribute $</span>
+          <input
+            name="amount"
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            aria-label={`Contribution for ${bill.name}`}
+            className={inlineFieldClass}
+          />
+        </label>
       </form>
     </li>
   );

@@ -106,6 +106,25 @@ function SavingsForm({ goal, onDone, onCancel }: { goal?: SavingsGoal; onDone: (
             className={inputClass}
           />
         </label>
+
+        <label className="block">
+          <span className={labelClass}>
+            Monthly contribution (optional)
+            <FieldHint text={SAVINGS_HINTS.monthly_contribution} label="monthly contribution" />
+          </span>
+          <input
+            type="text"
+            inputMode="decimal"
+            name="monthly_contribution"
+            aria-label="Monthly contribution"
+            defaultValue={goal?.monthly_contribution ?? ""}
+            placeholder="0.00"
+            className={inputClass}
+          />
+          <span className="mt-1 block font-mono text-[10px] text-[var(--color-text-muted)]">
+            Set this and the pot shows on Expenses as a monthly bill to check off.
+          </span>
+        </label>
       </div>
 
       <div className="mt-6 flex items-center gap-3">

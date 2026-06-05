@@ -362,6 +362,9 @@ export interface SavingsGoal {
   current_amount: number;
   /** Kind of pot (migration 0012); null is treated as "general". */
   type: SavingsType | null;
+  /** Optional recurring monthly contribution (migration 0015); when set, the pot shows as a
+   *  checkable bill on the Expenses page. Null/0 ⇒ not a recurring bill. */
+  monthly_contribution: number | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;

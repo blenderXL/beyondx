@@ -383,11 +383,13 @@ export async function archiveExpense(_p: FinanceActionState, formData: FormData)
 // Savings pots
 /**
  * `type` only matters once migration 0012 lands; omitting it for "general" pots (the default)
- * keeps writes working before then — only typed pots depend on the column.
+ * keeps writes working before then — only typed pots depend on the column. `monthly_contribution`
+ * (migration 0015) is likewise omitted when blank so writes stay safe before the column exists.
  */
 function savingsPayload(values: import("@/lib/finance/validation").SavingsGoalValues): Record<string, unknown> {
   const payload = { ...values } as Record<string, unknown>;
   if (values.type === "general") delete payload.type;
+  if (values.monthly_contribution === null) delete payload.monthly_contribution;
   return payload;
 }
 
@@ -627,6 +629,86 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
 }
 
 /**
+ * Savings "contributed this month" toggle. Records (or removes) a `contribution` transaction
+ * stamped with `billing_month` (idempotent, one per pot per month) and bumps/decrements
+ * `savings_goals.current_amount` — the same effect as `addContribution`, made reversible.
+ */
+export async function toggleSavingsPaid(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return SIGNED_OUT;
+
+  const goalId = String(formData.get("item_id") ?? "").trim();
+  const billingMonth = String(formData.get("billing_month") ?? "").trim();
+  const checked = formData.get("checked") != null;
+  if (!goalId || !ISO_MONTH.test(billingMonth)) return { error: "Couldn't update — bad request." };
+
+  if (checked) {
+    const { data: existing } = await supabase
+      .from("transactions")
+      .select("id")
+      .eq("savings_goal_id", goalId)
+      .eq("billing_month", billingMonth)
+      .eq("kind", "contribution")
+      .limit(1);
+    if (existing && existing.length > 0) {
+      revalidatePath(EXPENSES_PATH);
+      return { error: null, ok: true };
+    }
+    const amount = Math.max(round2(parseMoney(formData.get("amount")) ?? 0), 0.01);
+    const { data: goal, error: readErr } = await supabase
+      .from("savings_goals")
+      .select("current_amount")
+      .eq("id", goalId)
+      .is("archived_at", null)
+      .maybeSingle();
+    if (readErr) return dbFailure(readErr, "toggleSavingsPaid.read", "Couldn't update. Please try again.");
+    if (!goal) return { error: "That savings pot isn't available." };
+    const { error: insErr } = await supabase.from("transactions").insert({
+      profile_id: userId,
+      savings_goal_id: goalId,
+      kind: "contribution",
+      amount,
+      billing_month: billingMonth,
+    });
+    if (insErr) return dbFailure(insErr, "toggleSavingsPaid.insert", "Couldn't record it. Please try again.");
+    const { error: bumpErr } = await supabase
+      .from("savings_goals")
+      .update({ current_amount: round2(Number(goal.current_amount) + amount) })
+      .eq("id", goalId);
+    if (bumpErr) return dbFailure(bumpErr, "toggleSavingsPaid.bump", "Recorded it, but the pot total didn't update. Refresh.");
+  } else {
+    const { data: removed, error: readErr } = await supabase
+      .from("transactions")
+      .select("amount")
+      .eq("savings_goal_id", goalId)
+      .eq("billing_month", billingMonth)
+      .eq("kind", "contribution");
+    if (readErr) return dbFailure(readErr, "toggleSavingsPaid.readDel", "Couldn't update. Please try again.");
+    const { error: delErr } = await supabase
+      .from("transactions")
+      .delete()
+      .eq("savings_goal_id", goalId)
+      .eq("billing_month", billingMonth)
+      .eq("kind", "contribution");
+    if (delErr) return dbFailure(delErr, "toggleSavingsPaid.delete", "Couldn't update. Please try again.");
+    const back = ((removed ?? []) as { amount: number }[]).reduce((s, t) => s + Number(t.amount), 0);
+    if (back > 0) {
+      const { data: goal } = await supabase.from("savings_goals").select("current_amount").eq("id", goalId).maybeSingle();
+      if (goal) {
+        await supabase
+          .from("savings_goals")
+          .update({ current_amount: Math.max(0, round2(Number(goal.current_amount) - back)) })
+          .eq("id", goalId);
+      }
+    }
+  }
+
+  revalidatePath(EXPENSES_PATH);
+  revalidatePath(SAVINGS_PATH);
+  return { error: null, ok: true };
+}
+
+/**
  * "Pay all this month" — marks every active expense paid for `billingMonth` (idempotent: skips
  * those already paid), recording each payment and drawing linked debts down by principal. Same
  * per-item semantics as `togglePaid`'s check path, applied in bulk.
@@ -638,14 +720,19 @@ export async function payAllExpenses(_p: FinanceActionState, formData: FormData)
   const billingMonth = String(formData.get("billing_month") ?? "").trim();
   if (!ISO_MONTH.test(billingMonth)) return { error: "Couldn't update — bad request." };
 
-  const [expensesRes, debtsRes, paidRes] = await Promise.all([
+  const [expensesRes, debtsRes, savingsRes, paidRes, contribRes] = await Promise.all([
     supabase.from("expenses").select("id, amount, debt_id").is("archived_at", null),
     supabase.from("debts").select("id, min_payment").is("archived_at", null),
+    // select("*") so a missing monthly_contribution column (pre-0015) reads as undefined.
+    supabase.from("savings_goals").select("*").is("archived_at", null),
     supabase.from("transactions").select("expense_id, debt_id").eq("kind", "payment").eq("billing_month", billingMonth),
+    supabase.from("transactions").select("savings_goal_id").eq("kind", "contribution").eq("billing_month", billingMonth),
   ]);
   if (expensesRes.error) return dbFailure(expensesRes.error, "payAll.expenses", "Couldn't load expenses. Please try again.");
   if (debtsRes.error) return dbFailure(debtsRes.error, "payAll.debts", "Couldn't load debts. Please try again.");
+  if (savingsRes.error) return dbFailure(savingsRes.error, "payAll.savings", "Couldn't load savings. Please try again.");
   if (paidRes.error) return dbFailure(paidRes.error, "payAll.paid", "Couldn't load payments. Please try again.");
+  if (contribRes.error) return dbFailure(contribRes.error, "payAll.contrib", "Couldn't load contributions. Please try again.");
 
   const expenses = (expensesRes.data ?? []) as { id: string; amount: number; debt_id: string | null }[];
   const payments = (paidRes.data ?? []) as { expense_id: string | null; debt_id: string | null }[];
@@ -703,8 +790,32 @@ export async function payAllExpenses(_p: FinanceActionState, formData: FormData)
     }
   }
 
+  // Recurring savings (a positive monthly_contribution) record a contribution + bump the pot.
+  const paidSavingsIds = new Set(
+    ((contribRes.data ?? []) as { savings_goal_id: string | null }[]).map((t) => t.savings_goal_id).filter(Boolean),
+  );
+  for (const g of (savingsRes.data ?? []) as { id: string; current_amount: number; monthly_contribution: number | null }[]) {
+    const monthly = g.monthly_contribution == null ? 0 : Number(g.monthly_contribution);
+    if (monthly <= 0 || paidSavingsIds.has(g.id)) continue;
+    const amount = round2(monthly);
+    const { error: insErr } = await supabase.from("transactions").insert({
+      profile_id: userId,
+      savings_goal_id: g.id,
+      kind: "contribution",
+      amount,
+      billing_month: billingMonth,
+    });
+    if (insErr) return dbFailure(insErr, "payAll.savingsInsert", "Couldn't mark everything paid. Please try again.");
+    const { error: bumpErr } = await supabase
+      .from("savings_goals")
+      .update({ current_amount: round2(Number(g.current_amount) + amount) })
+      .eq("id", g.id);
+    if (bumpErr) return dbFailure(bumpErr, "payAll.savingsBump", "Recorded contributions, but a pot total didn't update. Refresh.");
+  }
+
   revalidatePath(EXPENSES_PATH);
   revalidatePath(PLANNER_PATH);
+  revalidatePath(SAVINGS_PATH);
   revalidatePath(DEBTS_PATH);
   return { error: null, ok: true };
 }
