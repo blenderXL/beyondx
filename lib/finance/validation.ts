@@ -464,6 +464,7 @@ export interface SavingsGoalValues {
   target_amount: number | null;
   current_amount: number;
   type: SavingsType;
+  monthly_contribution: number | null;
 }
 
 export function validateSavingsGoalInput(fields: RawFields): ValidationResult<SavingsGoalValues> {
@@ -479,6 +480,9 @@ export function validateSavingsGoalInput(fields: RawFields): ValidationResult<Sa
   const current = optionalMoney(fields.current_amount, "Current amount");
   if (current.error) return fail(current.error);
 
+  const monthly = optionalMoney(fields.monthly_contribution, "Monthly contribution");
+  if (monthly.error) return fail(monthly.error);
+
   // Type — defaults to "general" when blank. The action omits a "general" type from the
   // write payload so pots still save before migration 0012 lands (only typed pots need it).
   const typeRaw = str(fields.type);
@@ -491,7 +495,13 @@ export function validateSavingsGoalInput(fields: RawFields): ValidationResult<Sa
   return {
     ok: true,
     error: null,
-    values: { name, target_amount: target.value, current_amount: current.value ?? 0, type },
+    values: {
+      name,
+      target_amount: target.value,
+      current_amount: current.value ?? 0,
+      type,
+      monthly_contribution: monthly.value,
+    },
   };
 }
 
