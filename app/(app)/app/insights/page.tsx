@@ -7,7 +7,7 @@ import { StatCard } from "@/components/layout/StatCard";
 import { SparkArea, BarList, UtilizationGauge, type BarItem } from "@/components/finance/charts";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { debtDistribution, aprBuckets, totalUtilization, type InsightDebt } from "@/lib/finance/insights";
-import { computePayoff, type PayoffDebtInput } from "@/lib/finance/payoff";
+import { computePayoff, resolvePayoffMethod, PAYOFF_METHODS, type PayoffDebtInput } from "@/lib/finance/payoff";
 import { formatUsd } from "@/lib/finance/derive";
 import { labelClass } from "@/components/finance/formStyles";
 import type { Debt } from "@/lib/finance/types";
@@ -31,6 +31,18 @@ export default async function InsightsPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+
+  // The payoff curve follows the user's chosen method (shared with the Payoff Plan).
+  // Pre-migration-safe read: defaults when the 0013 column isn't present yet.
+  const { data: profile, error: profileErr } = await supabase
+    .from("profiles")
+    .select("payoff_method")
+    .eq("id", user.id)
+    .maybeSingle();
+  const method = resolvePayoffMethod(
+    profileErr ? null : (profile as { payoff_method?: unknown } | null)?.payoff_method,
+  );
+  const methodLabel = PAYOFF_METHODS.find((m) => m.value === method)!.label.toLowerCase();
 
   const { data } = await supabase
     .from("debts")
@@ -67,7 +79,7 @@ export default async function InsightsPage() {
   }));
   const util = totalUtilization(debts);
 
-  // A representative payoff curve: avalanche at minimums + a 5%-of-balance push.
+  // A representative payoff curve in the user's chosen method, at minimums + a 5%-of-balance push.
   const payoffInput: PayoffDebtInput[] = rows.map((d) => ({
     id: d.id,
     name: d.name,
@@ -76,7 +88,7 @@ export default async function InsightsPage() {
     min_payment: Number(d.min_payment),
   }));
   const budget = Math.round(totalMin + Math.max(100, totalBalance * 0.05));
-  const payoff = computePayoff(payoffInput, budget, "avalanche");
+  const payoff = computePayoff(payoffInput, budget, method);
   const timeline = [totalBalance, ...payoff.schedule.map((m) => m.totalBalance)];
   const interestSeries = payoff.schedule.map((m) => m.totalInterest);
 
@@ -113,7 +125,7 @@ export default async function InsightsPage() {
       </div>
 
       <section className="mb-8 rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6">
-        <p className={labelClass}>// payoff curve (avalanche)</p>
+        <p className={labelClass}>// payoff curve ({methodLabel})</p>
         <div className="mt-4">
           <SparkArea values={timeline} accentVar="--color-accent-emerald" />
         </div>
