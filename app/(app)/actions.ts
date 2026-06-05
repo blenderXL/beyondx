@@ -14,6 +14,7 @@ import {
   round2,
 } from "@/lib/finance/validation";
 import { applyTransactionToBalance } from "@/lib/finance/balance";
+import { splitPayment } from "@/lib/finance/payment";
 import { isPayoffMethod, type PayoffMethod } from "@/lib/finance/payoff";
 import { captureError } from "@/lib/telemetry/capture";
 import type { FinanceActionState } from "@/lib/finance/actionState";
@@ -482,6 +483,35 @@ async function adjustDebtBalance(
 }
 
 /**
+ * Interest/principal split for a debt payment of `amountPaid`: only the principal portion
+ * (total − escrow − PMI − interest) reduces the balance on check-off. Returns null when the
+ * debt is gone or unreadable (the payment is still recorded; the balance just isn't adjusted).
+ */
+async function debtSplit(
+  supabase: Awaited<ReturnType<typeof getSupabaseServerClient>>,
+  debtId: string,
+  amountPaid: number,
+): Promise<{ interest: number; principal: number } | null> {
+  const { data, error } = await supabase
+    .from("debts")
+    .select("balance, apr, escrow, pmi")
+    .eq("id", debtId)
+    .maybeSingle();
+  if (error || !data) {
+    if (error) captureError(error, { action: "togglePaid.split" });
+    return null;
+  }
+  const s = splitPayment({
+    balance: Number(data.balance),
+    apr: Number(data.apr),
+    total: amountPaid,
+    escrow: data.escrow == null ? 0 : Number(data.escrow),
+    pmi: data.pmi == null ? 0 : Number(data.pmi),
+  });
+  return { interest: s.interest, principal: s.principal };
+}
+
+/**
  * Planner "paid this month" toggle. Records (or removes) a `payment` transaction stamped
  * with `billing_month`, idempotent (one paid mark per item per month). For an expense
  * LINKED to a debt, the payment also draws down that debt's balance (and un-checking
@@ -529,18 +559,33 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
       // amount must be > 0 (column check); use the planned amount, floored at one cent.
       const planned = kind === "expense" ? expenseAmount : (parseMoney(formData.get("amount")) ?? 0);
       const amount = Math.max(round2(planned), 0.01);
+
+      // A debt-linked payment draws the balance down by PRINCIPAL only (total − escrow − PMI −
+      // interest); the split is recorded on the transaction. Plain expenses stay tracking-only.
+      let interest: number | null = null;
+      let principal: number | null = null;
+      if (linkedDebtId) {
+        const split = await debtSplit(supabase, linkedDebtId, amount);
+        if (split) {
+          interest = split.interest;
+          principal = split.principal;
+        }
+      }
+
       const { error } = await supabase.from("transactions").insert({
         profile_id: userId,
         [col]: itemId,
         ...(linkedDebtId ? { debt_id: linkedDebtId } : {}),
         kind: "payment",
         amount,
+        ...(interest != null ? { interest } : {}),
+        ...(principal != null ? { principal } : {}),
         billing_month: billingMonth,
       });
       if (error) return dbFailure(error, "togglePaid.insert", "Couldn't mark it paid. Please try again.");
-      // Linked expense → draw the debt balance down.
-      if (linkedDebtId) {
-        const adj = await adjustDebtBalance(supabase, linkedDebtId, "payment", amount);
+      // Linked expense → draw the debt balance down by the principal portion.
+      if (linkedDebtId && principal != null) {
+        const adj = await adjustDebtBalance(supabase, linkedDebtId, "payment", principal);
         if (adj) return adj;
       }
     }
@@ -548,7 +593,7 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
     // Read before deleting so a linked expense's reduction can be reversed (charge it back).
     const { data: removed, error: readErr } = await supabase
       .from("transactions")
-      .select("amount, debt_id")
+      .select("amount, debt_id, principal")
       .eq(col, itemId)
       .eq("billing_month", billingMonth)
       .eq("kind", "payment");
@@ -563,15 +608,77 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
     // Reverse balance reductions from linked-expense payments (those carry debt_id). Direct
     // debt-bill payments never moved a balance, so this only fires for the linked path.
     if (kind === "expense") {
-      for (const t of (removed ?? []) as { amount: number; debt_id: string | null }[]) {
+      for (const t of (removed ?? []) as { amount: number; debt_id: string | null; principal: number | null }[]) {
         if (t.debt_id) {
-          const adj = await adjustDebtBalance(supabase, t.debt_id, "charge", Number(t.amount));
+          // Charge back exactly the principal that was deducted (legacy payments without a
+          // recorded split fall back to the full amount).
+          const back = t.principal != null ? Number(t.principal) : Number(t.amount);
+          const adj = await adjustDebtBalance(supabase, t.debt_id, "charge", back);
           if (adj) return adj;
         }
       }
     }
   }
 
+  revalidatePath(PLANNER_PATH);
+  revalidatePath(EXPENSES_PATH);
+  revalidatePath(DEBTS_PATH);
+  return { error: null, ok: true };
+}
+
+/**
+ * "Pay all this month" — marks every active expense paid for `billingMonth` (idempotent: skips
+ * those already paid), recording each payment and drawing linked debts down by principal. Same
+ * per-item semantics as `togglePaid`'s check path, applied in bulk.
+ */
+export async function payAllExpenses(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return SIGNED_OUT;
+
+  const billingMonth = String(formData.get("billing_month") ?? "").trim();
+  if (!ISO_MONTH.test(billingMonth)) return { error: "Couldn't update — bad request." };
+
+  const [expensesRes, paidRes] = await Promise.all([
+    supabase.from("expenses").select("id, amount, debt_id").is("archived_at", null),
+    supabase.from("transactions").select("expense_id").eq("kind", "payment").eq("billing_month", billingMonth),
+  ]);
+  if (expensesRes.error) return dbFailure(expensesRes.error, "payAll.expenses", "Couldn't load expenses. Please try again.");
+  if (paidRes.error) return dbFailure(paidRes.error, "payAll.paid", "Couldn't load payments. Please try again.");
+
+  const paidIds = new Set(
+    ((paidRes.data ?? []) as { expense_id: string | null }[]).map((t) => t.expense_id).filter(Boolean),
+  );
+
+  for (const e of (expensesRes.data ?? []) as { id: string; amount: number; debt_id: string | null }[]) {
+    if (paidIds.has(e.id)) continue;
+    const amount = Math.max(round2(Number(e.amount)), 0.01);
+    let interest: number | null = null;
+    let principal: number | null = null;
+    if (e.debt_id) {
+      const split = await debtSplit(supabase, e.debt_id, amount);
+      if (split) {
+        interest = split.interest;
+        principal = split.principal;
+      }
+    }
+    const { error } = await supabase.from("transactions").insert({
+      profile_id: userId,
+      expense_id: e.id,
+      ...(e.debt_id ? { debt_id: e.debt_id } : {}),
+      kind: "payment",
+      amount,
+      ...(interest != null ? { interest } : {}),
+      ...(principal != null ? { principal } : {}),
+      billing_month: billingMonth,
+    });
+    if (error) return dbFailure(error, "payAll.insert", "Couldn't mark everything paid. Please try again.");
+    if (e.debt_id && principal != null) {
+      const adj = await adjustDebtBalance(supabase, e.debt_id, "payment", principal);
+      if (adj) return adj;
+    }
+  }
+
+  revalidatePath(EXPENSES_PATH);
   revalidatePath(PLANNER_PATH);
   revalidatePath(DEBTS_PATH);
   return { error: null, ok: true };

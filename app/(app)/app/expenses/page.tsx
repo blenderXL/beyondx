@@ -19,7 +19,11 @@ export default async function ExpensesPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [expensesRes, debtsRes, incomesRes] = await Promise.all([
+  // The billing month is the first day of the current (UTC) month — keys this month's check-offs.
+  const now = new Date();
+  const billingMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
+
+  const [expensesRes, debtsRes, incomesRes, paymentsRes] = await Promise.all([
     supabase.from("expenses").select("*").is("archived_at", null).order("created_at", { ascending: true }),
     supabase
       .from("debts")
@@ -27,7 +31,12 @@ export default async function ExpensesPage() {
       .is("archived_at", null)
       .order("name", { ascending: true }),
     supabase.from("incomes").select("*").is("archived_at", null),
+    supabase.from("transactions").select("expense_id").eq("kind", "payment").eq("billing_month", billingMonth),
   ]);
+
+  const paidExpenseIds = ((paymentsRes.data ?? []) as { expense_id: string | null }[])
+    .map((t) => t.expense_id)
+    .filter((id): id is string => Boolean(id));
 
   const expenses = (expensesRes.data ?? []) as Expense[];
   type DebtRow = {
@@ -71,5 +80,14 @@ export default async function ExpensesPage() {
     min_payment: Number(d.min_payment),
   }));
 
-  return <ExpensesClient expenses={expenses} debts={debts} rail={rail} income={plan.income} />;
+  return (
+    <ExpensesClient
+      expenses={expenses}
+      debts={debts}
+      rail={rail}
+      income={plan.income}
+      billingMonth={billingMonth}
+      paidExpenseIds={paidExpenseIds}
+    />
+  );
 }

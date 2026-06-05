@@ -3,7 +3,7 @@
 import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { StatCard } from "@/components/layout/StatCard";
-import { createExpense, updateExpense, archiveExpense } from "@/app/(app)/actions";
+import { createExpense, updateExpense, archiveExpense, togglePaid, payAllExpenses } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
 import {
   EXPENSE_CADENCES,
@@ -355,16 +355,24 @@ export function ExpensesClient({
   debts,
   rail,
   income,
+  billingMonth,
+  paidExpenseIds,
 }: {
   expenses: Expense[];
   debts: DebtOption[];
   rail: ExpensesRail;
   /** Monthly income — resolves a percent offering to its dollar value in the listed total. */
   income: number;
+  /** First-of-month ISO date the check-offs are keyed to. */
+  billingMonth: string;
+  /** Expense ids already checked off (paid) this month. */
+  paidExpenseIds: string[];
 }) {
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const toList = useCallback(() => setMode({ kind: "list" }), []);
   const total = expenses.reduce((sum, e) => sum + expenseDisplayAmount(e, income), 0);
+  const paid = useMemo(() => new Set(paidExpenseIds), [paidExpenseIds]);
+  const allPaid = expenses.length > 0 && expenses.every((e) => paid.has(e.id));
 
   // List controls (client-side over the loaded expenses).
   const [query, setQuery] = useState("");
@@ -389,9 +397,12 @@ export function ExpensesClient({
           </h1>
         </div>
         {mode.kind === "list" ? (
-          <button onClick={() => setMode({ kind: "create" })} className={primaryButtonClass}>
-            New expense
-          </button>
+          <div className="flex items-center gap-2">
+            {expenses.length > 0 ? <PayAllButton billingMonth={billingMonth} allPaid={allPaid} /> : null}
+            <button onClick={() => setMode({ kind: "create" })} className={primaryButtonClass}>
+              New expense
+            </button>
+          </div>
         ) : null}
       </header>
 
@@ -433,6 +444,8 @@ export function ExpensesClient({
                       <ExpenseCard
                         key={expense.id}
                         expense={expense}
+                        paid={paid.has(expense.id)}
+                        billingMonth={billingMonth}
                         onEdit={() => setMode({ kind: "edit", expense })}
                       />
                     ))}
@@ -521,11 +534,73 @@ const inlineFieldClass =
 const inlineLabelClass = "font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]";
 
 /**
+ * Per-card "paid this month" checkbox. Submits togglePaid; the server records the payment and,
+ * for a debt-linked expense, draws the balance down by the principal portion of what you pay.
+ */
+function CheckOff({
+  expenseId,
+  name,
+  paid,
+  billingMonth,
+}: {
+  expenseId: string;
+  name: string;
+  paid: boolean;
+  billingMonth: string;
+}) {
+  const [, formAction] = useActionState(togglePaid, INITIAL_FINANCE_STATE);
+  return (
+    <form action={formAction} className="shrink-0 pt-0.5">
+      <input type="hidden" name="kind" value="expense" />
+      <input type="hidden" name="item_id" value={expenseId} />
+      <input type="hidden" name="billing_month" value={billingMonth} />
+      <input
+        type="checkbox"
+        name="checked"
+        aria-label={`Mark ${name} paid`}
+        defaultChecked={paid}
+        onChange={(e) => e.currentTarget.form?.requestSubmit()}
+        className="size-4 cursor-pointer accent-[var(--color-accent-emerald)]"
+      />
+    </form>
+  );
+}
+
+/** "Pay all this month" — checks off every still-unpaid expense in one go. */
+function PayAllButton({ billingMonth, allPaid }: { billingMonth: string; allPaid: boolean }) {
+  const [state, formAction, pending] = useActionState(payAllExpenses, INITIAL_FINANCE_STATE);
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="billing_month" value={billingMonth} />
+      <button
+        type="submit"
+        disabled={pending || allPaid}
+        className={ghostButtonClass}
+        aria-label="Pay all this month"
+      >
+        {pending ? "Paying…" : allPaid ? "All paid" : "Pay all"}
+      </button>
+      {state.error ? <span role="alert" className={`ml-2 ${errorClass}`}>{state.error}</span> : null}
+    </form>
+  );
+}
+
+/**
  * Expense card with inline quick-edit of amount + pay day (no full-form round trip). The
  * unchanged fields ride along as hidden inputs so the server validator gets a complete
  * expense; a percent offering keeps its % display and only its pay day is editable.
  */
-function ExpenseCard({ expense, onEdit }: { expense: Expense; onEdit: () => void }) {
+function ExpenseCard({
+  expense,
+  paid,
+  billingMonth,
+  onEdit,
+}: {
+  expense: Expense;
+  paid: boolean;
+  billingMonth: string;
+  onEdit: () => void;
+}) {
   const isPercentOffering = expense.expense_group === "offering" && expense.pct_of_income != null;
   const [state, formAction, pending] = useActionState(updateExpense, INITIAL_FINANCE_STATE);
   const [dirty, setDirty] = useState(false);
@@ -536,14 +611,22 @@ function ExpenseCard({ expense, onEdit }: { expense: Expense; onEdit: () => void
   return (
     <li className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-sans text-sm font-medium break-words text-[var(--color-text-primary)]">
-            {expense.category}
-          </p>
-          <p className="mt-0.5 font-mono text-[10px] tracking-[0.16em] break-words text-[var(--color-text-muted)] uppercase">
-            {expense.expense_group ? EXPENSE_GROUP_LABELS[expense.expense_group] : "Ungrouped"}
-            {expense.payee ? ` · ${expense.payee}` : ""}
-          </p>
+        <div className="flex min-w-0 items-start gap-3">
+          <CheckOff expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} />
+          <div className="min-w-0">
+            <p
+              className={`font-sans text-sm font-medium break-words ${
+                paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+              }`}
+            >
+              {expense.category}
+            </p>
+            <p className="mt-0.5 font-mono text-[10px] tracking-[0.16em] break-words text-[var(--color-text-muted)] uppercase">
+              {expense.expense_group ? EXPENSE_GROUP_LABELS[expense.expense_group] : "Ungrouped"}
+              {expense.payee ? ` · ${expense.payee}` : ""}
+              {expense.debt_id ? " · linked" : ""}
+            </p>
+          </div>
         </div>
         {isPercentOffering ? (
           <p className="shrink-0 font-sans text-lg font-medium text-[var(--color-text-primary)] tabular-nums">
@@ -602,7 +685,6 @@ function ExpenseCard({ expense, onEdit }: { expense: Expense; onEdit: () => void
 
       <p className="mt-2 font-mono text-[11px] text-[var(--color-text-secondary)]">
         {EXPENSE_CADENCE_LABELS[expense.cadence]}
-        {expense.debt_id ? " · linked to debt" : ""}
       </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
