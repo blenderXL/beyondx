@@ -5,6 +5,7 @@
  * (medical / savings-club / other / generic loans) — a 3-stat layout. Pure + unit-tested.
  */
 import { formatUsd, formatPercent, formatDueDate, utilization, payoffProgress } from "./derive";
+import { splitPayment } from "./payment";
 import type { Debt, DebtType } from "./types";
 
 export interface CardMetric {
@@ -20,6 +21,23 @@ export function cardMetricsFor(debt: Debt): CardMetric[] {
     { label: "Min", value: formatUsd(Number(debt.min_payment)) },
     { label: "Due", value: formatDueDate(debt.next_due_date, debt.due_day) },
   ];
+
+  // When interest (or escrow/PMI) eat into the minimum, show how much actually hits the
+  // balance — the same principal that a check-off would draw down. Only while there's a
+  // balance to pay (a paid-off debt has no meaningful split).
+  const total = Number(debt.min_payment);
+  if (total > 0 && Number(debt.balance) > 0) {
+    const split = splitPayment({
+      balance: Number(debt.balance),
+      apr: Number(debt.apr),
+      total,
+      escrow: debt.escrow == null ? 0 : Number(debt.escrow),
+      pmi: debt.pmi == null ? 0 : Number(debt.pmi),
+    });
+    if (split.principal !== total) {
+      metrics.splice(2, 0, { label: "Principal", value: formatUsd(split.principal) });
+    }
+  }
 
   if (debt.type === "credit_card") {
     const util = utilization(

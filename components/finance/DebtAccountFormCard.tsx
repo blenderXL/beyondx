@@ -8,6 +8,7 @@ import {
   dueDateApplies,
   cardExtrasApply,
   startDetailsApply,
+  escrowApplies,
   type Debt,
   type DebtType,
 } from "@/lib/finance/types";
@@ -112,6 +113,7 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
   const showDueDate = dueDateApplies(type);
   const showCardExtras = cardExtrasApply(type);
   const showStartDetails = startDetailsApply(type);
+  const showEscrow = escrowApplies(type);
   // Promo fields are gated behind an explicit toggle so an empty promo-end date doesn't
   // look like it needs filling. Default on when editing a debt that already has a promo.
   const [hasPromo, setHasPromo] = useState(
@@ -395,6 +397,29 @@ export function DebtAccountFormCard({ debt, onDone, onCancel }: Props) {
                 </label>
               </>
             ) : null}
+          </>
+        ) : null}
+
+        {/* Property-secured debts: optional monthly escrow + PMI. Excluded from principal on
+            check-off, so the balance drops by principal only. Blank ⇒ $0. */}
+        {showEscrow ? (
+          <>
+            <label className="block">
+              <span className={labelClass}>
+                Escrow / mo
+                <FieldHint text={DEBT_HINTS.escrow} label="monthly escrow" />
+              </span>
+              <CurrencyInput name="escrow" ariaLabel="Escrow / mo" defaultValue={debt?.escrow} />
+              <Helper>Taxes + insurance in your payment — not principal.</Helper>
+            </label>
+            <label className="block">
+              <span className={labelClass}>
+                PMI / mo
+                <FieldHint text={DEBT_HINTS.pmi} label="monthly PMI" />
+              </span>
+              <CurrencyInput name="pmi" ariaLabel="PMI / mo" defaultValue={debt?.pmi} />
+              <Helper>Mortgage insurance — not principal.</Helper>
+            </label>
           </>
         ) : null}
 

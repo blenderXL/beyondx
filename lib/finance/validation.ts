@@ -73,6 +73,9 @@ export interface DebtValues {
   original_balance: number | null;
   /** Optional loan/account start date (installment debts). */
   start_date: string | null;
+  /** Optional monthly escrow + PMI (mortgages); null ⇒ $0. */
+  escrow: number | null;
+  pmi: number | null;
   issuer: string | null;
   promo_apr: number | null;
   promo_until: string | null;
@@ -180,6 +183,12 @@ export function validateDebtInput(
     }
   }
 
+  // Escrow + PMI — optional monthly amounts (mortgages), excluded from principal on check-off.
+  const escrow = optionalMoney(fields.escrow, "Escrow");
+  if (escrow.error) return fail(escrow.error);
+  const pmi = optionalMoney(fields.pmi, "PMI");
+  if (pmi.error) return fail(pmi.error);
+
   const issuer = str(fields.issuer) || null;
   if (issuer && issuer.length > 120) return fail("Issuer is too long (max 120 characters).");
 
@@ -225,6 +234,8 @@ export function validateDebtInput(
       credit_limit: creditLimit.value,
       original_balance: originalBalance.value,
       start_date,
+      escrow: escrow.value,
+      pmi: pmi.value,
       issuer,
       promo_apr,
       promo_until,

@@ -54,12 +54,15 @@ function dbFailure(error: unknown, action: string, message: string): FinanceActi
  * `start_date` only matters once migration 0011 lands; omitting it when blank keeps debt
  * writes working before then. `original_balance` is omitted when blank so editing a debt
  * (without touching the optional starting-balance field) never wipes its baseline — create
- * supplies the default explicitly.
+ * supplies the default explicitly. `escrow`/`pmi` (migration 0014) are likewise omitted when
+ * blank so writes stay safe before the columns exist and a blank field never clears them.
  */
 function debtPayload(values: import("@/lib/finance/validation").DebtValues): Record<string, unknown> {
   const payload = { ...values } as Record<string, unknown>;
   if (values.original_balance === null) delete payload.original_balance;
   if (values.start_date === null) delete payload.start_date;
+  if (values.escrow === null) delete payload.escrow;
+  if (values.pmi === null) delete payload.pmi;
   return payload;
 }
 

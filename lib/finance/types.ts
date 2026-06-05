@@ -81,6 +81,11 @@ export function startDetailsApply(type: DebtType): boolean {
   return TYPES_WITH_START_DETAILS.includes(type);
 }
 
+/** Escrow + PMI apply to property-secured debts (mortgage / home-equity). */
+export function escrowApplies(type: DebtType): boolean {
+  return type === "mortgage" || type === "home_equity";
+}
+
 /** Higher-level groupings of debt types for the category view + category breakdown. */
 export type DebtBucket = "credit_cards" | "mortgage" | "auto" | "loans" | "other";
 
@@ -140,6 +145,10 @@ export interface Debt {
   original_balance: number | null;
   /** Optional loan/account start date (installment debts) — migration 0011. */
   start_date: string | null;
+  /** Optional monthly escrow + PMI (mortgages); null ⇒ $0. Excluded from principal on
+   *  check-off so the balance drops by principal only — migration 0014. */
+  escrow: number | null;
+  pmi: number | null;
   issuer: string | null;
   promo_apr: number | null;
   promo_until: string | null;
@@ -156,6 +165,10 @@ export interface Transaction {
   savings_goal_id: string | null;
   kind: TransactionKind;
   amount: number;
+  /** Interest / principal split recorded when a debt payment is checked off (migration 0014).
+   *  Null on charges/contributions and on legacy payments. `amount` stays the full payment. */
+  interest: number | null;
+  principal: number | null;
   occurred_on: string;
   billing_month: string | null;
   note: string | null;
