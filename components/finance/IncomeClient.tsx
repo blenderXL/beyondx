@@ -146,40 +146,53 @@ function IncomeForm({ income, onDone, onCancel }: { income?: Income; onDone: () 
 
 type Mode = { kind: "list" } | { kind: "create" } | { kind: "edit"; income: Income };
 
-export function IncomeClient({ incomes }: { incomes: Income[] }) {
+export function IncomeClient({ incomes, embedded = false }: { incomes: Income[]; embedded?: boolean }) {
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const toList = useCallback(() => setMode({ kind: "list" }), []);
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <header className="mb-8 flex items-end justify-between gap-4">
-        <div>
+    <div className={embedded ? "" : "mx-auto max-w-5xl"}>
+      {embedded ? (
+        <div className="mb-4 flex items-center justify-between gap-4">
           <p className={labelClass}>// income</p>
-          <h1 className="mt-2 font-sans text-3xl font-medium text-[var(--color-text-primary)]">
-            Your income
-          </h1>
+          {mode.kind === "list" ? (
+            <button onClick={() => setMode({ kind: "create" })} className={ghostButtonClass}>
+              Add income
+            </button>
+          ) : null}
         </div>
-        {mode.kind === "list" ? (
-          <button onClick={() => setMode({ kind: "create" })} className={primaryButtonClass}>
-            New income
-          </button>
-        ) : null}
-      </header>
+      ) : (
+        <header className="mb-8 flex items-end justify-between gap-4">
+          <div>
+            <p className={labelClass}>// income</p>
+            <h1 className="mt-2 font-sans text-3xl font-medium text-[var(--color-text-primary)]">
+              Your income
+            </h1>
+          </div>
+          {mode.kind === "list" ? (
+            <button onClick={() => setMode({ kind: "create" })} className={primaryButtonClass}>
+              New income
+            </button>
+          ) : null}
+        </header>
+      )}
 
       {mode.kind === "create" ? <IncomeForm onDone={toList} onCancel={toList} /> : null}
       {mode.kind === "edit" ? <IncomeForm income={mode.income} onDone={toList} onCancel={toList} /> : null}
 
       {mode.kind === "list" ? (
         <>
-          <div className="mb-8 grid gap-4 sm:grid-cols-2">
-            <StatCard label="Income sources" value={String(incomes.length)} accentVar="--color-accent-emerald" />
-            <StatCard
-              label="Listed total"
-              value={formatUsd(incomes.reduce((s, i) => s + Number(i.amount), 0))}
-              hint="raw, per their cadence"
-              accentVar="--color-accent-blue"
-            />
-          </div>
+          {embedded ? null : (
+            <div className="mb-8 grid gap-4 sm:grid-cols-2">
+              <StatCard label="Income sources" value={String(incomes.length)} accentVar="--color-accent-emerald" />
+              <StatCard
+                label="Listed total"
+                value={formatUsd(incomes.reduce((s, i) => s + Number(i.amount), 0))}
+                hint="raw, per their cadence"
+                accentVar="--color-accent-blue"
+              />
+            </div>
+          )}
 
           {incomes.length === 0 ? (
             <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
