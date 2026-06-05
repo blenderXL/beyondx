@@ -90,6 +90,8 @@ test("inline edit: change an amount on the card and save it", async ({ page }) =
   await page.goto("/app/expenses");
   await page.getByLabel("Search expenses").fill(expA); // isolate the card
 
+  // The amount is click-to-edit now: click the figure to reveal the inline input.
+  await page.getByRole("button", { name: `Edit amount for ${expA}` }).click();
   const amount = page.getByLabel(`Amount for ${expA}`);
   await expect(amount).toHaveValue("111");
   await amount.fill("150");

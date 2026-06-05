@@ -53,12 +53,14 @@ test("redesigned form prefills from a debt; tithe is gone from income; rail rend
   // Expenses form: the first choice is debt-vs-other; picking a debt prefills name + amount.
   await page.goto("/app/expenses");
   await page.getByRole("button", { name: "New expense" }).click();
-  await expect(page.getByRole("button", { name: "Pay toward a debt" })).toBeVisible();
-  await page.getByRole("button", { name: "Pay toward a debt" }).click();
-  await page.getByLabel("Which debt").selectOption({ label: DEBT });
-  await expect(page.getByLabel("Name")).toHaveValue(DEBT);
-  await expect(page.getByLabel("Amount")).toHaveValue("75");
-  await page.getByRole("button", { name: "Cancel" }).click();
+  // The editor opens in a modal; scope field queries to it (the list + filters stay mounted behind).
+  const form = page.getByRole("dialog", { name: "New expense" });
+  await expect(form.getByRole("button", { name: "Pay toward a debt" })).toBeVisible();
+  await form.getByRole("button", { name: "Pay toward a debt" }).click();
+  await form.getByLabel("Which debt").selectOption({ label: DEBT });
+  await expect(form.getByLabel("Name")).toHaveValue(DEBT);
+  await expect(form.getByLabel("Amount")).toHaveValue("75");
+  await form.getByRole("button", { name: "Cancel" }).click();
 
   // The rail summarizes spending + subscriptions (the seeded Netflix sub counts).
   const rail = page.getByRole("complementary", { name: "Where your money goes" });
@@ -78,11 +80,12 @@ test("offering expense: percent-of-income, shown once", async ({ page }) => {
   await expect(page).toHaveURL(/\/app(\/|$)/);
   await page.goto("/app/expenses");
   await page.getByRole("button", { name: "New expense" }).click();
-  await page.getByLabel("Name").fill(OFFERING);
-  await page.getByLabel("Group").selectOption("offering");
+  const form = page.getByRole("dialog", { name: "New expense" });
+  await form.getByLabel("Name").fill(OFFERING);
+  await form.getByLabel("Group").selectOption("offering");
   // The offering %/$ toggle defaults to percent; enter 10%.
-  await page.getByLabel("Offering percent of income").fill("10");
-  await page.getByRole("button", { name: "Add expense" }).click();
+  await form.getByLabel("Offering percent of income").fill("10");
+  await form.getByRole("button", { name: "Add expense" }).click();
 
   const tile = page.getByRole("list", { name: "Expenses" }).locator("li", { hasText: OFFERING });
   await expect(tile).toBeVisible();

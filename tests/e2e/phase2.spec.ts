@@ -117,19 +117,20 @@ test.describe("Phase 2 — ledger spine behind feature flags", () => {
     createdCategories.push(name);
 
     await page.getByRole("button", { name: "New expense" }).click();
-    await page.getByLabel("Name", { exact: true }).fill(name);
-    await page.getByLabel("Group").selectOption("utility");
-    await page.getByLabel("Payee").fill("Optimum");
-    await page.getByLabel("Amount", { exact: true }).fill("115");
-    await page.getByLabel("Pay day (1–31)").fill("5"); // relabeled from "Due day" in the P3 form redesign
-    await page.getByRole("button", { name: "Add expense" }).click();
+    const form = page.getByRole("dialog", { name: "New expense" });
+    await form.getByLabel("Name", { exact: true }).fill(name);
+    await form.getByLabel("Group").selectOption("utility");
+    await form.getByLabel("Payee").fill("Optimum");
+    await form.getByLabel("Amount", { exact: true }).fill("115");
+    await form.getByLabel("Pay day (1–31)").fill("5"); // relabeled from "Due day" in the P3 form redesign
+    await form.getByRole("button", { name: "Add expense" }).click();
 
     const card = () => list.locator("li", { hasText: name });
     await expect(card()).toBeVisible();
     await expect(card()).toContainText("Optimum");
-    // Amount + pay day are inline-editable inputs on the card (P5A redesign), not static text.
-    await expect(page.getByLabel(`Amount for ${name}`)).toHaveValue("115");
-    await expect(page.getByLabel(`Pay day for ${name}`)).toHaveValue("5");
+    // Amount is a click-to-edit figure; pay day is shown as text (P5 modal-editor redesign).
+    await expect(card()).toContainText("$115.00");
+    await expect(card()).toContainText("pay day 5th");
 
     await card().getByRole("button", { name: "Archive" }).click();
     await expect(card()).toHaveCount(0);
