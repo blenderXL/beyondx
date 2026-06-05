@@ -23,7 +23,10 @@ import {
 } from "@/lib/finance/types";
 import { filterAndSortExpenses, EXPENSE_SORTS, type ExpenseSort } from "@/lib/finance/expensesView";
 import { splitPayment } from "@/lib/finance/payment";
+import type { MonthlyPlan } from "@/lib/finance/planner";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
+import { BudgetSummary } from "@/components/finance/BudgetSummary";
+import { IncomeOverrideEditor, type VariableIncome } from "@/components/finance/IncomeOverrideEditor";
 import { formatUsd, expenseDisplayAmount } from "@/lib/finance/derive";
 import { BarList } from "@/components/finance/charts";
 import { FieldHint } from "@/components/finance/FieldHint";
@@ -390,10 +393,16 @@ export function ExpensesClient({
   paidDebtIds,
   savingsBills,
   paidSavingsIds,
+  plan,
+  variableIncomes,
 }: {
   expenses: Expense[];
   debts: DebtOption[];
   rail: ExpensesRail;
+  /** This month's computed budget — income/offerings/expenses/minimums/leftover + by-cycle. */
+  plan: MonthlyPlan;
+  /** Variable income sources for the inline "set this month's actual" editor. */
+  variableIncomes: VariableIncome[];
   /** Monthly income — resolves a percent offering to its dollar value in the listed total. */
   income: number;
   /** First-of-month ISO date the check-offs are keyed to. */
@@ -459,14 +468,18 @@ export function ExpensesClient({
       ) : null}
 
       {mode.kind === "list" ? (
-        expenses.length === 0 && debtBills.length === 0 && savingsBills.length === 0 ? (
-          <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
-            <p className="font-mono text-sm text-[var(--color-text-muted)]">
-              // no expenses yet — add your bills to start planning
-            </p>
-          </div>
-        ) : (
-          <>
+        <>
+          <BudgetSummary plan={plan} />
+          <IncomeOverrideEditor incomes={variableIncomes} billingMonth={billingMonth} />
+
+          {expenses.length === 0 && debtBills.length === 0 && savingsBills.length === 0 ? (
+            <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
+              <p className="font-mono text-sm text-[var(--color-text-muted)]">
+                // no bills yet — add an expense or set a debt/savings minimum to start planning
+              </p>
+            </div>
+          ) : (
+            <>
             {expenses.length > 0 ? (
               <>
                 <ExpenseControls
@@ -535,8 +548,9 @@ export function ExpensesClient({
                 </ul>
               </section>
             ) : null}
+              </>
+            )}
           </>
-        )
       ) : null}
     </div>
   );

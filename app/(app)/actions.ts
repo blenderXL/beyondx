@@ -328,6 +328,7 @@ export async function setIncomeOverride(_p: FinanceActionState, formData: FormDa
   if (error) return dbFailure(error, "setIncomeOverride", "Couldn't save this month's amount. Please try again.");
 
   revalidatePath(PLANNER_PATH);
+  revalidatePath(EXPENSES_PATH);
   return { error: null, ok: true };
 }
 
