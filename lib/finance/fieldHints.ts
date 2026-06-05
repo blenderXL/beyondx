@@ -16,6 +16,8 @@ export const DEBT_HINTS = {
   start_details: "Optional: record the loan's original amount and when it started, for richer payoff context.",
   original_balance: "The amount you originally borrowed. Used as the baseline for your \"% paid off\" progress.",
   start_date: "When the loan or account began.",
+  escrow: "Monthly taxes + insurance bundled into your mortgage payment. Excluded from principal, so the balance drops by principal only.",
+  pmi: "Monthly private mortgage insurance. Excluded from principal — it doesn't reduce the balance.",
 } as const;
 
 export const EXPENSE_HINTS = {

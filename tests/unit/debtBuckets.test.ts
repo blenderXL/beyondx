@@ -19,6 +19,8 @@ const debt = (over: Partial<Debt> & { name: string; type: Debt["type"] }): Debt 
   credit_limit: null,
   original_balance: null,
   start_date: null,
+  escrow: null,
+  pmi: null,
   issuer: null,
   promo_apr: null,
   promo_until: null,
@@ -70,6 +72,29 @@ describe("cardMetricsFor", () => {
   it("omits the 4th stat for non-amortizing types (medical → 3 stats)", () => {
     const m = cardMetricsFor(debt({ name: "ER", type: "medical", balance: 500 }));
     expect(m.map((x) => x.label)).toEqual(["APR", "Min", "Due"]);
+  });
+
+  it("shows a Principal stat (min payment less interest) when interest applies", () => {
+    // $1,000 @ 24% → 20 interest; min 100 → 80 to principal.
+    const m = cardMetricsFor(debt({ name: "Citi", type: "credit_card", balance: 1000, apr: 24, min_payment: 100, credit_limit: 2000 }));
+    expect(m.map((x) => x.label)).toEqual(["APR", "Min", "Principal", "Due", "Util"]);
+    expect(m.find((x) => x.label === "Principal")!.value).toBe("$80.00");
+  });
+
+  it("reflects escrow in the Principal stat for a mortgage", () => {
+    // $100,000 @ 6% → 500 interest; min 1000 with 200 escrow → 300 principal.
+    const m = cardMetricsFor(debt({ name: "Home", type: "mortgage", balance: 100000, apr: 6, min_payment: 1000, escrow: 200 }));
+    expect(m.find((x) => x.label === "Principal")!.value).toBe("$300.00");
+  });
+
+  it("omits Principal when the whole payment is principal (0% APR, no escrow)", () => {
+    const m = cardMetricsFor(debt({ name: "IOU", type: "loan", balance: 1000, apr: 0, min_payment: 100 }));
+    expect(m.map((x) => x.label)).toEqual(["APR", "Min", "Due"]);
+  });
+
+  it("omits Principal for a paid-off debt (balance 0)", () => {
+    const m = cardMetricsFor(debt({ name: "Done", type: "credit_card", balance: 0, apr: 24, min_payment: 100, credit_limit: 1000 }));
+    expect(m.map((x) => x.label)).not.toContain("Principal");
   });
 });
 

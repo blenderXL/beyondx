@@ -17,6 +17,8 @@ const debt = (over: Partial<Debt> & { name: string }): Debt => ({
   credit_limit: null,
   original_balance: null,
   start_date: null,
+  escrow: null,
+  pmi: null,
   issuer: null,
   promo_apr: null,
   promo_until: null,
