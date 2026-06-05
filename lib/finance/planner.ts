@@ -155,7 +155,7 @@ export function buildMonthlyPlan(inputs: {
   const byGroup = [
     ...[...groupTotals.entries()].map(([group, amount]) => ({ group, amount })),
     { group: "Offerings", amount: offerings },
-    { group: "Debt minimums", amount: debtMinimums },
+    { group: "Min. debt payments", amount: debtMinimums },
   ].filter((g) => g.amount > 0);
 
   const leftover = round2(income - offerings - expensesTotal - debtMinimums);

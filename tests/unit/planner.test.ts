@@ -101,7 +101,7 @@ describe("buildMonthlyPlan", () => {
     expect(map["Utility"]).toBe(115);
     expect(map["Insurance"]).toBe(66);
     expect(map["Offerings"]).toBe(600);
-    expect(map["Debt minimums"]).toBe(200);
+    expect(map["Min. debt payments"]).toBe(200);
   });
 
   it("splits income and outflow across pay cycles by day", () => {
