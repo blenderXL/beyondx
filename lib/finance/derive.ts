@@ -4,6 +4,24 @@
  * stat rather than show a misleading 0%.
  */
 
+import { round2 } from "./validation";
+import type { Expense } from "./types";
+
+/**
+ * The dollar figure to show for one expense. A percent offering stores amount=0 and
+ * carries `pct_of_income`, so its real value is that % of monthly income — without this
+ * a percent offering reads as $0 in any raw `amount` sum (the offering-% total bug).
+ */
+export function expenseDisplayAmount(
+  exp: Pick<Expense, "expense_group" | "pct_of_income" | "amount">,
+  income: number,
+): number {
+  if (exp.expense_group === "offering" && exp.pct_of_income != null) {
+    return round2((income * exp.pct_of_income) / 100);
+  }
+  return Number(exp.amount);
+}
+
 /** Fraction of the credit limit in use (0–1+), or null when there's no limit. */
 export function utilization(balance: number, creditLimit: number | null): number | null {
   if (creditLimit === null || creditLimit <= 0) return null;

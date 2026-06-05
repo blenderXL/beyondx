@@ -71,5 +71,5 @@ export default async function ExpensesPage() {
     min_payment: Number(d.min_payment),
   }));
 
-  return <ExpensesClient expenses={expenses} debts={debts} rail={rail} />;
+  return <ExpensesClient expenses={expenses} debts={debts} rail={rail} income={plan.income} />;
 }

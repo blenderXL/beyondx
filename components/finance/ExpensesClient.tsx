@@ -13,7 +13,7 @@ import {
   type ExpenseGroup,
   type DebtType,
 } from "@/lib/finance/types";
-import { formatUsd } from "@/lib/finance/derive";
+import { formatUsd, expenseDisplayAmount } from "@/lib/finance/derive";
 import { BarList } from "@/components/finance/charts";
 import { FieldHint } from "@/components/finance/FieldHint";
 import { EXPENSE_HINTS } from "@/lib/finance/fieldHints";
@@ -352,14 +352,17 @@ export function ExpensesClient({
   expenses,
   debts,
   rail,
+  income,
 }: {
   expenses: Expense[];
   debts: DebtOption[];
   rail: ExpensesRail;
+  /** Monthly income — resolves a percent offering to its dollar value in the listed total. */
+  income: number;
 }) {
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const toList = useCallback(() => setMode({ kind: "list" }), []);
-  const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const total = expenses.reduce((sum, e) => sum + expenseDisplayAmount(e, income), 0);
 
   return (
     <div className="mx-auto max-w-6xl">

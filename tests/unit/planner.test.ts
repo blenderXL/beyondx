@@ -169,6 +169,34 @@ describe("buildMonthlyPlan", () => {
     });
   });
 
+  describe("one-time income", () => {
+    it("counts a one-time source at full value in the current month", () => {
+      const p = buildMonthlyPlan({
+        incomes: [income({ source: "Bonus", amount: 7950.31, cadence: "one_time", pay_day: 1 })],
+        expenses: [],
+        debts: [],
+      });
+      expect(p.income).toBe(7950.31);
+      expect(p.byCycle.first.income).toBe(7950.31);
+    });
+
+    it("includes a variable one-time source's override in the total (the $5,700 bug)", () => {
+      // Mirrors the real account: a one-time variable 'Salary 1st' with this month's actual set,
+      // plus two recurring sources. The headline must include all three, not drop the one-time.
+      const p = buildMonthlyPlan({
+        incomes: [
+          income({ source: "Salary1", amount: 7950.31, cadence: "one_time", pay_day: 1, is_variable: true }),
+          income({ source: "Salary15", amount: 3000, cadence: "monthly", pay_day: 15 }),
+          income({ source: "Rental", amount: 2700, cadence: "monthly", pay_day: 1 }),
+        ],
+        expenses: [],
+        debts: [],
+        overrides: { Salary1: 7950.31 },
+      });
+      expect(p.income).toBe(13650.31);
+    });
+  });
+
   it("counts an offering expense exactly once (no income-tithe double-count)", () => {
     // Income still carries a percent tithe (legacy field) AND there's a 10% offering expense.
     // Only the expense counts — offerings must be 10% of 4000 = 400, not 800.
