@@ -37,6 +37,63 @@
   --color-text-muted: #71717a;
 }
 
+/*
+ * "Obsidian Terminal" — design tokens scoped to the signed-in (app) shell only.
+ * Redefining the CSS-variable values here cascades the whole look to every
+ * descendant (416 `var(--color-*)` usages, no hardcoded palette utilities) with
+ * zero per-component edits. `:root` is left intact, so marketing + auth keep the
+ * original Geist/rounded look. Applied via the `.app-shell` class on AppShell.
+ */
+.app-shell {
+  /* Near-black canvas; cards float on a limitless plane */
+  --color-canvas: #0b0b0c;
+  --color-surface: #131313;
+  --color-elevated: #161616;
+  /* Depth via low-opacity white hairlines (DESIGN.md "Luminous Outlines") */
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+  --color-text-primary: #e5e2e1;
+  --color-text-secondary: #c4c7c8;
+  --color-text-muted: #8e9192;
+
+  /* Mint is the brand/positive accent; the rest stay semantic */
+  --color-accent-emerald: #36ffc4;
+  --color-accent-red: #ffb4ab;
+  --color-accent-amber: #f59e0b;
+  --color-accent-blue: #3b82f6;
+  --color-accent-purple: #8b5cf6;
+  --color-accent-pink: #ec4899;
+
+  /* Tight, technical geometry */
+  --radius-card: 0.25rem;
+
+  /* Hanken Grotesk for content, JetBrains Mono for // labels + figures.
+     Components use the `font-sans`/`font-mono` utilities → these vars. */
+  --font-sans: var(--font-hanken), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  background-color: var(--color-canvas);
+  color: var(--color-text-primary);
+  /* Design default is sans (terminal // labels opt into font-mono explicitly) */
+  font-family: var(--font-sans);
+}
+
+/* Light variant of the Obsidian palette — keeps the day/night toggle working
+   in-app. `.theme-light` lives on <html>; `.app-shell` is a descendant. */
+.theme-light .app-shell {
+  --color-canvas: #fafafa;
+  --color-surface: #ffffff;
+  --color-elevated: #f1f1f3;
+  --color-border-subtle: rgba(0, 0, 0, 0.08);
+  --color-border-strong: rgba(0, 0, 0, 0.14);
+  --color-text-primary: #18181b;
+  --color-text-secondary: #44474a;
+  --color-text-muted: #71717a;
+
+  /* Mint #36ffc4 is unreadable on white — deepen to a legible emerald for light */
+  --color-accent-emerald: #059669;
+}
+
 html,
 body {
   background-color: var(--color-canvas);
