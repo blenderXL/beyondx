@@ -138,6 +138,9 @@ export default async function ExpensesPage({
     min_payment: Number(d.min_payment),
   }));
 
+  // Savings goals the expense form can link a "pay toward savings" expense to.
+  const savingsOptions = savingsRows.map((g) => ({ id: g.id, name: g.name }));
+
   // Recurring debt obligations auto-appear as bill rows — every active debt NOT already
   // represented by a linked expense, pre-filled with its minimum.
   const debtBills: DebtBill[] = debtRows
@@ -189,6 +192,7 @@ export default async function ExpensesPage({
       plan={plan}
       incomes={incomes}
       incomeBreakdown={incomeBreakdown}
+      savingsOptions={savingsOptions}
       months={months}
       currentMonth={billingMonth}
     />

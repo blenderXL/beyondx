@@ -50,6 +50,12 @@ export interface DebtOption {
   min_payment: number;
 }
 
+/** Minimal savings shape for the form's "Pay toward savings" picker. */
+export interface SavingsOption {
+  id: string;
+  name: string;
+}
+
 /** A recurring debt obligation auto-shown as a checkable bill row (not a stored expense). */
 export interface DebtBill {
   id: string;
@@ -93,16 +99,19 @@ function debtExpenseGroup(type: DebtType): ExpenseGroup {
 function ExpenseForm({
   expense,
   debts,
+  savingsGoals,
   onDone,
   onCancel,
 }: {
   expense?: Expense;
   debts: DebtOption[];
+  savingsGoals: SavingsOption[];
   onDone: () => void;
   onCancel: () => void;
 }) {
   const editing = Boolean(expense);
   const hasDebts = debts.length > 0;
+  const hasSavings = savingsGoals.length > 0;
   const [state, formAction, pending] = useActionState(
     editing ? updateExpense : createExpense,
     INITIAL_FINANCE_STATE,
@@ -111,10 +120,13 @@ function ExpenseForm({
     if (state.ok) onDone();
   }, [state.ok, onDone]);
 
-  // First decision: is this a debt payment or a plain expense? Controlled fields let a debt
-  // pick prefill name / group / amount (all still editable).
-  const [kind, setKind] = useState<"debt" | "other">(expense?.debt_id ? "debt" : "other");
+  // First decision: pay toward a debt, toward savings, or a plain expense. Controlled fields
+  // let a debt/savings pick prefill the name (all still editable).
+  const [kind, setKind] = useState<"debt" | "savings" | "other">(
+    expense?.debt_id ? "debt" : expense?.savings_goal_id ? "savings" : "other",
+  );
   const [debtId, setDebtId] = useState(expense?.debt_id ?? "");
+  const [savingsId, setSavingsId] = useState(expense?.savings_goal_id ?? "");
   const [category, setCategory] = useState(expense?.category ?? "");
   const [group, setGroup] = useState<string>(expense?.expense_group ?? "");
   const [amount, setAmount] = useState(expense?.amount != null ? String(expense.amount) : "");
@@ -133,6 +145,11 @@ function ExpenseForm({
       setGroup(debtExpenseGroup(d.type));
       setAmount(String(d.min_payment));
     }
+  }
+  function pickSavings(id: string) {
+    setSavingsId(id);
+    const g = savingsGoals.find((x) => x.id === id);
+    if (g && !category) setCategory(g.name);
   }
 
   const isOffering = kind === "other" && group === "offering";
@@ -153,16 +170,17 @@ function ExpenseForm({
       <div role="group" aria-label="Expense kind" className="mb-6 inline-flex rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-0.5">
         {(
           [
-            { v: "debt" as const, label: "Pay toward a debt" },
-            { v: "other" as const, label: "Other expense" },
+            { v: "debt" as const, label: "Pay toward a debt", disabled: !hasDebts },
+            { v: "savings" as const, label: "Pay toward savings", disabled: !hasSavings },
+            { v: "other" as const, label: "Other expense", disabled: false },
           ]
-        ).map(({ v, label }) => (
+        ).map(({ v, label, disabled }) => (
           <button
             key={v}
             type="button"
             onClick={() => setKind(v)}
             aria-pressed={kind === v}
-            disabled={v === "debt" && !hasDebts}
+            disabled={disabled}
             className={`rounded px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.16em] transition-colors disabled:opacity-40 ${
               kind === v
                 ? "bg-[var(--color-surface)] text-[var(--color-text-primary)]"
@@ -174,8 +192,9 @@ function ExpenseForm({
         ))}
       </div>
 
-      {/* Carried hidden so the server gets the link + (for offerings) the percent. */}
+      {/* Carried hidden so the server gets the link(s) + (for offerings) the percent. */}
       <input type="hidden" name="debt_id" value={kind === "debt" ? debtId : ""} />
+      <input type="hidden" name="savings_goal_id" value={kind === "savings" ? savingsId : ""} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         {kind === "debt" ? (
@@ -200,6 +219,28 @@ function ExpenseForm({
             <span className="mt-1 block font-mono text-[10px] text-[var(--color-text-muted)]">
               Prefills the name, group, and minimum — all editable. Marking it paid in the Budget draws
               the balance down.
+            </span>
+          </label>
+        ) : null}
+
+        {kind === "savings" ? (
+          <label className="block sm:col-span-2">
+            <span className={labelClass}>Which savings goal?</span>
+            <select
+              aria-label="Which savings goal"
+              value={savingsId}
+              onChange={(e) => pickSavings(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">— Choose a savings goal —</option>
+              {savingsGoals.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block font-mono text-[10px] text-[var(--color-text-muted)]">
+              Paying this expense adds the amount to that pot&apos;s balance.
             </span>
           </label>
         ) : null}
@@ -409,11 +450,14 @@ export function ExpensesClient({
   plan,
   incomes,
   incomeBreakdown,
+  savingsOptions,
   months,
   currentMonth,
 }: {
   expenses: Expense[];
   debts: DebtOption[];
+  /** Savings goals for the form's "Pay toward savings" picker. */
+  savingsOptions: SavingsOption[];
   rail: ExpensesRail;
   /** This month's computed budget — income/offerings/expenses/minimums/leftover + by-cycle. */
   plan: MonthlyPlan;
@@ -525,10 +569,18 @@ export function ExpensesClient({
         onClose={toList}
         label={mode.kind === "edit" ? "Edit expense" : "New expense"}
       >
-        {mode.kind === "create" ? <ExpenseForm debts={debts} onDone={toList} onCancel={toList} /> : null}
+        {mode.kind === "create" ? (
+          <ExpenseForm debts={debts} savingsGoals={savingsOptions} onDone={toList} onCancel={toList} />
+        ) : null}
         {editExpense ? (
           <>
-            <ExpenseForm expense={editExpense} debts={debts} onDone={toList} onCancel={toList} />
+            <ExpenseForm
+              expense={editExpense}
+              debts={debts}
+              savingsGoals={savingsOptions}
+              onDone={toList}
+              onCancel={toList}
+            />
             {/* Archive lives in the editor now (no buttons on the card). Sibling form — not nested. */}
             <div className="mt-4 flex justify-end">
               <ArchiveButton id={editExpense.id} name={editExpense.category} />

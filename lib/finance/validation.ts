@@ -388,6 +388,7 @@ export interface ExpenseValues {
   payee: string | null;
   due_day: number | null;
   debt_id: string | null;
+  savings_goal_id: string | null;
   pct_of_income: number | null;
 }
 
@@ -431,6 +432,16 @@ export function validateExpenseInput(fields: RawFields): ValidationResult<Expens
     }
   }
 
+  // Optional link to a savings goal; ownership of the referenced pot is enforced in the action.
+  let savings_goal_id: string | null = null;
+  {
+    const s = str(fields.savings_goal_id);
+    if (s !== "") {
+      if (!UUID.test(s)) return fail("Choose a valid savings pot to link.");
+      savings_goal_id = s;
+    }
+  }
+
   // Percent-of-income only applies to an "offering" expense; ignored (nulled) otherwise.
   let pct_of_income: number | null = null;
   if (expense_group === "offering") {
@@ -454,6 +465,7 @@ export function validateExpenseInput(fields: RawFields): ValidationResult<Expens
       payee,
       due_day: dueDay.value,
       debt_id,
+      savings_goal_id,
       pct_of_income,
     },
   };
