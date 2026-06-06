@@ -419,6 +419,22 @@ async function assertLinkedDebtOwned(debtId: string | null): Promise<FinanceActi
   return null;
 }
 
+/** Same ownership guard for a savings-linked expense (RLS scopes the lookup to the owner). */
+async function assertLinkedSavingsOwned(goalId: string | null): Promise<FinanceActionState | null> {
+  if (!goalId) return null;
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return SIGNED_OUT;
+  const { data, error } = await supabase
+    .from("savings_goals")
+    .select("id")
+    .eq("id", goalId)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (error) return dbFailure(error, "expense.linkSavings", "Couldn't verify the linked pot. Please try again.");
+  if (!data) return { error: "That savings pot isn't available to link." };
+  return null;
+}
+
 /**
  * `pct_of_income` only matters for the "offering" group (migration 0009). Omitting it for
  * every other expense keeps inserts/updates working even before that migration reaches the
@@ -427,20 +443,22 @@ async function assertLinkedDebtOwned(debtId: string | null): Promise<FinanceActi
 function expensePayload(values: import("@/lib/finance/validation").ExpenseValues): Record<string, unknown> {
   const payload = { ...values } as Record<string, unknown>;
   if (values.expense_group !== "offering") delete payload.pct_of_income;
+  // savings_goal_id (migration 0017) — omit when unset so writes stay safe before the column lands.
+  if (!values.savings_goal_id) delete payload.savings_goal_id;
   return payload;
 }
 
 export async function createExpense(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const r = validateExpenseInput(Object.fromEntries(formData));
   if (!r.ok || !r.values) return { error: r.error };
-  const linkError = await assertLinkedDebtOwned(r.values.debt_id);
+  const linkError = (await assertLinkedDebtOwned(r.values.debt_id)) ?? (await assertLinkedSavingsOwned(r.values.savings_goal_id));
   if (linkError) return linkError;
   return insertOwned("expenses", EXPENSES_PATH, expensePayload(r.values));
 }
 export async function updateExpense(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   const r = validateExpenseInput(Object.fromEntries(formData));
   if (!r.ok || !r.values) return { error: r.error };
-  const linkError = await assertLinkedDebtOwned(r.values.debt_id);
+  const linkError = (await assertLinkedDebtOwned(r.values.debt_id)) ?? (await assertLinkedSavingsOwned(r.values.savings_goal_id));
   if (linkError) return linkError;
   return updateOwned("expenses", EXPENSES_PATH, idOf(formData), expensePayload(r.values));
 }
@@ -605,16 +623,19 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
   // For a linked expense, server-read the authoritative amount + debt link (never trust the
   // client). A direct debt bill (kind="debt") targets its own debt id.
   let linkedDebtId: string | null = null;
+  let linkedSavingsId: string | null = null;
   let expenseAmount = 0;
   if (kind === "expense") {
+    // select("*") so a missing savings_goal_id column (pre-0017) degrades gracefully.
     const { data: exp, error: expErr } = await supabase
       .from("expenses")
-      .select("amount, debt_id")
+      .select("*")
       .eq("id", itemId)
       .maybeSingle();
     if (expErr) return dbFailure(expErr, "togglePaid.readExpense", "Couldn't update. Please try again.");
     if (!exp) return { error: "Expense not found." };
     linkedDebtId = (exp.debt_id as string | null) ?? null;
+    linkedSavingsId = ((exp as { savings_goal_id?: string | null }).savings_goal_id as string | null) ?? null;
     expenseAmount = Number(exp.amount);
   }
   // The debt this check-off draws down (a linked expense's debt, or the debt bill itself).
@@ -650,6 +671,7 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
         profile_id: userId,
         [col]: itemId,
         ...(linkedDebtId ? { debt_id: linkedDebtId } : {}),
+        ...(linkedSavingsId ? { savings_goal_id: linkedSavingsId } : {}),
         kind: "payment",
         amount,
         ...(interest != null ? { interest } : {}),
@@ -662,12 +684,17 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
         const adj = await adjustDebtBalance(supabase, targetDebtId, "payment", principal);
         if (adj) return adj;
       }
+      // A savings-linked expense contributes to the pot — bump its current_amount.
+      if (linkedSavingsId) {
+        const adj = await adjustSavingsAmount(supabase, linkedSavingsId, amount);
+        if (adj) return adj;
+      }
     }
   } else {
     // Read before deleting so a linked expense's reduction can be reversed (charge it back).
     const { data: removed, error: readErr } = await supabase
       .from("transactions")
-      .select("amount, debt_id, principal")
+      .select("amount, debt_id, savings_goal_id, principal")
       .eq(col, itemId)
       .eq("billing_month", billingMonth)
       .eq("kind", "payment");
@@ -679,13 +706,21 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
       .eq("billing_month", billingMonth)
       .eq("kind", "payment");
     if (error) return dbFailure(error, "togglePaid.delete", "Couldn't update. Please try again.");
-    // Reverse any balance reduction this payment made (linked expense OR debt bill — both
-    // carry debt_id). Charge back exactly the principal that was deducted (legacy payments
-    // without a recorded split fall back to the full amount).
-    for (const t of (removed ?? []) as { amount: number; debt_id: string | null; principal: number | null }[]) {
+    // Reverse any balance/pot change this payment made. Debt: charge back the principal
+    // (legacy rows fall back to amount). Savings: decrement the pot by the amount.
+    for (const t of (removed ?? []) as {
+      amount: number;
+      debt_id: string | null;
+      savings_goal_id: string | null;
+      principal: number | null;
+    }[]) {
       if (t.debt_id) {
         const back = t.principal != null ? Number(t.principal) : Number(t.amount);
         const adj = await adjustDebtBalance(supabase, t.debt_id, "charge", back);
+        if (adj) return adj;
+      }
+      if (t.savings_goal_id) {
+        const adj = await adjustSavingsAmount(supabase, t.savings_goal_id, -Number(t.amount));
         if (adj) return adj;
       }
     }
@@ -694,7 +729,27 @@ export async function togglePaid(_p: FinanceActionState, formData: FormData): Pr
   revalidatePath(PLANNER_PATH);
   revalidatePath(EXPENSES_PATH);
   revalidatePath(DEBTS_PATH);
+  revalidatePath(SAVINGS_PATH);
   return { error: null, ok: true };
+}
+
+/** Bump a savings pot's current_amount by `delta` (negative to decrement; floored at 0). */
+async function adjustSavingsAmount(
+  supabase: Awaited<ReturnType<typeof requireUserId>>["supabase"],
+  goalId: string,
+  delta: number,
+): Promise<FinanceActionState | null> {
+  const { data: g, error: readErr } = await supabase
+    .from("savings_goals")
+    .select("current_amount")
+    .eq("id", goalId)
+    .maybeSingle();
+  if (readErr) return dbFailure(readErr, "adjustSavings.read", "Couldn't update the pot. Please try again.");
+  if (!g) return null;
+  const next = Math.max(0, round2(Number(g.current_amount) + delta));
+  const { error } = await supabase.from("savings_goals").update({ current_amount: next }).eq("id", goalId);
+  if (error) return dbFailure(error, "adjustSavings.update", "Couldn't update the pot total. Refresh and check.");
+  return null;
 }
 
 /**
@@ -790,7 +845,8 @@ export async function payAllExpenses(_p: FinanceActionState, formData: FormData)
   if (!ISO_MONTH.test(billingMonth)) return { error: "Couldn't update — bad request." };
 
   const [expensesRes, debtsRes, savingsRes, paidRes, contribRes] = await Promise.all([
-    supabase.from("expenses").select("id, amount, debt_id").is("archived_at", null),
+    // select("*") so a missing savings_goal_id column (pre-0017) reads as undefined.
+    supabase.from("expenses").select("*").is("archived_at", null),
     supabase.from("debts").select("id, min_payment").is("archived_at", null),
     // select("*") so a missing monthly_contribution column (pre-0015) reads as undefined.
     supabase.from("savings_goals").select("*").is("archived_at", null),
@@ -803,7 +859,12 @@ export async function payAllExpenses(_p: FinanceActionState, formData: FormData)
   if (paidRes.error) return dbFailure(paidRes.error, "payAll.paid", "Couldn't load payments. Please try again.");
   if (contribRes.error) return dbFailure(contribRes.error, "payAll.contrib", "Couldn't load contributions. Please try again.");
 
-  const expenses = (expensesRes.data ?? []) as { id: string; amount: number; debt_id: string | null }[];
+  const expenses = (expensesRes.data ?? []) as {
+    id: string;
+    amount: number;
+    debt_id: string | null;
+    savings_goal_id?: string | null;
+  }[];
   const payments = (paidRes.data ?? []) as { expense_id: string | null; debt_id: string | null }[];
   const paidExpenseIds = new Set(payments.map((t) => t.expense_id).filter(Boolean));
   const paidDebtIds = new Set(payments.map((t) => t.debt_id).filter(Boolean));
@@ -826,6 +887,7 @@ export async function payAllExpenses(_p: FinanceActionState, formData: FormData)
       profile_id: userId,
       expense_id: e.id,
       ...(e.debt_id ? { debt_id: e.debt_id } : {}),
+      ...(e.savings_goal_id ? { savings_goal_id: e.savings_goal_id } : {}),
       kind: "payment",
       amount,
       ...(interest != null ? { interest } : {}),
@@ -835,6 +897,10 @@ export async function payAllExpenses(_p: FinanceActionState, formData: FormData)
     if (error) return dbFailure(error, "payAll.insert", "Couldn't mark everything paid. Please try again.");
     if (e.debt_id && principal != null) {
       const adj = await adjustDebtBalance(supabase, e.debt_id, "payment", principal);
+      if (adj) return adj;
+    }
+    if (e.savings_goal_id) {
+      const adj = await adjustSavingsAmount(supabase, e.savings_goal_id, amount);
       if (adj) return adj;
     }
   }
@@ -904,7 +970,7 @@ export async function revertAllExpenses(_p: FinanceActionState, formData: FormDa
   const [payRes, contribRes] = await Promise.all([
     supabase
       .from("transactions")
-      .select("debt_id, principal, amount")
+      .select("debt_id, savings_goal_id, principal, amount")
       .eq("kind", "payment")
       .eq("billing_month", billingMonth),
     supabase
@@ -916,12 +982,22 @@ export async function revertAllExpenses(_p: FinanceActionState, formData: FormDa
   if (payRes.error) return dbFailure(payRes.error, "revertAll.payments", "Couldn't load payments. Please try again.");
   if (contribRes.error) return dbFailure(contribRes.error, "revertAll.contrib", "Couldn't load contributions. Please try again.");
 
-  // Charge each debt back by the principal that was deducted (legacy rows fall back to amount).
-  for (const t of (payRes.data ?? []) as { debt_id: string | null; principal: number | null; amount: number }[]) {
-    if (!t.debt_id) continue;
-    const back = t.principal != null ? Number(t.principal) : Number(t.amount);
-    const adj = await adjustDebtBalance(supabase, t.debt_id, "charge", back);
-    if (adj) return adj;
+  // Reverse each payment: charge debts back by principal; decrement savings-linked pots by amount.
+  for (const t of (payRes.data ?? []) as {
+    debt_id: string | null;
+    savings_goal_id: string | null;
+    principal: number | null;
+    amount: number;
+  }[]) {
+    if (t.debt_id) {
+      const back = t.principal != null ? Number(t.principal) : Number(t.amount);
+      const adj = await adjustDebtBalance(supabase, t.debt_id, "charge", back);
+      if (adj) return adj;
+    }
+    if (t.savings_goal_id) {
+      const adj = await adjustSavingsAmount(supabase, t.savings_goal_id, -Number(t.amount));
+      if (adj) return adj;
+    }
   }
 
   // Decrement each savings pot by its contribution (never below zero).

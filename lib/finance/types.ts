@@ -317,6 +317,8 @@ export interface Expense {
   due_day: number | null;
   /** Optional link to a debt — paying this expense (in the Budget) draws down that debt. */
   debt_id: string | null;
+  /** Optional link to a savings goal (migration 0017) — paying it contributes to that pot. */
+  savings_goal_id?: string | null;
   /** For an "offering" expense: a percent (0–100) of total monthly income instead of a fixed amount. */
   pct_of_income: number | null;
   archived_at: string | null;
