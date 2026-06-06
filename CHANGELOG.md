@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.9](https://github.com/blenderXL/beyondx/compare/v0.1.8...v0.1.9) (2026-06-06)
+
+
+### Features
+
+* **debts:** redesign to debt-v2 reference + card detail modal ([#53](https://github.com/blenderXL/beyondx/issues/53)) ([efd2089](https://github.com/blenderXL/beyondx/commit/efd208920563bc39488b1e5ce8380f592cd4f735))
+* **expenses:** match the stitch reference — sidebar budget, one income, card pay button ([#54](https://github.com/blenderXL/beyondx/issues/54)) ([9a17c9b](https://github.com/blenderXL/beyondx/commit/9a17c9bf1afb6229153413b7a57c06992cfb0510))
+* **expenses:** pay toward savings — link an expense to a savings goal ([#55](https://github.com/blenderXL/beyondx/issues/55)) ([86eb69f](https://github.com/blenderXL/beyondx/commit/86eb69fac333f9f2c78de757a62c3d28001dfaa6))
+* **payoff:** exact-match sidebar + labeled chart with minimums-only comparison ([#56](https://github.com/blenderXL/beyondx/issues/56)) ([13421ba](https://github.com/blenderXL/beyondx/commit/13421babca4a80f9ae9df1bdb9e10687bc9b7c4c))
+
 ## [0.1.8](https://github.com/blenderXL/beyondx/compare/v0.1.7...v0.1.8) (2026-06-06)
 
 
