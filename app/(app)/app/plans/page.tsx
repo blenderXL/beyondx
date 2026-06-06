@@ -4,6 +4,7 @@ import { featureState } from "@/lib/flags/server";
 import { ComingSoon } from "@/components/finance/ComingSoon";
 import { PlansClient } from "@/components/finance/PlansClient";
 import { resolvePayoffMethod, type PayoffDebtInput } from "@/lib/finance/payoff";
+import type { InsightDebt } from "@/lib/finance/insights";
 import type { Debt } from "@/lib/finance/types";
 
 export const dynamic = "force-dynamic";
@@ -32,11 +33,16 @@ export default async function PlansPage() {
 
   const { data } = await supabase
     .from("debts")
-    .select("id, name, type, balance, apr, min_payment, payoff_order")
+    .select("id, name, type, balance, apr, min_payment, payoff_order, credit_limit")
     .is("archived_at", null)
     .order("created_at", { ascending: true });
 
-  const debts: PayoffDebtInput[] = ((data ?? []) as Pick<Debt, "id" | "name" | "type" | "balance" | "apr" | "min_payment" | "payoff_order">[]).map((d) => ({
+  const rows = (data ?? []) as Pick<
+    Debt,
+    "id" | "name" | "type" | "balance" | "apr" | "min_payment" | "payoff_order" | "credit_limit"
+  >[];
+
+  const debts: PayoffDebtInput[] = rows.map((d) => ({
     id: d.id,
     name: d.name,
     type: d.type,
@@ -46,5 +52,13 @@ export default async function PlansPage() {
     payoff_order: d.payoff_order,
   }));
 
-  return <PlansClient debts={debts} initialMethod={initialMethod} />;
+  // Distribution/utilization math (merged in from the retired Insights page) needs type + limit.
+  const insightDebts: InsightDebt[] = rows.map((d) => ({
+    type: d.type,
+    balance: Number(d.balance),
+    apr: Number(d.apr),
+    credit_limit: d.credit_limit === null ? null : Number(d.credit_limit),
+  }));
+
+  return <PlansClient debts={debts} insightDebts={insightDebts} initialMethod={initialMethod} />;
 }
