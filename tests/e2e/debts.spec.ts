@@ -5,7 +5,9 @@ import { TEST_USER, MFA_USER, hasTestCreds, hasMfaCreds, uiLogin } from "./helpe
 /** The type picker is a custom ARIA listbox now — open it and click the option by its label. */
 async function selectDebtType(page: Page, optionLabel: string) {
   await page.getByRole("button", { name: "Type of debt" }).click();
-  await page.getByRole("option", { name: optionLabel }).click();
+  // Scope to the custom listbox — the debts page's "Filter by type" <select> behind the modal
+  // exposes options with the same labels.
+  await page.getByRole("listbox", { name: "Type of debt" }).getByRole("option", { name: optionLabel }).click();
 }
 
 // All debt specs need the password-login user; without creds, skip rather than fail.
@@ -63,33 +65,69 @@ test.describe("Debt management", () => {
     await expect(card().getByText("$1,000.00")).toBeVisible();
     await expect(card().getByText("50%")).toBeVisible();
 
+    // The card is a button now — everything (txns, edit, archive) lives in its detail modal,
+    // whose header balance updates live as transactions post.
+    const dialog = page.getByRole("dialog", { name: "Debt details" });
+    // dispatchEvent — a plain click() races: opening the card spawns a modal that covers it.
+    const openCard = () => page.getByRole("button", { name: `Open ${name}` }).dispatchEvent("click");
+    await openCard();
+
     // Charge +250 → 1250.
-    await card().getByRole("button", { name: "Add transaction" }).click();
-    await page.getByLabel("Type", { exact: true }).selectOption("charge");
-    await page.getByLabel("Amount").fill("250");
-    await page.getByRole("button", { name: "Record" }).click();
-    await expect(card().getByText("$1,250.00")).toBeVisible();
+    await dialog.getByLabel("Type", { exact: true }).selectOption("charge");
+    await dialog.getByLabel("Amount").fill("250");
+    await dialog.getByRole("button", { name: "Record" }).click();
+    await expect(dialog.getByText("$1,250.00")).toBeVisible();
 
     // Payment of 1500 against a 1250 balance → floored at 0, never negative.
-    await card().getByRole("button", { name: "Add transaction" }).click();
-    await page.getByLabel("Type", { exact: true }).selectOption("payment");
-    await page.getByLabel("Amount").fill("1500");
-    await page.getByRole("button", { name: "Record" }).click();
-    await expect(card().getByText("$0.00")).toBeVisible();
+    await dialog.getByLabel("Type", { exact: true }).selectOption("payment");
+    await dialog.getByLabel("Amount").fill("1500");
+    await dialog.getByRole("button", { name: "Record" }).click();
+    await expect(dialog.getByText("$0.00")).toBeVisible();
 
-    // The payment shows up in recent activity.
+    // The payment shows up in recent activity (behind the modal).
     const activity = page.getByRole("list", { name: "Recent activity" });
     await expect(activity.locator("li", { hasText: name }).first()).toBeVisible();
 
-    // Edit the balance directly (edit-anytime) → 500.
-    await card().getByRole("button", { name: "Edit" }).click();
-    await page.getByLabel("Current balance").fill("500");
-    await page.getByRole("button", { name: "Save debt" }).click();
+    // Edit the balance directly (the edit form lives in the modal) → 500; Save closes the modal.
+    await dialog.getByLabel("Current balance").fill("500");
+    await dialog.getByRole("button", { name: "Save debt" }).click();
     await expect(card().getByText("$500.00")).toBeVisible();
 
-    // Archive → drops out of the active list.
-    await card().getByRole("button", { name: "Archive" }).click();
+    // Archive (from the modal) → drops out of the active list.
+    await openCard();
+    await dialog.getByRole("button", { name: "Archive" }).click();
     await expect(list.locator("li", { hasText: name })).toHaveCount(0);
+  });
+
+  test("deleting a manual transaction reverses the balance", async ({ page }) => {
+    await uiLogin(page);
+    await expect(page).toHaveURL(/\/app(\/|$)/);
+    await page.goto("/app/debts");
+
+    const list = page.getByRole("list", { name: "Debts" });
+    const name = uniqueName("e2e-del");
+    await page.getByRole("button", { name: "New debt" }).click();
+    await page.getByLabel("Debt nickname / description").fill(name);
+    await selectDebtType(page, "Credit Card/Line (unsecured)");
+    await page.getByLabel("Current balance").fill("1000");
+    await page.getByLabel("Interest rate (%)", { exact: true }).fill("20");
+    await page.getByLabel("Minimum payment").fill("25");
+    await page.getByLabel("Next due date").fill("2026-07-01");
+    await page.getByRole("button", { name: "Add debt" }).click();
+
+    const card = () => list.locator("li", { hasText: name });
+    await expect(card().getByText("$1,000.00")).toBeVisible();
+
+    // Record a $200 payment → 800, then delete it from the modal → back to 1000.
+    const dialog = page.getByRole("dialog", { name: "Debt details" });
+    await page.getByRole("button", { name: `Open ${name}` }).dispatchEvent("click");
+    await dialog.getByLabel("Type", { exact: true }).selectOption("payment");
+    await dialog.getByLabel("Amount").fill("200");
+    await dialog.getByRole("button", { name: "Record" }).click();
+    await expect(dialog.getByText("$800.00")).toBeVisible(); // modal header balance updates live
+
+    await dialog.getByRole("button", { name: "Delete transaction" }).first().click();
+    await expect(dialog.getByText("$1,000.00")).toBeVisible(); // delete reverses the balance
   });
 
   test("server rejects out-of-range input (APR above the column max)", async ({ page }) => {
@@ -117,9 +155,10 @@ test.describe("Debt management", () => {
 
     // The custom picker opens an ARIA listbox with one option per debt type.
     await page.getByRole("button", { name: "Type of debt" }).click();
-    await expect(page.getByRole("listbox", { name: "Type of debt" })).toBeVisible();
-    await expect(page.getByRole("option")).toHaveCount(11);
-    await page.getByRole("option", { name: "Credit Card/Line (unsecured)" }).click();
+    const listbox = page.getByRole("listbox", { name: "Type of debt" });
+    await expect(listbox).toBeVisible();
+    await expect(listbox.getByRole("option")).toHaveCount(11);
+    await listbox.getByRole("option", { name: "Credit Card/Line (unsecured)" }).click();
 
     // Credit card → credit limit AND next due date show.
     await expect(page.getByLabel("Credit limit")).toBeVisible();

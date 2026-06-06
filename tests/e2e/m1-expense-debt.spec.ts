@@ -25,7 +25,7 @@ async function setFlag(key: string, enabled: boolean) {
 
 async function selectDebtType(page: Page, optionLabel: string) {
   await page.getByRole("button", { name: "Type of debt" }).click();
-  await page.getByRole("option", { name: optionLabel }).click();
+  await page.getByRole("listbox", { name: "Type of debt" }).getByRole("option", { name: optionLabel }).click();
 }
 
 test.beforeAll(async () => {
@@ -65,7 +65,10 @@ test("debt card shows the real next due date (not '—')", async ({ page }) => {
 
   const card = page.getByRole("list", { name: "Debts" }).locator("li", { hasText: name });
   await expect(card).toBeVisible();
-  await expect(card).toContainText("Jul 1");
+  // The due date lives in the card's detail modal (edit form) now, not on the card face.
+  await page.getByRole("button", { name: `Open ${name}` }).dispatchEvent("click");
+  const dialog = page.getByRole("dialog", { name: "Debt details" });
+  await expect(dialog.getByLabel("Next due date")).toHaveValue("2026-07-01");
 });
 
 test("expense form: expanded groups, Pay day label, and field info-icons", async ({ page }) => {
