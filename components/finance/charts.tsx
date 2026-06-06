@@ -63,7 +63,9 @@ export function PayoffChart({
   if (n < 2) {
     return <p className="font-mono text-[11px] text-[var(--color-text-muted)]">// not enough data to chart yet</p>;
   }
-  const W = 340;
+  // Wide aspect ratio so the chart fills the card; `w-full` (height from the viewBox) scales it
+  // uniformly — a fixed pixel height + meet would letterbox a narrow viewBox in the middle.
+  const W = 760;
   const H = 184;
   const ml = 46;
   const mb = 24;
@@ -86,7 +88,7 @@ export function PayoffChart({
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-[184px] w-full" role="img" aria-label="Payoff curve vs. minimums only">
+      <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label="Payoff curve vs. minimums only">
         {yTicks.map((t, i) => (
           <g key={i}>
             <line
