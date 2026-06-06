@@ -189,6 +189,53 @@ export async function addTransaction(
   return { error: null, ok: true };
 }
 
+/**
+ * Delete a MANUAL debt transaction and reverse its balance effect (a deleted payment adds the
+ * amount back; a deleted charge subtracts it). Transactions that came from an expense check-off
+ * (they carry expense_id / savings_goal_id) are owned by the Expenses page and are refused here —
+ * the user reverts those from the Expenses page for that month.
+ */
+export async function deleteTransaction(
+  _prev: FinanceActionState,
+  formData: FormData,
+): Promise<FinanceActionState> {
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return { error: "You're signed out. Log in and try again." };
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { error: "Missing transaction id." };
+
+  const { data: txn, error: readErr } = await supabase
+    .from("transactions")
+    .select("id, debt_id, expense_id, savings_goal_id, kind, amount")
+    .eq("id", id)
+    .maybeSingle();
+  if (readErr) return dbFailure(readErr, "deleteTransaction.read", "Couldn't load the transaction. Please try again.");
+  if (!txn) return { error: "Transaction not found." };
+  if (txn.expense_id || txn.savings_goal_id) {
+    return { error: "This payment came from an expense — revert it on the Expenses page for that month." };
+  }
+
+  // Reverse the balance effect before deleting (manual txns move the full amount, no split).
+  if (txn.debt_id) {
+    const { data: debt } = await supabase.from("debts").select("balance").eq("id", txn.debt_id).maybeSingle();
+    if (debt) {
+      const cur = Number(debt.balance);
+      const amt = Number(txn.amount);
+      const restored =
+        txn.kind === "payment" ? round2(cur + amt) : txn.kind === "charge" ? Math.max(0, round2(cur - amt)) : cur;
+      const { error: balErr } = await supabase.from("debts").update({ balance: restored }).eq("id", txn.debt_id);
+      if (balErr) return dbFailure(balErr, "deleteTransaction.balance", "Couldn't update the balance. Please try again.");
+    }
+  }
+
+  const { error: delErr } = await supabase.from("transactions").delete().eq("id", id);
+  if (delErr) return dbFailure(delErr, "deleteTransaction.delete", "Couldn't delete the transaction. Please try again.");
+
+  revalidatePath(DEBTS_PATH);
+  return { error: null, ok: true };
+}
+
 const PLANS_PATH = "/app/plans";
 
 /**

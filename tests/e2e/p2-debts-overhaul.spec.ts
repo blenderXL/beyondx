@@ -46,11 +46,11 @@ test("category view, reverse sort, dynamic metrics, category rail", async ({ pag
   await expect(rail).toContainText("Credit cards");
   await expect(rail).toContainText("Mortgage & home");
 
-  // Type-dynamic card metric: the credit card shows "Util", the mortgage shows "Paid".
+  // Type-dynamic card metric: the credit card shows "Util", the mortgage shows "Progress".
   const cardTile = page.getByRole("listitem").filter({ hasText: CARD }).first();
   await expect(cardTile).toContainText("Util");
   const homeTile = page.getByRole("listitem").filter({ hasText: HOME }).first();
-  await expect(homeTile).toContainText("Paid");
+  await expect(homeTile).toContainText("Progress");
 
   // Reverse sort: balance low→high puts the credit card ($500) before the mortgage ($200k).
   await page.getByLabel("Sort debts").selectOption("balance_asc");

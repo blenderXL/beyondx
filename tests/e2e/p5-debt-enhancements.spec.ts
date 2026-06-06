@@ -20,7 +20,7 @@ function anonClient() {
 }
 async function selectDebtType(page: Page, optionLabel: string) {
   await page.getByRole("button", { name: "Type of debt" }).click();
-  await page.getByRole("option", { name: optionLabel }).click();
+  await page.getByRole("listbox", { name: "Type of debt" }).getByRole("option", { name: optionLabel }).click();
 }
 
 let columnReady = false;
@@ -88,8 +88,9 @@ test("installment debt: starting balance + loan date persist", async ({ page }) 
   const card = page.getByRole("list", { name: "Debts" }).locator("li", { hasText: name });
   await expect(card).toBeVisible();
 
-  // Re-open the editor: the toggle defaults on (start date present) and both fields prefill.
-  await card.getByRole("button", { name: "Edit" }).click();
-  await expect(page.getByLabel("Loan start date", { exact: true })).toHaveValue("2024-01-15");
-  await expect(page.getByLabel("Starting balance", { exact: true })).toHaveValue("$25,000.00");
+  // Re-open the editor (now the card's detail modal): the toggle defaults on and both fields prefill.
+  await page.getByRole("button", { name: `Open ${name}` }).dispatchEvent("click");
+  const dialog = page.getByRole("dialog", { name: "Debt details" });
+  await expect(dialog.getByLabel("Loan start date", { exact: true })).toHaveValue("2024-01-15");
+  await expect(dialog.getByLabel("Starting balance", { exact: true })).toHaveValue("$25,000.00");
 });

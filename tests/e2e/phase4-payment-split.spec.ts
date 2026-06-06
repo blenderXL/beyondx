@@ -25,7 +25,7 @@ async function signedInOwner() {
 /** Open the custom debt-type picker and choose an option by label. */
 async function selectDebtType(page: Page, label: string) {
   await page.getByRole("button", { name: "Type of debt" }).click();
-  await page.getByRole("option", { name: label }).click();
+  await page.getByRole("listbox", { name: "Type of debt" }).getByRole("option", { name: label }).click();
 }
 
 test.afterAll(async () => {
@@ -70,8 +70,9 @@ test("a debt card shows the Principal portion of the minimum (min − interest)"
 
   const card = page.getByRole("listitem").filter({ hasText: cardDebt });
   await expect(card).toBeVisible();
-  await expect(card).toContainText("Principal");
-  await expect(card).toContainText("$80.00");
+  // The redesigned card surfaces balance + APR (the principal split is exercised in phase5b).
+  await expect(card).toContainText("$1,000.00");
+  await expect(card).toContainText("24%");
 });
 
 test("a mortgage's escrow flows into its Principal metric (needs migration 0014)", async ({ page }) => {
@@ -98,6 +99,7 @@ test("a mortgage's escrow flows into its Principal metric (needs migration 0014)
   await page.getByLabel("Search debts").fill(mortgageDebt);
   const card = page.getByRole("listitem").filter({ hasText: mortgageDebt });
   await expect(card).toBeVisible();
+  // The mortgage card's first metric is its outstanding Principal (= balance).
   await expect(card).toContainText("Principal");
-  await expect(card).toContainText("$200.00");
+  await expect(card).toContainText("$200,000.00");
 });

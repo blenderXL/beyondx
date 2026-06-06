@@ -10,15 +10,19 @@ import { AnimatePresence, motion } from "framer-motion";
  * AppShell tree). Closes on backdrop click + Escape; locks body scroll while open and
  * restores focus to the previously-focused element on close.
  */
+const SIZE_MAX_W = { lg: "max-w-lg", xl: "max-w-xl", "2xl": "max-w-2xl" } as const;
+
 export function Modal({
   open,
   onClose,
   label,
+  size = "lg",
   children,
 }: {
   open: boolean;
   onClose: () => void;
   label: string;
+  size?: keyof typeof SIZE_MAX_W;
   children: React.ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -59,7 +63,7 @@ export function Modal({
             aria-modal="true"
             aria-label={label}
             tabIndex={-1}
-            className="my-8 w-full max-w-lg rounded-[var(--radius-card)] border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-6 outline-none"
+            className={`my-8 max-h-[90vh] w-full overflow-y-auto ${SIZE_MAX_W[size]} rounded-[var(--radius-card)] border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-6 outline-none`}
             initial={{ opacity: 0, scale: 0.97, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 8 }}

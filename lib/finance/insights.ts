@@ -58,6 +58,11 @@ const BUCKET_ACCENT: Record<DebtBucket, string> = {
   other: "--color-accent-pink",
 };
 
+/** The CSS accent variable for a debt's bucket (e.g. credit cards → blue). */
+export function bucketAccentVar(type: DebtType): string {
+  return BUCKET_ACCENT[typeBucket(type)];
+}
+
 /** Total balance grouped by higher-level debt bucket, descending, with each bucket's share. */
 export function bucketDistribution(debts: InsightDebt[]): BucketSlice[] {
   const totals = new Map<DebtBucket, number>();
