@@ -9,13 +9,8 @@ import {
   type PayoffDebtInput,
   type PayoffMethod,
 } from "@/lib/finance/payoff";
-import {
-  bucketDistribution,
-  aprBuckets,
-  totalUtilization,
-  type InsightDebt,
-} from "@/lib/finance/insights";
-import { SparkArea, BarList, UtilizationGauge, type BarItem } from "@/components/finance/charts";
+import { bucketDistribution, type InsightDebt } from "@/lib/finance/insights";
+import { PayoffChart } from "@/components/finance/charts";
 import { setPayoffMethod, setPayoffBudget } from "@/app/(app)/actions";
 import { buildAmortizationCsv } from "@/lib/finance/amortizationCsv";
 import { formatUsd, formatPercent } from "@/lib/finance/derive";
@@ -27,13 +22,12 @@ import { PLAN_HINTS } from "@/lib/finance/fieldHints";
 /** localStorage key for the user's last monthly budget (method is persisted on the profile). */
 const BUDGET_KEY = "nzx.plans.budget";
 
-const APR_ACCENTS = [
-  "--color-accent-emerald",
-  "--color-accent-blue",
-  "--color-accent-amber",
-  "--color-accent-purple",
-  "--color-accent-red",
-];
+/** APR-exposure bands for the segmented bar: low (<7%), mid (7–20%), high (20%+). */
+const APR_BANDS = [
+  { key: "LOW", accent: "--color-accent-emerald", test: (a: number) => a < 7 },
+  { key: "MID", accent: "--color-accent-amber", test: (a: number) => a >= 7 && a < 20 },
+  { key: "HIGH", accent: "--color-accent-red", test: (a: number) => a >= 20 },
+] as const;
 
 /** Calendar label for schedule month index N (1 = the current month). */
 function monthLabel(index: number): string {
@@ -105,27 +99,30 @@ export function PlansClient({
     () => [totalBalance, ...result.schedule.map((m) => m.totalBalance)],
     [totalBalance, result.schedule],
   );
-  const bucketItems: BarItem[] = useMemo(
-    () =>
-      bucketDistribution(insightDebts).map((b) => ({
-        label: b.label,
-        amount: b.total,
-        pct: b.pct,
-        accentVar: b.accentVar,
-      })),
-    [insightDebts],
+  // Minimums-only baseline curve (no extra payments) for the chart comparison.
+  const baselineResult = useMemo(
+    () => computePayoff(debts, Math.round(totalMin), method),
+    [debts, totalMin, method],
   );
-  const aprItems: BarItem[] = useMemo(
-    () =>
-      aprBuckets(insightDebts).map((b, i) => ({
-        label: b.label,
-        amount: b.total,
-        pct: totalBalance > 0 ? b.total / totalBalance : 0,
-        accentVar: APR_ACCENTS[i % APR_ACCENTS.length],
-      })),
-    [insightDebts, totalBalance],
-  );
-  const util = useMemo(() => totalUtilization(insightDebts), [insightDebts]);
+  const baseline = useMemo(() => {
+    const raw = [totalBalance, ...baselineResult.schedule.map((m) => m.totalBalance)];
+    // If minimums-only stalls early (never pays off), extend it flat so the comparison line
+    // spans the same horizon as the strategy curve instead of vanishing.
+    const span = timeline.length;
+    while (raw.length < span) raw.push(raw[raw.length - 1] ?? totalBalance);
+    return raw;
+  }, [totalBalance, baselineResult.schedule, timeline.length]);
+
+  // Asset-alloc segments (by bucket) for the single segmented bar + legend.
+  const buckets = useMemo(() => bucketDistribution(insightDebts), [insightDebts]);
+  // APR-exposure as low/mid/high bands (% of total balance).
+  const aprBands = useMemo(() => {
+    const total = insightDebts.reduce((s, d) => (d.balance > 0 ? s + d.balance : s), 0);
+    return APR_BANDS.map((b) => {
+      const sum = insightDebts.reduce((s, d) => (d.balance > 0 && b.test(d.apr) ? s + d.balance : s), 0);
+      return { key: b.key, accent: b.accent, pct: total > 0 ? (sum / total) * 100 : 0 };
+    });
+  }, [insightDebts]);
 
   function downloadCsv() {
     const csv = buildAmortizationCsv(
@@ -167,7 +164,7 @@ export function PlansClient({
             <p className={labelClass}>// payoff curve ({methodLabel})</p>
             <div className="mt-4">
               {result.feasible ? (
-                <SparkArea values={timeline} accentVar="--color-accent-emerald" />
+                <PayoffChart strategy={timeline} baseline={baseline} strategyLabel={methodLabel} />
               ) : (
                 <p className="font-mono text-[11px] text-[var(--color-text-muted)]">
                   // raise the budget above {formatUsd(totalMin)} to project a payoff curve
@@ -300,24 +297,38 @@ export function PlansClient({
             <MacroStat label="Interest" value={result.feasible ? compactUsd(result.totalInterest) : "—"} accent="--color-accent-amber" />
           </div>
 
-          {/* Distributions */}
+          {/* Distributions — single segmented bars + legends (stitch reference) */}
           <section className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
-            <p className={labelClass}>// asset alloc</p>
-            <div className="mt-4">
-              <BarList items={bucketItems} ariaLabel="Debt distribution" />
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className={labelClass}>// asset alloc</p>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                {buckets.map((b) => (
+                  <span key={b.bucket} className="flex items-center gap-1 font-mono text-[8px] text-[var(--color-text-muted)]">
+                    <span className="size-1.5 rounded-full" style={{ background: `var(${b.accentVar})` }} aria-hidden />
+                    {b.label}
+                  </span>
+                ))}
+              </div>
             </div>
+            <div aria-label="Debt distribution" className="flex h-2.5 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
+              {buckets.map((b) => (
+                <div key={b.bucket} className="h-full" style={{ width: `${b.pct * 100}%`, background: `var(${b.accentVar})` }} />
+              ))}
+            </div>
+
             <p className={`${labelClass} mt-6`}>// apr exposure</p>
-            <div className="mt-4">
-              <BarList items={aprItems} ariaLabel="APR distribution" />
+            <div aria-label="APR distribution" className="mt-3 flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
+              {aprBands.map((b) => (
+                <div key={b.key} className="h-full" style={{ width: `${b.pct}%`, background: `var(${b.accent})` }} />
+              ))}
             </div>
-            {util !== null ? (
-              <>
-                <p className={`${labelClass} mt-6`}>// credit utilization</p>
-                <div className="mt-4">
-                  <UtilizationGauge pct={util} />
-                </div>
-              </>
-            ) : null}
+            <div className="mt-1.5 flex justify-between font-mono text-[8px] text-[var(--color-text-muted)]">
+              {aprBands.map((b) => (
+                <span key={b.key}>
+                  {b.key} ({Math.round(b.pct)}%)
+                </span>
+              ))}
+            </div>
           </section>
 
           {/* Payoff order */}
@@ -326,11 +337,15 @@ export function PlansClient({
             <ul aria-label="Payoff order" className="mt-3 space-y-2">
               {ordered.map((d, i) => {
                 const paidMonth = result.perDebtPayoffMonth[d.id];
+                const isNext = i === 0; // the debt the strategy clears first
                 return (
                   <li
                     key={d.id}
-                    className="flex items-center gap-3 rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-3 py-3"
+                    className="relative flex items-center gap-3 overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] py-3 pr-3 pl-4"
                   >
+                    {isNext ? (
+                      <span aria-hidden className="absolute left-0 top-0 h-full w-1 bg-[var(--color-accent-emerald)]" />
+                    ) : null}
                     <span className="w-4 shrink-0 font-mono text-[11px] text-[var(--color-text-muted)] tabular-nums">
                       #{i + 1}
                     </span>
@@ -345,9 +360,17 @@ export function PlansClient({
                         {formatUsd(d.balance)} · {formatPercent(d.apr)}
                       </p>
                     </div>
-                    <p className="shrink-0 font-mono text-[10px] text-[var(--color-text-secondary)]">
-                      {result.feasible && paidMonth ? monthOnly(paidMonth) : "—"}
-                    </p>
+                    <div className="shrink-0 text-right">
+                      <p
+                        className="font-mono text-[10px]"
+                        style={{ color: isNext ? "var(--color-accent-emerald)" : "var(--color-text-secondary)" }}
+                      >
+                        {result.feasible && paidMonth ? monthOnly(paidMonth) : "—"}
+                      </p>
+                      {isNext && result.feasible && paidMonth ? (
+                        <p className="font-mono text-[8px] text-[var(--color-text-muted)]">in {paidMonth}m</p>
+                      ) : null}
+                    </div>
                   </li>
                 );
               })}
