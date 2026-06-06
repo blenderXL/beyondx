@@ -3,7 +3,6 @@
 import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, LayoutGrid, Layers, ChevronDown } from "lucide-react";
-import { StatCard } from "@/components/layout/StatCard";
 import { Modal } from "@/components/ui/Modal";
 import {
   createExpense,
@@ -12,6 +11,7 @@ import {
   togglePaid,
   toggleSavingsPaid,
   payAllExpenses,
+  revertAllExpenses,
 } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
 import {
@@ -28,13 +28,10 @@ import { filterAndSortExpenses, EXPENSE_SORTS, type ExpenseSort } from "@/lib/fi
 import { splitPayment } from "@/lib/finance/payment";
 import type { MonthlyPlan } from "@/lib/finance/planner";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
-import { BudgetSummary } from "@/components/finance/BudgetSummary";
 import { MonthSwitcher } from "@/components/finance/MonthSwitcher";
 import { type MonthOption } from "@/lib/finance/history";
 import { IncomeClient } from "@/components/finance/IncomeClient";
-import { IncomeOverrideEditor, type VariableIncome } from "@/components/finance/IncomeOverrideEditor";
 import { formatUsd, expenseDisplayAmount } from "@/lib/finance/derive";
-import { BarList } from "@/components/finance/charts";
 import { FieldHint } from "@/components/finance/FieldHint";
 import { EXPENSE_HINTS } from "@/lib/finance/fieldHints";
 import {
@@ -392,7 +389,7 @@ function ExpenseForm({
   );
 }
 
-type Mode = { kind: "list" } | { kind: "create" } | { kind: "edit"; expense: Expense };
+type Mode = { kind: "list" } | { kind: "create" } | { kind: "edit"; id: string };
 
 /** Card grid vs. grouped-by-category (the "group by" view, mirroring the debts page). */
 type ExpenseView = "card" | "category";
@@ -410,7 +407,6 @@ export function ExpensesClient({
   savingsBills,
   paidSavingsIds,
   plan,
-  variableIncomes,
   incomes,
   incomeBreakdown,
   months,
@@ -421,8 +417,6 @@ export function ExpensesClient({
   rail: ExpensesRail;
   /** This month's computed budget — income/offerings/expenses/minimums/leftover + by-cycle. */
   plan: MonthlyPlan;
-  /** Variable income sources for the inline "set this month's actual" editor. */
-  variableIncomes: VariableIncome[];
   /** All income sources, for the embedded income manager (add/edit/remove). */
   incomes: Income[];
   /** Per-source monthly income (after overrides) — powers the offering card's breakdown. */
@@ -459,7 +453,6 @@ export function ExpensesClient({
       router.replace("/app/expenses");
     }
   }, [searchParams, router]);
-  const total = expenses.reduce((sum, e) => sum + expenseDisplayAmount(e, income), 0);
   const paid = useMemo(() => new Set(paidExpenseIds), [paidExpenseIds]);
   const paidDebt = useMemo(() => new Set(paidDebtIds), [paidDebtIds]);
   const paidSavings = useMemo(() => new Set(paidSavingsIds), [paidSavingsIds]);
@@ -504,6 +497,10 @@ export function ExpensesClient({
     [expenses, query, group, sort],
   );
   const grouped = useMemo(() => groupByExpenseGroup(visible, income), [visible, income]);
+  // Resolve the edit target from the live list so archiving it closes the modal.
+  const editExpense = mode.kind === "edit" ? (expenses.find((e) => e.id === mode.id) ?? null) : null;
+  // THIS-MONTH budget math (user's formula): budget left = income − expenses − offerings (no debt mins).
+  const budgetLeft = Math.round((plan.income - plan.expenses - plan.offerings) * 100) / 100;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -524,23 +521,25 @@ export function ExpensesClient({
       </header>
 
       <Modal
-        open={mode.kind !== "list"}
+        open={mode.kind === "create" || editExpense != null}
         onClose={toList}
         label={mode.kind === "edit" ? "Edit expense" : "New expense"}
       >
         {mode.kind === "create" ? <ExpenseForm debts={debts} onDone={toList} onCancel={toList} /> : null}
-        {mode.kind === "edit" ? (
-          <ExpenseForm expense={mode.expense} debts={debts} onDone={toList} onCancel={toList} />
+        {editExpense ? (
+          <>
+            <ExpenseForm expense={editExpense} debts={debts} onDone={toList} onCancel={toList} />
+            {/* Archive lives in the editor now (no buttons on the card). Sibling form — not nested. */}
+            <div className="mt-4 flex justify-end">
+              <ArchiveButton id={editExpense.id} name={editExpense.category} />
+            </div>
+          </>
         ) : null}
       </Modal>
 
-      <>
-          <BudgetSummary plan={plan} />
-          <section className="mb-8">
-            <IncomeClient incomes={incomes} embedded />
-          </section>
-          <IncomeOverrideEditor incomes={variableIncomes} billingMonth={billingMonth} />
-
+      <div className="lg:grid lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-6">
+        {/* Left: the bills */}
+        <div>
           {expenses.length === 0 && debtBills.length === 0 && savingsBills.length === 0 ? (
             <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
               <p className="font-mono text-sm text-[var(--color-text-muted)]">
@@ -549,105 +548,102 @@ export function ExpensesClient({
             </div>
           ) : (
             <>
-            {expenses.length > 0 ? (
-              <>
-                <ExpenseControls
-                  query={query}
-                  onQuery={setQuery}
-                  group={group}
-                  onGroup={setGroup}
-                  presentGroups={presentGroups}
-                  sort={sort}
-                  onSort={setSort}
-                  view={view}
-                  onView={setView}
-                />
+              {expenses.length > 0 ? (
+                <>
+                  <ExpenseControls
+                    query={query}
+                    onQuery={setQuery}
+                    group={group}
+                    onGroup={setGroup}
+                    presentGroups={presentGroups}
+                    sort={sort}
+                    onSort={setSort}
+                    view={view}
+                    onView={setView}
+                  />
+                  {visible.length === 0 ? (
+                    <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
+                      <p className="font-mono text-sm text-[var(--color-text-muted)]">
+                        // no expenses match your search or filter
+                      </p>
+                    </div>
+                  ) : view === "category" ? (
+                    <div className="space-y-8">
+                      {grouped.map((g) => (
+                        <section key={g.group} aria-label={g.label}>
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <p className={labelClass}>// {g.label.toLowerCase()}</p>
+                            <p className="font-mono text-[11px] tabular-nums text-[var(--color-text-muted)]">
+                              {g.expenses.length} · {formatUsd(g.total)}
+                            </p>
+                          </div>
+                          <ul aria-label={g.label} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            {g.expenses.map((expense) => (
+                              <ExpenseCard
+                                key={expense.id}
+                                expense={expense}
+                                paid={paid.has(expense.id)}
+                                billingMonth={billingMonth}
+                                incomeBreakdown={incomeBreakdown}
+                                onEdit={() => setMode({ kind: "edit", id: expense.id })}
+                              />
+                            ))}
+                          </ul>
+                        </section>
+                      ))}
+                    </div>
+                  ) : (
+                    <ul aria-label="Expenses" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {visible.map((expense) => (
+                        <ExpenseCard
+                          key={expense.id}
+                          expense={expense}
+                          paid={paid.has(expense.id)}
+                          billingMonth={billingMonth}
+                          incomeBreakdown={incomeBreakdown}
+                          onEdit={() => setMode({ kind: "edit", id: expense.id })}
+                        />
+                      ))}
+                    </ul>
+                  )}
+                </>
+              ) : null}
 
-                <div className="lg:grid lg:grid-cols-[1fr_17rem] lg:items-start lg:gap-6">
-                  <div>
-                    {visible.length === 0 ? (
-                      <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
-                        <p className="font-mono text-sm text-[var(--color-text-muted)]">
-                          // no expenses match your search or filter
-                        </p>
-                      </div>
-                    ) : view === "category" ? (
-                      <div className="space-y-8">
-                        {grouped.map((g) => (
-                          <section key={g.group} aria-label={g.label}>
-                            <div className="mb-3 flex items-center justify-between gap-3">
-                              <p className={labelClass}>// {g.label.toLowerCase()}</p>
-                              <p className="font-mono text-[11px] tabular-nums text-[var(--color-text-muted)]">
-                                {g.expenses.length} · {formatUsd(g.total)}
-                              </p>
-                            </div>
-                            <ul aria-label={g.label} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                              {g.expenses.map((expense) => (
-                                <ExpenseCard
-                                  key={expense.id}
-                                  expense={expense}
-                                  paid={paid.has(expense.id)}
-                                  billingMonth={billingMonth}
-                                  incomeBreakdown={incomeBreakdown}
-                                  onEdit={() => setMode({ kind: "edit", expense })}
-                                />
-                              ))}
-                            </ul>
-                          </section>
-                        ))}
-                      </div>
-                    ) : (
-                      <ul aria-label="Expenses" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        {visible.map((expense) => (
-                          <ExpenseCard
-                            key={expense.id}
-                            expense={expense}
-                            paid={paid.has(expense.id)}
-                            billingMonth={billingMonth}
-                            incomeBreakdown={incomeBreakdown}
-                            onEdit={() => setMode({ kind: "edit", expense })}
-                          />
-                        ))}
-                      </ul>
-                    )}
-                  </div>
+              {debtBills.length > 0 ? (
+                <section className="mt-8">
+                  <p className={labelClass}>// debt payments this month</p>
+                  <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
+                    Your debts, pre-filled with their minimum — edit what you&apos;ll pay, then check it off.
+                    The balance drops by the principal portion.
+                  </p>
+                  <ul aria-label="Debt payments" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {debtBills.map((b) => (
+                      <DebtBillCard key={b.id} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
 
-                  <ExpensesRailCard rail={rail} count={expenses.length} total={total} />
-                </div>
-              </>
-            ) : null}
+              {savingsBills.length > 0 ? (
+                <section className="mt-8">
+                  <p className={labelClass}>// savings this month</p>
+                  <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
+                    Recurring contributions — check one off to add it to the pot.
+                  </p>
+                  <ul aria-label="Savings contributions" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {savingsBills.map((b) => (
+                      <SavingsBillCard key={b.id} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+            </>
+          )}
+        </div>
 
-            {debtBills.length > 0 ? (
-              <section className="mt-8">
-                <p className={labelClass}>// debt payments this month</p>
-                <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
-                  Your debts, pre-filled with their minimum — edit what you&apos;ll pay, then check it off.
-                  The balance drops by the principal portion.
-                </p>
-                <ul aria-label="Debt payments" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {debtBills.map((b) => (
-                    <DebtBillCard key={b.id} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-
-            {savingsBills.length > 0 ? (
-              <section className="mt-8">
-                <p className={labelClass}>// savings this month</p>
-                <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
-                  Recurring contributions — check one off to add it to the pot.
-                </p>
-                <ul aria-label="Savings contributions" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {savingsBills.map((b) => (
-                    <SavingsBillCard key={b.id} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-              </>
-            )}
-          </>
+        {/* Right: the stitch sidebar — budget, breakdown, income, subscriptions */}
+        <ExpensesRail plan={plan} budgetLeft={budgetLeft} incomes={incomes} rail={rail} />
+      </div>
     </div>
   );
 }
@@ -755,7 +751,9 @@ const inlineLabelClass = "font-mono text-[9px] uppercase tracking-[0.18em] text-
  * Per-card "paid this month" checkbox. Submits togglePaid; the server records the payment and,
  * for a debt-linked expense, draws the balance down by the principal portion of what you pay.
  */
-function CheckOff({
+/** The expense card's single button: pay this month, or revert if already paid. togglePaid
+ * toggles both ways — `checked` present ⇒ pay; absent ⇒ revert. */
+function PayToggle({
   expenseId,
   name,
   paid,
@@ -766,37 +764,45 @@ function CheckOff({
   paid: boolean;
   billingMonth: string;
 }) {
-  const [, formAction] = useActionState(togglePaid, INITIAL_FINANCE_STATE);
+  const [, formAction, pending] = useActionState(togglePaid, INITIAL_FINANCE_STATE);
   return (
-    <form action={formAction} className="shrink-0 pt-0.5">
+    <form action={formAction}>
       <input type="hidden" name="kind" value="expense" />
       <input type="hidden" name="item_id" value={expenseId} />
       <input type="hidden" name="billing_month" value={billingMonth} />
-      <input
-        type="checkbox"
-        name="checked"
-        aria-label={`Mark ${name} paid`}
-        defaultChecked={paid}
-        onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="size-4 cursor-pointer accent-[var(--color-accent-emerald)]"
-      />
+      {!paid ? <input type="hidden" name="checked" value="on" /> : null}
+      <button
+        type="submit"
+        disabled={pending}
+        aria-label={paid ? `Revert ${name}` : `Pay ${name}`}
+        className={
+          paid
+            ? "flex w-full items-center justify-center rounded-md border border-[var(--color-border-strong)] py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-40"
+            : "flex w-full items-center justify-center rounded-md border border-[color-mix(in_oklab,var(--color-accent-emerald),transparent_60%)] bg-[color-mix(in_oklab,var(--color-accent-emerald),transparent_88%)] py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent-emerald)] transition-colors hover:bg-[color-mix(in_oklab,var(--color-accent-emerald),transparent_80%)] disabled:opacity-40"
+        }
+      >
+        {pending ? "…" : paid ? "Revert" : "Pay now"}
+      </button>
     </form>
   );
 }
 
-/** "Pay all this month" — checks off every still-unpaid expense in one go. */
+/** "Pay all this month" ⇄ "Revert" — pays every planned item, or undoes the month's payments. */
 function PayAllButton({ billingMonth, allPaid }: { billingMonth: string; allPaid: boolean }) {
-  const [state, formAction, pending] = useActionState(payAllExpenses, INITIAL_FINANCE_STATE);
+  const [state, formAction, pending] = useActionState(
+    allPaid ? revertAllExpenses : payAllExpenses,
+    INITIAL_FINANCE_STATE,
+  );
   return (
     <form action={formAction}>
       <input type="hidden" name="billing_month" value={billingMonth} />
       <button
         type="submit"
-        disabled={pending || allPaid}
+        disabled={pending}
         className={ghostButtonClass}
-        aria-label="Pay all this month"
+        aria-label={allPaid ? "Revert this month's payments" : "Pay all this month"}
       >
-        {pending ? "Paying…" : allPaid ? "All paid" : "Pay all"}
+        {pending ? "Working…" : allPaid ? "Revert" : "Pay all"}
       </button>
       {state.error ? <span role="alert" className={`ml-2 ${errorClass}`}>{state.error}</span> : null}
     </form>
@@ -895,9 +901,6 @@ function ExpenseCard({
         <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
-            <span onClick={stop}>
-              <CheckOff expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} />
-            </span>
             <div className="min-w-0">
               <p className="flex items-center gap-2">
                 <span
@@ -1024,12 +1027,10 @@ function ExpenseCard({
           {expense.due_day ? ` · ${paid ? "paid" : "pay day"} ${ordinal(expense.due_day)}` : ""}
         </p>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2" onClick={stop}>
-          <button onClick={onEdit} className={ghostButtonClass}>
-            Edit
-          </button>
-          <ArchiveButton id={expense.id} name={expense.category} />
-        </div>
+        {/* The card's only button — pay this month, or revert. Edit/archive are a card-body click. */}
+        <span onClick={stop} className="mt-3 block">
+          <PayToggle expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} />
+        </span>
 
         {state.error ? (
           <p role="alert" className={`mt-2 ${errorClass}`}>
@@ -1172,26 +1173,99 @@ const RAIL_ACCENTS = [
   "--color-accent-red",
 ];
 
-function ExpensesRailCard({ rail, count, total }: { rail: ExpensesRail; count: number; total: number }) {
-  const barTotal = rail.byGroup.reduce((s, g) => s + g.amount, 0);
-  const items = rail.byGroup.map((g, i) => ({
-    label: g.group,
-    amount: g.amount,
-    pct: barTotal > 0 ? g.amount / barTotal : 0,
-    accentVar: RAIL_ACCENTS[i % RAIL_ACCENTS.length],
-  }));
+/** The Expenses right sidebar (stitch reference): this-month budget + spending breakdown,
+ * the single income manager, and the subscriptions summary. */
+function ExpensesRail({
+  plan,
+  budgetLeft,
+  incomes,
+  rail,
+}: {
+  plan: MonthlyPlan;
+  budgetLeft: number;
+  incomes: Income[];
+  rail: ExpensesRail;
+}) {
+  const income = plan.income;
+  // Segmented "where income goes" bar: expenses / offerings / leftover (clamped to income).
+  const pctOf = (n: number) => (income > 0 ? Math.max(0, Math.min(100, (n / income) * 100)) : 0);
+
+  const barTotal = plan.byGroup.reduce((s, g) => s + g.amount, 0);
+  const breakdown = plan.byGroup
+    .filter((g) => g.amount > 0)
+    .map((g, i) => ({
+      label: g.group,
+      pct: barTotal > 0 ? (g.amount / barTotal) * 100 : 0,
+      accentVar: RAIL_ACCENTS[i % RAIL_ACCENTS.length],
+    }));
 
   return (
-    <aside aria-label="Where your money goes" className="mt-6 space-y-4 lg:mt-0">
-      <StatCard label="Expenses tracked" value={String(count)} accentVar="--color-accent-blue" />
-      <StatCard label="Listed total" value={formatUsd(total)} hint="incl. offerings" accentVar="--color-accent-amber" />
-      <div className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5">
-        <p className={labelClass}>// money going toward</p>
-        <div className="mt-4">
-          <BarList ariaLabel="Money going toward" items={items} />
+    <aside aria-label="This month" className="mt-6 space-y-6 lg:mt-0 lg:sticky lg:top-6">
+      {/* THIS MONTH */}
+      <section className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5">
+        <p className={labelClass}>// this month</p>
+        <dl className="mt-4 space-y-2.5 font-mono text-[12px]">
+          <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-2.5">
+            <dt className="text-[var(--color-text-secondary)]">Income</dt>
+            <dd className="tabular-nums text-[var(--color-accent-emerald)]">+{formatUsd(income)}</dd>
+          </div>
+          <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-2.5">
+            <dt className="text-[var(--color-text-secondary)]">Expenses</dt>
+            <dd className="tabular-nums text-[var(--color-accent-red)]">−{formatUsd(plan.expenses)}</dd>
+          </div>
+          <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-2.5">
+            <dt className="text-[var(--color-text-secondary)]">Offerings / giving</dt>
+            <dd className="tabular-nums text-[var(--color-accent-purple)]">−{formatUsd(plan.offerings)}</dd>
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <dt className="font-sans text-sm font-medium text-[var(--color-text-primary)]">Budget left</dt>
+            <dd
+              className="font-sans text-xl font-medium tabular-nums"
+              style={{ color: budgetLeft < 0 ? "var(--color-accent-red)" : "var(--color-text-primary)" }}
+            >
+              {formatUsd(budgetLeft)}
+            </dd>
+          </div>
+        </dl>
+        <div className="mt-3 flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
+          <div className="h-full bg-[var(--color-accent-red)]" style={{ width: `${pctOf(plan.expenses)}%` }} />
+          <div className="h-full bg-[var(--color-accent-purple)]" style={{ width: `${pctOf(plan.offerings)}%` }} />
+          <div className="h-full bg-[var(--color-accent-emerald)]" style={{ width: `${pctOf(Math.max(0, budgetLeft))}%` }} />
         </div>
-      </div>
-      <div className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5">
+
+        {breakdown.length > 0 ? (
+          <div className="mt-6 border-t border-[var(--color-border-subtle)] pt-4">
+            <p className={labelClass}>// spending breakdown</p>
+            <ul className="mt-3 space-y-2">
+              {breakdown.map((b) => (
+                <li key={b.label} className="flex items-center justify-between gap-3 font-mono text-[11px]">
+                  <span className="flex min-w-0 items-center gap-2 text-[var(--color-text-secondary)]">
+                    <span className="size-2 shrink-0 rounded-full" style={{ background: `var(${b.accentVar})` }} aria-hidden />
+                    <span className="truncate">{b.label}</span>
+                  </span>
+                  <span className="shrink-0 tabular-nums text-[var(--color-text-primary)]">{Math.round(b.pct)}%</span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
+              {breakdown.map((b) => (
+                <div key={b.label} className="h-full" style={{ width: `${b.pct}%`, background: `var(${b.accentVar})` }} />
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </section>
+
+      {/* INCOME SOURCES — the single income manager */}
+      <section>
+        <p className={labelClass}>// income sources</p>
+        <div className="mt-3">
+          <IncomeClient incomes={incomes} embedded />
+        </div>
+      </section>
+
+      {/* SUBSCRIPTIONS */}
+      <section className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5">
         <p className={labelClass}>// subscriptions</p>
         <p className="mt-3 font-sans text-2xl font-medium tabular-nums text-[var(--color-text-primary)]">
           {formatUsd(rail.subscriptionTotal)}
@@ -1200,7 +1274,7 @@ function ExpensesRailCard({ rail, count, total }: { rail: ExpensesRail; count: n
         <p className="mt-1 font-mono text-[11px] text-[var(--color-text-secondary)]">
           {rail.subscriptionCount} active subscription{rail.subscriptionCount === 1 ? "" : "s"}
         </p>
-      </div>
+      </section>
     </aside>
   );
 }

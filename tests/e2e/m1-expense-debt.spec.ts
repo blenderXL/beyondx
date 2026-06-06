@@ -151,10 +151,9 @@ test("bridge: paying a linked expense draws down the debt; un-checking restores 
     page.getByRole("list", { name: "Debt payments" }).getByRole("listitem").filter({ hasText: debtName }),
   ).toHaveCount(0);
 
-  const checkbox = page.getByRole("checkbox", { name: `Mark ${expName} paid` });
-  await checkbox.check();
-  // Paid styles both the name and the amount with line-through; first() avoids strict mode.
-  await expect(expCard.locator(".line-through").first()).toBeVisible();
+  // The pay action is a "Pay now" ⇄ "Revert" button on the card now.
+  await page.getByRole("button", { name: `Pay ${expName}` }).click();
+  await expect(page.getByRole("button", { name: `Revert ${expName}` })).toBeVisible();
 
   // The 0%-APR debt's balance drops by the full $200 (principal == payment) → $800.
   await page.goto("/app/debts");
@@ -164,9 +163,8 @@ test("bridge: paying a linked expense draws down the debt; un-checking restores 
   // Un-check → balance restored to $1,000.
   await page.goto("/app/expenses");
   await page.getByLabel("Search expenses").fill(expName);
-  const checkbox2 = page.getByRole("checkbox", { name: `Mark ${expName} paid` });
-  await checkbox2.uncheck();
-  await expect(expCard.locator(".line-through")).toHaveCount(0);
+  await page.getByRole("button", { name: `Revert ${expName}` }).click();
+  await expect(page.getByRole("button", { name: `Pay ${expName}` })).toBeVisible();
   await page.goto("/app/debts");
   await expect(card.getByText("$1,000.00")).toBeVisible();
 });

@@ -174,17 +174,6 @@ export default async function ExpensesPage({
     })
     .filter((b) => b.monthly > 0);
 
-  // Variable income sources get an inline "set this month's actual" editor on the hub.
-  const variableIncomes = incomes
-    .filter((i) => i.is_variable)
-    .map((i) => ({
-      id: i.id,
-      source: i.source,
-      base: Number(i.amount),
-      cadence: i.cadence,
-      override: overrides[i.id] ?? null,
-    }));
-
   return (
     <ExpensesClient
       expenses={expenses}
@@ -198,7 +187,6 @@ export default async function ExpensesPage({
       savingsBills={savingsBills}
       paidSavingsIds={paidSavingsIds}
       plan={plan}
-      variableIncomes={variableIncomes}
       incomes={incomes}
       incomeBreakdown={incomeBreakdown}
       months={months}

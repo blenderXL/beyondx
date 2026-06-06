@@ -888,3 +888,67 @@ export async function payAllExpenses(_p: FinanceActionState, formData: FormData)
   revalidatePath(DEBTS_PATH);
   return { error: null, ok: true };
 }
+
+/**
+ * "Revert" — the inverse of payAllExpenses for a month: charge each debt back by the principal
+ * its payment deducted, decrement each savings pot by its contribution, then delete the month's
+ * payment + contribution transactions. Same per-item semantics as un-checking, applied in bulk.
+ */
+export async function revertAllExpenses(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return SIGNED_OUT;
+
+  const billingMonth = String(formData.get("billing_month") ?? "").trim();
+  if (!ISO_MONTH.test(billingMonth)) return { error: "Couldn't update — bad request." };
+
+  const [payRes, contribRes] = await Promise.all([
+    supabase
+      .from("transactions")
+      .select("debt_id, principal, amount")
+      .eq("kind", "payment")
+      .eq("billing_month", billingMonth),
+    supabase
+      .from("transactions")
+      .select("savings_goal_id, amount")
+      .eq("kind", "contribution")
+      .eq("billing_month", billingMonth),
+  ]);
+  if (payRes.error) return dbFailure(payRes.error, "revertAll.payments", "Couldn't load payments. Please try again.");
+  if (contribRes.error) return dbFailure(contribRes.error, "revertAll.contrib", "Couldn't load contributions. Please try again.");
+
+  // Charge each debt back by the principal that was deducted (legacy rows fall back to amount).
+  for (const t of (payRes.data ?? []) as { debt_id: string | null; principal: number | null; amount: number }[]) {
+    if (!t.debt_id) continue;
+    const back = t.principal != null ? Number(t.principal) : Number(t.amount);
+    const adj = await adjustDebtBalance(supabase, t.debt_id, "charge", back);
+    if (adj) return adj;
+  }
+
+  // Decrement each savings pot by its contribution (never below zero).
+  for (const t of (contribRes.data ?? []) as { savings_goal_id: string | null; amount: number }[]) {
+    if (!t.savings_goal_id) continue;
+    const { data: g } = await supabase
+      .from("savings_goals")
+      .select("current_amount")
+      .eq("id", t.savings_goal_id)
+      .maybeSingle();
+    if (g) {
+      const next = Math.max(0, round2(Number(g.current_amount) - Number(t.amount)));
+      const { error } = await supabase.from("savings_goals").update({ current_amount: next }).eq("id", t.savings_goal_id);
+      if (error) return dbFailure(error, "revertAll.savingsDec", "Couldn't update a pot total. Refresh.");
+    }
+  }
+
+  const { error: delErr } = await supabase
+    .from("transactions")
+    .delete()
+    .in("kind", ["payment", "contribution"])
+    .eq("billing_month", billingMonth);
+  if (delErr) return dbFailure(delErr, "revertAll.delete", "Couldn't revert this month. Please try again.");
+
+  revalidatePath(EXPENSES_PATH);
+  revalidatePath(PLANNER_PATH);
+  revalidatePath(SAVINGS_PATH);
+  revalidatePath(DEBTS_PATH);
+  return { error: null, ok: true };
+}

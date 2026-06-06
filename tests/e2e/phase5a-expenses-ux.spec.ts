@@ -67,15 +67,15 @@ test("group filter shows only the chosen group", async ({ page }) => {
   await expect(list.getByRole("listitem").filter({ hasText: expA })).toHaveCount(0);
 });
 
-test("the tracked + listed-total stats live in the right rail", async ({ page }) => {
+test("the this-month budget summary lives in the right sidebar", async ({ page }) => {
   await setFlag("expenses", true);
   await uiLogin(page);
   await expectOnApp(page);
   await page.goto("/app/expenses");
 
-  const rail = page.getByRole("complementary", { name: "Where your money goes" });
-  await expect(rail.getByText("Expenses tracked")).toBeVisible();
-  await expect(rail.getByText("Listed total")).toBeVisible();
+  const rail = page.getByRole("complementary", { name: "This month" });
+  await expect(rail.getByText("Income", { exact: true })).toBeVisible();
+  await expect(rail.getByText("Budget left")).toBeVisible();
 });
 
 test("inline edit: change an amount on the card and save it", async ({ page }) => {
