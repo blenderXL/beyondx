@@ -245,14 +245,14 @@ export function DonutChart({
       </svg>
       {centerValue ? (
         <div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
+          <span className="font-sans text-xl font-semibold tabular-nums text-[var(--color-text-primary)]">
+            {centerValue}
+          </span>
           {centerLabel ? (
-            <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+            <span className="mx-auto mt-0.5 max-w-[84px] truncate font-mono text-[8px] uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
               {centerLabel}
             </span>
           ) : null}
-          <span className="font-sans text-sm font-medium tabular-nums text-[var(--color-text-primary)]">
-            {centerValue}
-          </span>
         </div>
       ) : null}
     </div>

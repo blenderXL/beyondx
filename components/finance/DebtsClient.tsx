@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { LayoutGrid, List, Layers, Search, ExternalLink, Sparkles } from "lucide-react";
+import { LayoutGrid, List, Layers, Search, ChevronDown, Sparkles } from "lucide-react";
 import { DebtAccountFormCard } from "@/components/finance/DebtAccountFormCard";
 import { DebtDetail, type DebtTxn } from "@/components/finance/DebtDetail";
 import { DonutChart } from "@/components/finance/charts";
@@ -22,12 +22,12 @@ import { bucketDistribution, bucketAccentVar } from "@/lib/finance/insights";
 import type { ExtraPaymentInsight } from "@/lib/finance/optimization";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { formatUsd, formatPercent, utilization, payoffProgress } from "@/lib/finance/derive";
-import { inputClass, labelClass, primaryButtonClass } from "@/components/finance/formStyles";
+import { labelClass, primaryButtonClass } from "@/components/finance/formStyles";
 
 type DebtView = "card" | "list" | "category";
 const VIEW_KEY = "nzx.debts.view";
 const SORT_KEY = "nzx.debts.sort";
-const CARD_GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3";
+const CARD_GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3";
 
 export interface RecentActivity {
   id: string;
@@ -302,7 +302,9 @@ function DebtControls({
   view: DebtView;
   onView: (v: DebtView) => void;
 }) {
-  const selectClass = `${inputClass} mt-0 h-10 !w-auto max-w-[12rem]`;
+  // One sharp control height shared across the toolbar (stitch reference).
+  const ctrl =
+    "h-9 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] font-mono text-[12px] text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-text-primary)]";
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
       <div className="relative flex-1">
@@ -316,39 +318,45 @@ function DebtControls({
           onChange={(e) => onQuery(e.target.value)}
           aria-label="Search debts"
           placeholder="Search accounts…"
-          className={`${inputClass} mt-0 h-10 pl-9`}
+          className={`${ctrl} w-full pl-9 pr-3 placeholder:text-[var(--color-text-muted)]`}
         />
       </div>
 
-      <div className="flex items-center gap-3">
-        <select
-          value={typeFilter}
-          onChange={(e) => onTypeFilter(e.target.value as DebtType | "all")}
-          aria-label="Filter by type"
-          className={selectClass}
-        >
-          <option value="all">All types</option>
-          {presentTypes.map((t) => (
-            <option key={t} value={t}>
-              {DEBT_TYPE_LABELS[t]}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative shrink-0">
+          <select
+            value={typeFilter}
+            onChange={(e) => onTypeFilter(e.target.value as DebtType | "all")}
+            aria-label="Filter by type"
+            className={`${ctrl} appearance-none pl-3 pr-8`}
+          >
+            <option value="all">All types</option>
+            {presentTypes.map((t) => (
+              <option key={t} value={t}>
+                {DEBT_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-muted)]" aria-hidden />
+        </div>
 
-        <select
-          value={sort}
-          onChange={(e) => onSort(e.target.value as DebtSort)}
-          aria-label="Sort debts"
-          className={selectClass}
-        >
-          {DEBT_SORTS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+        <div className="relative shrink-0">
+          <select
+            value={sort}
+            onChange={(e) => onSort(e.target.value as DebtSort)}
+            aria-label="Sort debts"
+            className={`${ctrl} appearance-none pl-3 pr-8`}
+          >
+            {DEBT_SORTS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-muted)]" aria-hidden />
+        </div>
 
-        <div className="flex h-10 shrink-0 items-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-0.5">
+        <div className="flex h-9 shrink-0 items-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-0.5">
           {(
             [
               { v: "card" as const, Icon: LayoutGrid, label: "Card view" },
@@ -417,28 +425,18 @@ function DebtCard({ debt, onOpen }: { debt: Debt; onOpen: () => void }) {
         type="button"
         onClick={onOpen}
         aria-label={`Open ${debt.name}`}
-        className="group relative w-full overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 pl-5 text-left transition-colors hover:border-[var(--color-border-strong)]"
+        className="group relative w-full overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6 text-left transition-colors hover:border-[var(--color-border-strong)]"
       >
         <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p
-              className="font-mono text-[10px] uppercase tracking-[0.18em]"
-              style={{ color: `var(${accent})` }}
-            >
-              {DEBT_BUCKET_LABELS[typeBucket(debt.type)]}
-            </p>
-            <p className="mt-1 font-sans text-base font-medium break-words text-[var(--color-text-primary)]">
-              {debt.name}
-            </p>
-          </div>
-          <ExternalLink
-            className="size-4 shrink-0 text-[var(--color-text-muted)] transition-colors group-hover:text-[var(--color-text-secondary)]"
-            aria-hidden
-          />
-        </div>
+        {/* Whole card is the button — no external-link affordance needed. */}
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em]" style={{ color: `var(${accent})` }}>
+          {DEBT_BUCKET_LABELS[typeBucket(debt.type)]}
+        </p>
+        <p className="mt-1 font-sans text-base font-medium break-words text-[var(--color-text-primary)]">
+          {debt.name}
+        </p>
 
-        <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 font-mono text-[11px]">
+        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 font-mono text-[11px]">
           {stats.map((s) => (
             <div key={s.label}>
               <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">{s.label}</dt>
@@ -448,7 +446,7 @@ function DebtCard({ debt, onOpen }: { debt: Debt; onOpen: () => void }) {
         </dl>
 
         {bar ? (
-          <div className="mt-4 h-1 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
+          <div className="mt-5 h-1 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
             <div
               className="h-full rounded-full"
               style={{ width: `${Math.round(bar.pct * 100)}%`, background: `var(${bar.tone})` }}
