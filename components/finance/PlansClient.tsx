@@ -14,7 +14,7 @@ import { PayoffChart } from "@/components/finance/charts";
 import { setPayoffMethod, setPayoffBudget } from "@/app/(app)/actions";
 import { buildAmortizationCsv } from "@/lib/finance/amortizationCsv";
 import { formatUsd, formatPercent } from "@/lib/finance/derive";
-import { inputClass, labelClass, ghostButtonClass } from "@/components/finance/formStyles";
+import { labelClass, ghostButtonClass } from "@/components/finance/formStyles";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { FieldHint } from "@/components/finance/FieldHint";
 import { PLAN_HINTS } from "@/lib/finance/fieldHints";
@@ -246,48 +246,53 @@ export function PlansClient({
         {/* Right: strategy + projections summary */}
         <aside className="w-full shrink-0 space-y-6 lg:sticky lg:top-6 lg:h-fit lg:w-[320px]">
           {/* Strategy setup */}
+          {/* Compact strategy box (stitch reference): inline METHOD + BUDGET rows. */}
           <section className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
             <p className={labelClass}>// strategy setup</p>
-            <label className="mt-4 block">
-              <span className={labelClass}>
-                Method
-                <FieldHint text={PLAN_HINTS.method} label="method" />
-              </span>
-              <select
-                aria-label="Method"
-                value={method}
-                onChange={(e) => changeMethod(e.target.value as PayoffMethod)}
-                className={inputClass}
-              >
-                {PAYOFF_METHODS.map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-              <span className="mt-1 block font-mono text-[10px] text-[var(--color-text-muted)]">
-                {PAYOFF_METHODS.find((m) => m.value === method)?.blurb}
-              </span>
-            </label>
-            <label className="mt-4 block">
-              <span className={labelClass}>
-                Monthly budget
-                <FieldHint text={PLAN_HINTS.budget} label="monthly budget" />
-              </span>
-              <input
-                type="number"
-                aria-label="Monthly budget"
-                min={0}
-                step={50}
-                value={budget}
-                onChange={(e) => setBudget(Number(e.target.value) || 0)}
-                onBlur={() => void setPayoffBudget(budget)}
-                className={inputClass}
-              />
-              <span className="mt-1 block font-mono text-[10px] text-[var(--color-text-muted)]">
-                minimums total {formatUsd(totalMin)}
-              </span>
-            </label>
+            <div className="mt-4 space-y-3">
+              <label className="flex items-center justify-between gap-3">
+                <span className="flex items-center font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+                  Method
+                  <FieldHint text={PLAN_HINTS.method} label="method" />
+                </span>
+                <select
+                  aria-label="Method"
+                  value={method}
+                  onChange={(e) => changeMethod(e.target.value as PayoffMethod)}
+                  className="h-8 w-1/2 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-2 font-mono text-[12px] text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-text-primary)]"
+                >
+                  {PAYOFF_METHODS.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center justify-between gap-3">
+                <span className="flex items-center font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+                  Budget
+                  <FieldHint text={PLAN_HINTS.budget} label="monthly budget" />
+                </span>
+                <span className="relative w-1/2">
+                  <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 font-mono text-[12px] text-[var(--color-text-muted)]">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    aria-label="Monthly budget"
+                    min={0}
+                    step={50}
+                    value={budget}
+                    onChange={(e) => setBudget(Number(e.target.value) || 0)}
+                    onBlur={() => void setPayoffBudget(budget)}
+                    className="h-8 w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] pl-5 pr-2 font-mono text-[12px] text-[var(--color-text-primary)] tabular-nums outline-none transition-colors focus:border-[var(--color-text-primary)]"
+                  />
+                </span>
+              </label>
+            </div>
+            <p className="mt-3 font-mono text-[10px] leading-relaxed text-[var(--color-text-muted)]">
+              {PAYOFF_METHODS.find((m) => m.value === method)?.blurb} · min {formatUsd(totalMin)}
+            </p>
           </section>
 
           {/* Macro stats */}

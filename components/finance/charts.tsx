@@ -78,17 +78,31 @@ export function PayoffChart({
   const y = (v: number) => mt + ph - (v / max) * ph;
   const toPath = (vals: number[]) => "M" + vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" L");
   const yTicks = [0, max / 2, max];
-  const xTicks: number[] = [];
-  for (let i = 0; i < n; i += 12) xTicks.push(i);
-  if (xTicks[xTicks.length - 1] !== n - 1) xTicks.push(n - 1);
   const now = new Date();
   const yearLabel = (i: number) =>
-    i === 0 ? "Now" : String(new Date(now.getFullYear(), now.getMonth() + i, 1).getFullYear());
+    i === 0 ? "Today" : String(new Date(now.getFullYear(), now.getMonth() + i, 1).getFullYear());
+  // ~4 evenly spaced year ticks (Today + up to 3 future years), always ending at the payoff.
+  const stepYears = Math.max(1, Math.round((n - 1) / 12 / 3));
+  const rawTicks: number[] = [];
+  for (let i = 0; i < n - 1; i += stepYears * 12) rawTicks.push(i);
+  rawTicks.push(n - 1);
+  // Drop a tick when the next one carries the same year label (keep the later/right-most).
+  const xTicks = rawTicks.filter((i, idx) => {
+    const next = rawTicks[idx + 1];
+    return next === undefined || yearLabel(next) !== yearLabel(i);
+  });
   const tickText = { fontSize: 9, fontFamily: "var(--font-mono)", fill: "var(--color-text-muted)" } as const;
 
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label="Payoff curve vs. minimums only">
+        <defs>
+          {/* Vertical emerald fade — the area's depth (stitch reference). */}
+          <linearGradient id="payoffGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--color-accent-emerald)" stopOpacity="0.32" />
+            <stop offset="100%" stopColor="var(--color-accent-emerald)" stopOpacity="0" />
+          </linearGradient>
+        </defs>
         {yTicks.map((t, i) => (
           <g key={i}>
             <line
@@ -105,8 +119,14 @@ export function PayoffChart({
             </text>
           </g>
         ))}
-        {xTicks.map((i) => (
-          <text key={i} x={x(i)} y={H - 8} textAnchor="middle" style={tickText}>
+        {xTicks.map((i, idx) => (
+          <text
+            key={i}
+            x={x(i)}
+            y={H - 8}
+            textAnchor={idx === 0 ? "start" : idx === xTicks.length - 1 ? "end" : "middle"}
+            style={tickText}
+          >
             {yearLabel(i)}
           </text>
         ))}
@@ -119,17 +139,13 @@ export function PayoffChart({
           strokeDasharray="3 3"
           vectorEffect="non-scaling-stroke"
         />
-        {/* Strategy: emerald area + line. */}
-        <path
-          d={`${toPath(strategy)} L${x(strategy.length - 1).toFixed(1)},${y(0)} L${x(0)},${y(0)} Z`}
-          fill="var(--color-accent-emerald)"
-          opacity={0.12}
-        />
+        {/* Strategy: emerald area (gradient depth) + line. */}
+        <path d={`${toPath(strategy)} L${x(strategy.length - 1).toFixed(1)},${y(0)} L${x(0)},${y(0)} Z`} fill="url(#payoffGrad)" />
         <path
           d={toPath(strategy)}
           fill="none"
           stroke="var(--color-accent-emerald)"
-          strokeWidth={1.75}
+          strokeWidth={2}
           vectorEffect="non-scaling-stroke"
         />
       </svg>
