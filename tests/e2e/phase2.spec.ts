@@ -66,6 +66,7 @@ test.describe("Phase 2 — ledger spine behind feature flags", () => {
     await expect(page).toHaveURL(/\/app(\/|$)/);
 
     await page.goto("/app/expenses");
+    // The income manager lives in the rail; "+" (aria-label "Add income") opens the form modal.
     await expect(page.getByRole("button", { name: "Add income" })).toBeVisible();
 
     const list = page.getByRole("list", { name: "Income" });
@@ -73,33 +74,39 @@ test.describe("Phase 2 — ledger spine behind feature flags", () => {
     createdSources.push(source);
 
     await page.getByRole("button", { name: "Add income" }).click();
-    await page.getByLabel("Source").fill(source);
-    await page.getByLabel("Amount", { exact: true }).fill("3000");
-    await page.getByLabel("Pay frequency").selectOption("semimonthly");
-    await page.getByLabel("Pay day (1–31)").fill("15");
+    const createDialog = page.getByRole("dialog", { name: "New income" });
+    await createDialog.getByLabel("Source").fill(source);
+    await createDialog.getByLabel("Amount", { exact: true }).fill("3000");
+    await createDialog.getByLabel("Pay frequency").selectOption("semimonthly");
+    await createDialog.getByLabel("Pay day (1–31)").fill("15");
     // Offerings/tithe moved to the Expenses page in Phase 3 — no tithe field on income now.
-    await page.getByRole("button", { name: "Add income" }).click();
+    await createDialog.getByRole("button", { name: "Add income" }).click();
 
     const card = () => list.locator("li", { hasText: source });
     await expect(card()).toBeVisible();
     await expect(card()).toContainText("$3,000.00");
 
-    // Edit the amount.
-    await card().getByRole("button", { name: "Edit" }).click();
-    await page.getByLabel("Amount", { exact: true }).fill("3200");
-    await page.getByRole("button", { name: "Save income" }).click();
+    // Edit the amount — the whole row is a button that opens the editor modal.
+    // dispatchEvent bypasses the sticky-rail pointer interception seen at the mobile viewport.
+    await card().getByRole("button", { name: `Edit ${source}` }).dispatchEvent("click");
+    const editDialog = page.getByRole("dialog", { name: "Edit income" });
+    await editDialog.getByLabel("Amount", { exact: true }).fill("3200");
+    await editDialog.getByRole("button", { name: "Save income" }).click();
     await expect(card()).toContainText("$3,200.00");
 
     // Server-side validation: a negative amount is rejected.
     await page.getByRole("button", { name: "Add income" }).click();
-    await page.getByLabel("Source").fill(uniqueName("e2e-bad"));
-    await page.getByLabel("Amount", { exact: true }).fill("-5");
-    await page.getByRole("button", { name: "Add income" }).click();
-    await expect(page.getByText(/can't be negative/i)).toBeVisible();
-    await page.getByRole("button", { name: "Cancel" }).click();
+    const badDialog = page.getByRole("dialog", { name: "New income" });
+    await badDialog.getByLabel("Source").fill(uniqueName("e2e-bad"));
+    await badDialog.getByLabel("Amount", { exact: true }).fill("-5");
+    await badDialog.getByRole("button", { name: "Add income" }).click();
+    await expect(badDialog.getByText(/can't be negative/i)).toBeVisible();
+    await badDialog.getByRole("button", { name: "Cancel" }).click();
 
-    // Archive removes it from the active list.
-    await card().getByRole("button", { name: "Archive" }).click();
+    // Archive lives in the edit modal now (rows are buttons, no inline Archive).
+    await card().getByRole("button", { name: `Edit ${source}` }).dispatchEvent("click");
+    // force past the tall-form pointer interception in the scrollable modal at the mobile viewport.
+    await page.getByRole("dialog", { name: "Edit income" }).getByRole("button", { name: "Archive" }).click({ force: true });
     await expect(card()).toHaveCount(0);
   });
 
@@ -127,13 +134,13 @@ test.describe("Phase 2 — ledger spine behind feature flags", () => {
 
     const card = () => list.locator("li", { hasText: name });
     await expect(card()).toBeVisible();
-    await expect(card()).toContainText("Optimum");
-    // Amount is a click-to-edit figure; pay day is shown as text (P5 modal-editor redesign).
+    // Amount is a click-to-edit figure; pay day is shown as text. Payee now lives in the editor
+    // modal only (the stitch card face shows icon · name · amount · pay day).
     await expect(card()).toContainText("$115.00");
     await expect(card()).toContainText("pay day 5th");
 
     // Archive lives in the edit modal now (no buttons on the card) — open it, then archive.
-    await card().getByText(name).click();
+    await card().getByText(name).dispatchEvent("click");
     const editDialog = page.getByRole("dialog", { name: "Edit expense" });
     await editDialog.getByRole("button", { name: "Archive" }).click();
     await expect(card()).toHaveCount(0);

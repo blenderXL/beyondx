@@ -2,7 +2,29 @@
 
 import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, LayoutGrid, Layers, ChevronDown } from "lucide-react";
+import {
+  Search,
+  LayoutGrid,
+  Layers,
+  ChevronDown,
+  Calendar,
+  CreditCard,
+  Undo2,
+  Home,
+  Zap,
+  Car,
+  ShieldCheck,
+  Utensils,
+  HeartPulse,
+  Repeat,
+  Landmark,
+  HandCoins,
+  User,
+  Wallet,
+  Plus,
+  Briefcase,
+  type LucideIcon,
+} from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import {
   createExpense,
@@ -12,6 +34,7 @@ import {
   toggleSavingsPaid,
   payAllExpenses,
   revertAllExpenses,
+  archiveIncome,
 } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
 import {
@@ -19,6 +42,7 @@ import {
   EXPENSE_CADENCE_LABELS,
   EXPENSE_GROUPS,
   EXPENSE_GROUP_LABELS,
+  INCOME_CADENCE_LABELS,
   type Expense,
   type ExpenseGroup,
   type DebtType,
@@ -30,7 +54,7 @@ import type { MonthlyPlan } from "@/lib/finance/planner";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { MonthSwitcher } from "@/components/finance/MonthSwitcher";
 import { type MonthOption } from "@/lib/finance/history";
-import { IncomeClient } from "@/components/finance/IncomeClient";
+import { IncomeForm } from "@/components/finance/IncomeClient";
 import { formatUsd, expenseDisplayAmount } from "@/lib/finance/derive";
 import { FieldHint } from "@/components/finance/FieldHint";
 import { EXPENSE_HINTS } from "@/lib/finance/fieldHints";
@@ -548,14 +572,14 @@ export function ExpensesClient({
 
   return (
     <div className="mx-auto max-w-6xl">
-      <header className="mb-6 flex items-end justify-between gap-4">
+      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className={labelClass}>// expenses</p>
           <h1 className="mt-2 font-sans text-3xl font-medium text-[var(--color-text-primary)]">
             Your expenses
           </h1>
         </div>
-        <div className="flex items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           <MonthSwitcher months={months} selected={currentMonth} currentMonth={currentMonth} />
           {expenses.length > 0 ? <PayAllButton billingMonth={billingMonth} allPaid={allPaid} /> : null}
           <button onClick={() => setMode({ kind: "create" })} className={primaryButtonClass}>
@@ -629,7 +653,7 @@ export function ExpensesClient({
                               {g.expenses.length} · {formatUsd(g.total)}
                             </p>
                           </div>
-                          <ul aria-label={g.label} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <ul aria-label={g.label} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                             {g.expenses.map((expense) => (
                               <ExpenseCard
                                 key={expense.id}
@@ -645,7 +669,7 @@ export function ExpensesClient({
                       ))}
                     </div>
                   ) : (
-                    <ul aria-label="Expenses" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <ul aria-label="Expenses" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                       {visible.map((expense) => (
                         <ExpenseCard
                           key={expense.id}
@@ -722,73 +746,83 @@ function ExpenseControls({
   view: ExpenseView;
   onView: (v: ExpenseView) => void;
 }) {
-  // `inputClass` carries `w-full`; force auto width on the selects so they sit compactly.
-  const selectClass = `${inputClass} mt-0 h-10 !w-auto max-w-[12rem]`;
+  // One sharp control height shared by every toolbar element so they align (stitch reference).
+  const ctrl =
+    "h-9 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] font-mono text-[12px] text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-text-primary)]";
   return (
-    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-      <div className="relative flex-1">
-        <Search
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-muted)]"
-          aria-hidden
-        />
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => onQuery(e.target.value)}
-          aria-label="Search expenses"
-          placeholder="Search by name or payee…"
-          className={`${inputClass} mt-0 h-10 pl-9`}
-        />
+    <div className="mb-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* View toggle — far left, like the stitch CARD / GROUP pill. */}
+      <div className="flex h-9 shrink-0 items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-1">
+        {(
+          [
+            { v: "card" as const, Icon: LayoutGrid, label: "Card" },
+            { v: "category" as const, Icon: Layers, label: "Group" },
+          ]
+        ).map(({ v, Icon, label }) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onView(v)}
+            aria-label={v === "card" ? "Card view" : "Group by category"}
+            aria-pressed={view === v}
+            className={`flex items-center gap-2 rounded px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition-colors ${
+              view === v
+                ? "bg-[var(--color-surface)] text-[var(--color-text-primary)]"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+            }`}
+          >
+            <Icon className="size-3.5" aria-hidden />
+            {label}
+          </button>
+        ))}
       </div>
-      <div className="flex items-center gap-3">
-        <select
-          value={group}
-          onChange={(e) => onGroup(e.target.value as ExpenseGroup | "all")}
-          aria-label="Filter by group"
-          className={selectClass}
-        >
-          <option value="all">All groups</option>
-          {presentGroups.map((g) => (
-            <option key={g} value={g}>
-              {EXPENSE_GROUP_LABELS[g]}
-            </option>
-          ))}
-        </select>
-        <select
-          value={sort}
-          onChange={(e) => onSort(e.target.value as ExpenseSort)}
-          aria-label="Sort expenses"
-          className={selectClass}
-        >
-          {EXPENSE_SORTS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
 
-        <div className="flex h-10 shrink-0 items-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-0.5">
-          {(
-            [
-              { v: "card" as const, Icon: LayoutGrid, label: "Card view" },
-              { v: "category" as const, Icon: Layers, label: "Group by category" },
-            ]
-          ).map(({ v, Icon, label }) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => onView(v)}
-              aria-label={label}
-              aria-pressed={view === v}
-              className={`flex size-8 items-center justify-center rounded ${
-                view === v
-                  ? "bg-[var(--color-surface)] text-[var(--color-text-primary)]"
-                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-              }`}
-            >
-              <Icon className="size-4" aria-hidden />
-            </button>
-          ))}
+      {/* Search + filters — grouped on the right. */}
+      <div className="flex flex-1 items-center gap-3 sm:flex-none">
+        <div className="relative flex-1 sm:w-64 sm:flex-none">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-muted)]"
+            aria-hidden
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => onQuery(e.target.value)}
+            aria-label="Search expenses"
+            placeholder="Search by name or payee…"
+            className={`${ctrl} w-full pl-9 pr-3 placeholder:text-[var(--color-text-muted)]`}
+          />
+        </div>
+        <div className="relative shrink-0">
+          <select
+            value={group}
+            onChange={(e) => onGroup(e.target.value as ExpenseGroup | "all")}
+            aria-label="Filter by group"
+            className={`${ctrl} appearance-none pl-3 pr-8`}
+          >
+            <option value="all">All groups</option>
+            {presentGroups.map((g) => (
+              <option key={g} value={g}>
+                {EXPENSE_GROUP_LABELS[g]}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-muted)]" aria-hidden />
+        </div>
+        <div className="relative shrink-0">
+          <select
+            value={sort}
+            onChange={(e) => onSort(e.target.value as ExpenseSort)}
+            aria-label="Sort expenses"
+            className={`${ctrl} appearance-none pl-3 pr-8`}
+          >
+            {EXPENSE_SORTS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-muted)]" aria-hidden />
         </div>
       </div>
     </div>
@@ -829,11 +863,21 @@ function PayToggle({
         aria-label={paid ? `Revert ${name}` : `Pay ${name}`}
         className={
           paid
-            ? "flex w-full items-center justify-center rounded-md border border-[var(--color-border-strong)] py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-40"
-            : "flex w-full items-center justify-center rounded-md border border-[color-mix(in_oklab,var(--color-accent-emerald),transparent_60%)] bg-[color-mix(in_oklab,var(--color-accent-emerald),transparent_88%)] py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent-emerald)] transition-colors hover:bg-[color-mix(in_oklab,var(--color-accent-emerald),transparent_80%)] disabled:opacity-40"
+            ? "flex w-full items-center justify-center gap-2 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-40"
+            : "flex w-full items-center justify-center gap-2 rounded-md border border-[color-mix(in_oklab,var(--color-accent-red),transparent_70%)] bg-[var(--color-elevated)] py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent-red)] transition-colors hover:bg-[color-mix(in_oklab,var(--color-accent-red),transparent_88%)] disabled:opacity-40"
         }
       >
-        {pending ? "…" : paid ? "Revert" : "Pay now"}
+        {pending ? (
+          "…"
+        ) : paid ? (
+          <>
+            <Undo2 className="size-3.5" aria-hidden /> Revert
+          </>
+        ) : (
+          <>
+            <CreditCard className="size-3.5" aria-hidden /> Pay now
+          </>
+        )}
       </button>
     </form>
   );
@@ -885,6 +929,30 @@ const GROUP_ACCENT: Record<ExpenseGroup, string> = {
 };
 function groupAccent(g: ExpenseGroup | null): string {
   return g ? GROUP_ACCENT[g] : "--color-border-strong";
+}
+
+/** A representative icon per expense group (stitch card affordance). */
+const GROUP_ICON: Record<ExpenseGroup, LucideIcon> = {
+  utility: Zap,
+  insurance: ShieldCheck,
+  housing: Home,
+  credit_card: CreditCard,
+  transportation: Car,
+  food: Utensils,
+  healthcare: HeartPulse,
+  subscription: Repeat,
+  loan: Landmark,
+  offering: HandCoins,
+  personal: User,
+  other: Wallet,
+};
+function groupIcon(g: ExpenseGroup | null): LucideIcon {
+  return g ? GROUP_ICON[g] : Wallet;
+}
+
+/** "$2,450.00" → "2,450.00" so the card can render a muted "$" prefix separately. */
+function amountDigits(n: number): string {
+  return formatUsd(n).replace(/^\$/, "");
 }
 
 /** Group the (already filtered/sorted) expenses by category, with per-group totals. */
@@ -943,74 +1011,91 @@ function ExpenseCard({
     : [];
   const offeringTotal = offeringLines.reduce((s, l) => s + l.amount, 0);
   const accent = paid ? "--color-accent-emerald" : groupAccent(expense.expense_group);
+  const Icon = groupIcon(expense.expense_group);
 
   return (
     <li>
       <div
         onClick={onEdit}
-        className="group relative cursor-pointer overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 pl-5 transition-colors hover:border-[var(--color-border-strong)]"
+        className={`group relative cursor-pointer overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 pl-5 transition-colors hover:border-[var(--color-border-strong)] ${
+          paid ? "opacity-80" : ""
+        }`}
       >
         <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
+
+        {/* Header: group icon + name, with a PAID chip when settled. */}
         <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="min-w-0">
-              <p className="flex items-center gap-2">
-                <span
-                  className={`font-sans text-sm font-medium break-words ${
-                    paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
-                  }`}
-                >
-                  {expense.category}
-                </span>
-                {paid ? (
-                  <span className="shrink-0 rounded bg-[color-mix(in_oklab,var(--color-accent-emerald),transparent_85%)] px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--color-accent-emerald)]">
-                    Paid
-                  </span>
-                ) : null}
-              </p>
-              <p className="mt-0.5 font-mono text-[10px] tracking-[0.16em] break-words text-[var(--color-text-muted)] uppercase">
-                {expense.expense_group ? EXPENSE_GROUP_LABELS[expense.expense_group] : "Ungrouped"}
-                {expense.payee ? ` · ${expense.payee}` : ""}
-                {expense.debt_id ? " · linked" : ""}
-              </p>
-            </div>
+          <div className="flex min-w-0 items-center gap-3">
+            <span
+              aria-hidden
+              className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-elevated)]"
+              style={{ color: `var(${accent})` }}
+            >
+              <Icon className="size-[18px]" />
+            </span>
+            <span
+              className={`min-w-0 truncate font-mono text-[12px] font-medium tracking-[0.02em] ${
+                paid
+                  ? "text-[var(--color-text-muted)] line-through decoration-[var(--color-border-strong)]"
+                  : "text-[var(--color-text-primary)]"
+              }`}
+            >
+              {expense.category}
+            </span>
           </div>
-          {isPercentOffering ? (
-            <div className="shrink-0 text-right">
+          {paid ? (
+            <span className="shrink-0 rounded bg-[color-mix(in_oklab,var(--color-accent-emerald),transparent_85%)] px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--color-accent-emerald)]">
+              Paid
+            </span>
+          ) : null}
+        </div>
+
+        {/* Amount: muted "$" + big figure. Click to quick-edit (offering shows its % breakdown). */}
+        {!editingAmount ? (
+          <div className="mt-3">
+            {isPercentOffering ? (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    stop(e);
+                    setShowBreakdown((v) => !v);
+                  }}
+                  aria-label={`Show offering breakdown for ${expense.category}`}
+                  aria-expanded={showBreakdown}
+                  className="flex items-baseline gap-1 font-sans tabular-nums text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-accent-emerald)]"
+                >
+                  <span className="text-sm text-[var(--color-text-muted)]">$</span>
+                  <span className="text-2xl font-medium">{amountDigits(offeringTotal)}</span>
+                  <ChevronDown
+                    className={`size-4 self-center transition-transform ${showBreakdown ? "rotate-180" : ""}`}
+                    aria-hidden
+                  />
+                </button>
+                <p className="mt-0.5 font-mono text-[10px] text-[var(--color-text-muted)]">{pct}% of income</p>
+              </>
+            ) : (
               <button
                 type="button"
                 onClick={(e) => {
                   stop(e);
-                  setShowBreakdown((v) => !v);
+                  setEditingAmount(true);
                 }}
-                aria-label={`Show offering breakdown for ${expense.category}`}
-                aria-expanded={showBreakdown}
-                className="flex items-center gap-1 font-sans text-lg font-medium tabular-nums text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-accent-emerald)]"
+                aria-label={`Edit amount for ${expense.category}`}
+                className="flex items-baseline gap-1 font-sans tabular-nums transition-colors hover:text-[var(--color-accent-emerald)]"
               >
-                {formatUsd(offeringTotal)}
-                <ChevronDown
-                  className={`size-4 transition-transform ${showBreakdown ? "rotate-180" : ""}`}
-                  aria-hidden
-                />
+                <span className="text-sm text-[var(--color-text-muted)]">$</span>
+                <span
+                  className={`text-2xl font-medium ${
+                    paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+                  }`}
+                >
+                  {amountDigits(Number(expense.amount))}
+                </span>
               </button>
-              <p className="font-mono text-[10px] text-[var(--color-text-muted)]">{pct}% of income</p>
-            </div>
-          ) : !editingAmount ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                stop(e);
-                setEditingAmount(true);
-              }}
-              aria-label={`Edit amount for ${expense.category}`}
-              className={`shrink-0 font-sans text-lg font-medium tabular-nums transition-colors hover:text-[var(--color-accent-emerald)] ${
-                paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
-              }`}
-            >
-              {formatUsd(Number(expense.amount))}
-            </button>
-          ) : null}
-        </div>
+            )}
+          </div>
+        ) : null}
 
         {isPercentOffering && showBreakdown ? (
           <div
@@ -1068,19 +1153,25 @@ function ExpenseCard({
             >
               {pending ? "…" : "Save"}
             </button>
-            <button type="button" onClick={() => setEditingAmount(false)} className={ghostButtonClass}>
+            <button
+              type="button"
+              onClick={() => setEditingAmount(false)}
+              className="flex h-9 shrink-0 items-center rounded-md border border-[var(--color-border-strong)] px-3 font-mono text-[10px] tracking-[0.18em] text-[var(--color-text-muted)] uppercase transition-colors hover:text-[var(--color-text-primary)]"
+            >
               Cancel
             </button>
           </form>
         ) : null}
 
-        <p className="mt-2 font-mono text-[11px] text-[var(--color-text-secondary)]">
+        <p className="mt-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
+          <Calendar className="size-3 shrink-0" aria-hidden />
           {EXPENSE_CADENCE_LABELS[expense.cadence]}
           {expense.due_day ? ` · ${paid ? "paid" : "pay day"} ${ordinal(expense.due_day)}` : ""}
+          {expense.debt_id || expense.savings_goal_id ? " · linked" : ""}
         </p>
 
         {/* The card's only button — pay this month, or revert. Edit/archive are a card-body click. */}
-        <span onClick={stop} className="mt-3 block">
+        <span onClick={stop} className="mt-4 block">
           <PayToggle expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} />
         </span>
 
@@ -1309,12 +1400,7 @@ function ExpensesRail({
       </section>
 
       {/* INCOME SOURCES — the single income manager */}
-      <section>
-        <p className={labelClass}>// income sources</p>
-        <div className="mt-3">
-          <IncomeClient incomes={incomes} embedded />
-        </div>
-      </section>
+      <IncomeRail incomes={incomes} />
 
       {/* SUBSCRIPTIONS */}
       <section className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5">
@@ -1328,6 +1414,109 @@ function ExpensesRail({
         </p>
       </section>
     </aside>
+  );
+}
+
+/** Compact income manager for the rail (stitch reference): a row per source with an icon,
+ * name + cadence, and the green monthly amount. The "+" / row-click open the full form in a modal. */
+function IncomeRail({ incomes }: { incomes: Income[] }) {
+  const [mode, setMode] = useState<{ kind: "list" } | { kind: "create" } | { kind: "edit"; id: string }>({
+    kind: "list",
+  });
+  const toList = useCallback(() => setMode({ kind: "list" }), []);
+  const editing = mode.kind === "edit" ? incomes.find((i) => i.id === mode.id) : undefined;
+
+  return (
+    <section>
+      <div className="mb-3 flex items-center justify-between">
+        <p className={labelClass}>// income sources</p>
+        <button
+          type="button"
+          onClick={() => setMode({ kind: "create" })}
+          aria-label="Add income"
+          className="text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-accent-emerald)]"
+        >
+          <Plus className="size-4" aria-hidden />
+        </button>
+      </div>
+
+      {incomes.length === 0 ? (
+        <p className="font-mono text-[11px] text-[var(--color-text-muted)]">// no income yet — add a paycheck</p>
+      ) : (
+        <ul aria-label="Income" className="space-y-2">
+          {incomes.map((inc) => (
+            <li key={inc.id}>
+              <button
+                type="button"
+                onClick={() => setMode({ kind: "edit", id: inc.id })}
+                aria-label={`Edit ${inc.source}`}
+                className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3 text-left transition-colors hover:border-[var(--color-border-strong)]"
+              >
+                <span className="flex min-w-0 items-center gap-3">
+                  <span
+                    aria-hidden
+                    className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_oklab,var(--color-accent-emerald),transparent_88%)] text-[var(--color-accent-emerald)]"
+                  >
+                    <Briefcase className="size-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-sans text-sm font-medium text-[var(--color-text-primary)]">
+                      {inc.source}
+                    </span>
+                    <span className="block font-mono text-[10px] text-[var(--color-text-muted)]">
+                      {INCOME_CADENCE_LABELS[inc.cadence]}
+                    </span>
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-baseline gap-1 font-mono text-[12px] tabular-nums text-[var(--color-accent-emerald)]">
+                  <span className="text-[10px]">$</span>
+                  {amountDigits(Number(inc.amount))}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* open tracks `editing` so archiving (which drops it from the live list) auto-closes the modal. */}
+      <Modal
+        open={mode.kind === "create" || editing != null}
+        onClose={toList}
+        label={mode.kind === "edit" ? "Edit income" : "New income"}
+      >
+        {mode.kind === "create" ? <IncomeForm onDone={toList} onCancel={toList} /> : null}
+        {editing ? (
+          <>
+            <IncomeForm income={editing} onDone={toList} onCancel={toList} />
+            {/* Archive lives in the editor (rows are buttons that open this modal). */}
+            <div className="mt-4 flex justify-end">
+              <IncomeArchiveButton id={editing.id} name={editing.source} />
+            </div>
+          </>
+        ) : null}
+      </Modal>
+    </section>
+  );
+}
+
+function IncomeArchiveButton({ id, name }: { id: string; name: string }) {
+  const [state, formAction] = useActionState(archiveIncome, INITIAL_FINANCE_STATE);
+  return (
+    <form
+      action={formAction}
+      onSubmit={(e) => {
+        if (!window.confirm(`Archive "${name}"? It'll be hidden from your income.`)) e.preventDefault();
+      }}
+    >
+      <input type="hidden" name="id" value={id} />
+      <button
+        type="submit"
+        className="flex h-11 items-center justify-center rounded-md px-4 font-mono text-xs tracking-[0.18em] text-[var(--color-text-muted)] uppercase transition-colors hover:text-[var(--color-accent-red)]"
+      >
+        Archive
+      </button>
+      {state.error ? <span role="alert" className={`ml-2 ${errorClass}`}>{state.error}</span> : null}
+    </form>
   );
 }
 

@@ -16,7 +16,7 @@ import {
   errorClass,
 } from "@/components/finance/formStyles";
 
-function IncomeForm({ income, onDone, onCancel }: { income?: Income; onDone: () => void; onCancel: () => void }) {
+export function IncomeForm({ income, onDone, onCancel }: { income?: Income; onDone: () => void; onCancel: () => void }) {
   const editing = Boolean(income);
   const [state, formAction, pending] = useActionState(
     editing ? updateIncome : createIncome,
