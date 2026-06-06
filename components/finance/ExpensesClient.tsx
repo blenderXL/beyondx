@@ -2,7 +2,7 @@
 
 import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search } from "lucide-react";
+import { Search, LayoutGrid, Layers, ChevronDown } from "lucide-react";
 import { StatCard } from "@/components/layout/StatCard";
 import { Modal } from "@/components/ui/Modal";
 import {
@@ -78,6 +78,12 @@ export interface ExpensesRail {
   byGroup: { group: string; amount: number }[];
   subscriptionCount: number;
   subscriptionTotal: number;
+}
+
+/** Per-source monthly income (override-resolved) — the offering card breaks its % down over these. */
+export interface IncomeBreakdownItem {
+  source: string;
+  monthly: number;
 }
 
 /** A debt payment is grouped by what kind of debt it is. */
@@ -388,6 +394,10 @@ function ExpenseForm({
 
 type Mode = { kind: "list" } | { kind: "create" } | { kind: "edit"; expense: Expense };
 
+/** Card grid vs. grouped-by-category (the "group by" view, mirroring the debts page). */
+type ExpenseView = "card" | "category";
+const VIEW_KEY = "nzx.expenses.view";
+
 export function ExpensesClient({
   expenses,
   debts,
@@ -402,6 +412,7 @@ export function ExpensesClient({
   plan,
   variableIncomes,
   incomes,
+  incomeBreakdown,
   months,
   currentMonth,
 }: {
@@ -414,6 +425,8 @@ export function ExpensesClient({
   variableIncomes: VariableIncome[];
   /** All income sources, for the embedded income manager (add/edit/remove). */
   incomes: Income[];
+  /** Per-source monthly income (after overrides) — powers the offering card's breakdown. */
+  incomeBreakdown: IncomeBreakdownItem[];
   /** Monthly income — resolves a percent offering to its dollar value in the listed total. */
   income: number;
   /** First-of-month ISO date the check-offs are keyed to. */
@@ -460,6 +473,28 @@ export function ExpensesClient({
   const [query, setQuery] = useState("");
   const [group, setGroup] = useState<ExpenseGroup | "all">("all");
   const [sort, setSort] = useState<ExpenseSort>("amount_desc");
+  const [view, setView] = useState<ExpenseView>("card");
+
+  // Persist the view across reloads (hydrated post-mount to avoid an SSR mismatch).
+  const [viewHydrated, setViewHydrated] = useState(false);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(VIEW_KEY);
+      if (v === "card" || v === "category") setView(v);
+    } catch {
+      /* storage unavailable — use the default */
+    }
+    setViewHydrated(true);
+  }, []);
+  useEffect(() => {
+    if (!viewHydrated) return;
+    try {
+      localStorage.setItem(VIEW_KEY, view);
+    } catch {
+      /* ignore */
+    }
+  }, [viewHydrated, view]);
+
   const presentGroups = useMemo(
     () => EXPENSE_GROUPS.filter((g) => expenses.some((e) => e.expense_group === g)),
     [expenses],
@@ -468,6 +503,7 @@ export function ExpensesClient({
     () => filterAndSortExpenses(expenses, { query, group, sort }),
     [expenses, query, group, sort],
   );
+  const grouped = useMemo(() => groupByExpenseGroup(visible, income), [visible, income]);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -523,6 +559,8 @@ export function ExpensesClient({
                   presentGroups={presentGroups}
                   sort={sort}
                   onSort={setSort}
+                  view={view}
+                  onView={setView}
                 />
 
                 <div className="lg:grid lg:grid-cols-[1fr_17rem] lg:items-start lg:gap-6">
@@ -533,6 +571,31 @@ export function ExpensesClient({
                           // no expenses match your search or filter
                         </p>
                       </div>
+                    ) : view === "category" ? (
+                      <div className="space-y-8">
+                        {grouped.map((g) => (
+                          <section key={g.group} aria-label={g.label}>
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                              <p className={labelClass}>// {g.label.toLowerCase()}</p>
+                              <p className="font-mono text-[11px] tabular-nums text-[var(--color-text-muted)]">
+                                {g.expenses.length} · {formatUsd(g.total)}
+                              </p>
+                            </div>
+                            <ul aria-label={g.label} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                              {g.expenses.map((expense) => (
+                                <ExpenseCard
+                                  key={expense.id}
+                                  expense={expense}
+                                  paid={paid.has(expense.id)}
+                                  billingMonth={billingMonth}
+                                  incomeBreakdown={incomeBreakdown}
+                                  onEdit={() => setMode({ kind: "edit", expense })}
+                                />
+                              ))}
+                            </ul>
+                          </section>
+                        ))}
+                      </div>
                     ) : (
                       <ul aria-label="Expenses" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         {visible.map((expense) => (
@@ -541,6 +604,7 @@ export function ExpensesClient({
                             expense={expense}
                             paid={paid.has(expense.id)}
                             billingMonth={billingMonth}
+                            incomeBreakdown={incomeBreakdown}
                             onEdit={() => setMode({ kind: "edit", expense })}
                           />
                         ))}
@@ -597,6 +661,8 @@ function ExpenseControls({
   presentGroups,
   sort,
   onSort,
+  view,
+  onView,
 }: {
   query: string;
   onQuery: (v: string) => void;
@@ -605,6 +671,8 @@ function ExpenseControls({
   presentGroups: readonly ExpenseGroup[];
   sort: ExpenseSort;
   onSort: (v: ExpenseSort) => void;
+  view: ExpenseView;
+  onView: (v: ExpenseView) => void;
 }) {
   // `inputClass` carries `w-full`; force auto width on the selects so they sit compactly.
   const selectClass = `${inputClass} mt-0 h-10 !w-auto max-w-[12rem]`;
@@ -650,6 +718,30 @@ function ExpenseControls({
             </option>
           ))}
         </select>
+
+        <div className="flex h-10 shrink-0 items-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-0.5">
+          {(
+            [
+              { v: "card" as const, Icon: LayoutGrid, label: "Card view" },
+              { v: "category" as const, Icon: Layers, label: "Group by category" },
+            ]
+          ).map(({ v, Icon, label }) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onView(v)}
+              aria-label={label}
+              aria-pressed={view === v}
+              className={`flex size-8 items-center justify-center rounded ${
+                view === v
+                  ? "bg-[var(--color-surface)] text-[var(--color-text-primary)]"
+                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+              }`}
+            >
+              <Icon className="size-4" aria-hidden />
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -718,6 +810,44 @@ function ordinal(day: number): string {
   return `${day}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
 }
 
+/** Left accent-stripe color per expense group (mirrors the design's semantic cues). */
+const GROUP_ACCENT: Record<ExpenseGroup, string> = {
+  utility: "--color-accent-amber",
+  insurance: "--color-accent-blue",
+  housing: "--color-accent-red",
+  credit_card: "--color-accent-purple",
+  transportation: "--color-accent-blue",
+  food: "--color-accent-emerald",
+  healthcare: "--color-accent-pink",
+  subscription: "--color-accent-pink",
+  loan: "--color-accent-purple",
+  offering: "--color-accent-purple",
+  personal: "--color-accent-emerald",
+  other: "--color-accent-blue",
+};
+function groupAccent(g: ExpenseGroup | null): string {
+  return g ? GROUP_ACCENT[g] : "--color-border-strong";
+}
+
+/** Group the (already filtered/sorted) expenses by category, with per-group totals. */
+function groupByExpenseGroup(
+  expenses: Expense[],
+  income: number,
+): { group: ExpenseGroup | "ungrouped"; label: string; expenses: Expense[]; total: number }[] {
+  const order: (ExpenseGroup | "ungrouped")[] = [...EXPENSE_GROUPS, "ungrouped"];
+  return order
+    .map((g) => {
+      const items = expenses.filter((e) => (e.expense_group ?? "ungrouped") === g);
+      return {
+        group: g,
+        label: g === "ungrouped" ? "Ungrouped" : EXPENSE_GROUP_LABELS[g],
+        expenses: items,
+        total: items.reduce((s, e) => s + expenseDisplayAmount(e, income), 0),
+      };
+    })
+    .filter((x) => x.expenses.length > 0);
+}
+
 /**
  * Expense card. Click the dollar amount to quick-edit it in place (the unchanged fields ride
  * along as hidden inputs so the server validator gets a complete expense). Click anywhere else
@@ -729,40 +859,59 @@ function ExpenseCard({
   expense,
   paid,
   billingMonth,
+  incomeBreakdown,
   onEdit,
 }: {
   expense: Expense;
   paid: boolean;
   billingMonth: string;
+  incomeBreakdown: IncomeBreakdownItem[];
   onEdit: () => void;
 }) {
   const isPercentOffering = expense.expense_group === "offering" && expense.pct_of_income != null;
   const [state, formAction, pending] = useActionState(updateExpense, INITIAL_FINANCE_STATE);
   const [editingAmount, setEditingAmount] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   useEffect(() => {
     if (state.ok) setEditingAmount(false);
   }, [state.ok]);
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
+  // A percent offering breaks its % down across each income source; the total is the sum.
+  const pct = expense.pct_of_income ?? 0;
+  const offeringLines = isPercentOffering
+    ? incomeBreakdown.map((b) => ({ source: b.source, amount: Math.round(b.monthly * pct) / 100 }))
+    : [];
+  const offeringTotal = offeringLines.reduce((s, l) => s + l.amount, 0);
+  const accent = paid ? "--color-accent-emerald" : groupAccent(expense.expense_group);
+
   return (
     <li>
       <div
         onClick={onEdit}
-        className="group cursor-pointer rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 transition-colors hover:border-[var(--color-border-strong)]"
+        className="group relative cursor-pointer overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 pl-5 transition-colors hover:border-[var(--color-border-strong)]"
       >
+        <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3">
             <span onClick={stop}>
               <CheckOff expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} />
             </span>
             <div className="min-w-0">
-              <p
-                className={`font-sans text-sm font-medium break-words ${
-                  paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
-                }`}
-              >
-                {expense.category}
+              <p className="flex items-center gap-2">
+                <span
+                  className={`font-sans text-sm font-medium break-words ${
+                    paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+                  }`}
+                >
+                  {expense.category}
+                </span>
+                {paid ? (
+                  <span className="shrink-0 rounded bg-[color-mix(in_oklab,var(--color-accent-emerald),transparent_85%)] px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--color-accent-emerald)]">
+                    Paid
+                  </span>
+                ) : null}
               </p>
               <p className="mt-0.5 font-mono text-[10px] tracking-[0.16em] break-words text-[var(--color-text-muted)] uppercase">
                 {expense.expense_group ? EXPENSE_GROUP_LABELS[expense.expense_group] : "Ungrouped"}
@@ -772,9 +921,25 @@ function ExpenseCard({
             </div>
           </div>
           {isPercentOffering ? (
-            <p className="shrink-0 font-sans text-lg font-medium text-[var(--color-text-primary)] tabular-nums">
-              {expense.pct_of_income}% of income
-            </p>
+            <div className="shrink-0 text-right">
+              <button
+                type="button"
+                onClick={(e) => {
+                  stop(e);
+                  setShowBreakdown((v) => !v);
+                }}
+                aria-label={`Show offering breakdown for ${expense.category}`}
+                aria-expanded={showBreakdown}
+                className="flex items-center gap-1 font-sans text-lg font-medium tabular-nums text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-accent-emerald)]"
+              >
+                {formatUsd(offeringTotal)}
+                <ChevronDown
+                  className={`size-4 transition-transform ${showBreakdown ? "rotate-180" : ""}`}
+                  aria-hidden
+                />
+              </button>
+              <p className="font-mono text-[10px] text-[var(--color-text-muted)]">{pct}% of income</p>
+            </div>
           ) : !editingAmount ? (
             <button
               type="button"
@@ -791,6 +956,32 @@ function ExpenseCard({
             </button>
           ) : null}
         </div>
+
+        {isPercentOffering && showBreakdown ? (
+          <div
+            onClick={stop}
+            className="mt-3 space-y-1 rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-elevated)] p-3"
+          >
+            {offeringLines.length === 0 ? (
+              <p className="font-mono text-[11px] text-[var(--color-text-muted)]">// add income to see the breakdown</p>
+            ) : (
+              <>
+                {offeringLines.map((l) => (
+                  <div key={l.source} className="flex items-center justify-between gap-3 font-mono text-[11px]">
+                    <span className="truncate text-[var(--color-text-secondary)]">
+                      {pct}% × {l.source}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-[var(--color-text-primary)]">{formatUsd(l.amount)}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between gap-3 border-t border-[var(--color-border-subtle)] pt-1 font-mono text-[11px]">
+                  <span className="text-[var(--color-text-muted)]">Total</span>
+                  <span className="tabular-nums text-[var(--color-text-primary)]">{formatUsd(offeringTotal)}</span>
+                </div>
+              </>
+            )}
+          </div>
+        ) : null}
 
         {editingAmount && !isPercentOffering ? (
           <form action={formAction} onClick={stop} className="mt-3 flex items-end gap-2">
