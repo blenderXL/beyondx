@@ -45,8 +45,9 @@
  * original Geist/rounded look. Applied via the `.app-shell` class on AppShell.
  */
 .app-shell {
-  /* Near-black canvas; cards float on a limitless plane */
-  --color-canvas: #0b0b0c;
+  /* Near-black canvas; matches the marketing + auth :root canvas so the whole site
+     shares one background. Cards float on a limitless plane. */
+  --color-canvas: #0a0a0b;
   --color-surface: #131313;
   --color-elevated: #161616;
   /* Depth via low-opacity white hairlines (DESIGN.md "Luminous Outlines") */
