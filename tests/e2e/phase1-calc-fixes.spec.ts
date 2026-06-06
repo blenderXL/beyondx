@@ -34,9 +34,12 @@ async function setFlag(key: string, enabled: boolean) {
 function parseUsd(text: string): number {
   return Number(text.replace(/[^0-9.-]/g, ""));
 }
-/** The big number inside a labeled StatCard. */
+/** The value (dd) for a labeled row in the right sidebar's "This month" budget card. */
 function statValue(page: import("@playwright/test").Page, label: string): Locator {
-  return page.getByRole("group", { name: label, exact: true }).locator("p.tabular-nums");
+  return page
+    .getByRole("complementary", { name: "This month" })
+    .getByText(label, { exact: true })
+    .locator("xpath=following-sibling::dd");
 }
 
 test.afterAll(async () => {
@@ -103,10 +106,11 @@ test("a percent offering is reflected in the expenses listed total", async ({ pa
   const income = parseUsd(await statValue(page, "Income").innerText());
   expect(income).toBeGreaterThan(0);
 
-  const listed = statValue(page, "Listed total");
+  // The offering's resolved $ now shows in the sidebar's "Offerings / giving" row.
+  const listed = statValue(page, "Offerings / giving");
   const before = parseUsd(await listed.innerText());
 
-  // A 10%-of-income offering stores amount=0; the listed total must still grow by 10% of income.
+  // A 10%-of-income offering stores amount=0; the offerings total must still grow by 10% of income.
   const ins = await c.from("expenses").insert({
     profile_id,
     category: offeringName,

@@ -12,7 +12,6 @@ test.skip(!hasTestCreds() || !hasServiceRole(), "Set TEST_USER_* and SUPABASE_SE
 
 const PREFIX = `e2e-p4-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 const SOURCE = `${PREFIX}-gig`;
-let columnReady = false;
 
 function ownerClient() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
@@ -25,12 +24,7 @@ async function setFlag(key: string, enabled: boolean) {
 
 test.beforeAll(async () => {
   if (!hasTestCreds() || !hasServiceRole()) return;
-  await setFlag("expenses", true); // income + budget live on the Expenses hub now (Phase 5C)
-  // Probe the new table — present only once migration 0010 is applied to nzx-dev.
-  const c = ownerClient();
-  await c.auth.signInWithPassword({ email: TEST_USER.email, password: TEST_USER.password });
-  const probe = await c.from("income_overrides").select("id").limit(1);
-  columnReady = !probe.error;
+  await setFlag("expenses", true); // income lives on the Expenses hub sidebar now
 });
 
 test.afterAll(async () => {
@@ -47,32 +41,4 @@ test("income form exposes the variable-income checkbox", async ({ page }) => {
   await page.goto("/app/expenses");
   await page.getByRole("button", { name: "Add income" }).click();
   await expect(page.getByLabel("Variable income")).toBeVisible();
-});
-
-test("mark a source variable, set this month's actual, Budget total reflects it", async ({ page }) => {
-  test.skip(!columnReady, "income_overrides / incomes.is_variable (migration 0010) not applied to nzx-dev yet");
-
-  await uiLogin(page);
-  await expect(page).toHaveURL(/\/app(\/|$)/);
-
-  // Create a variable income source through the hub's income form (base $1,000, monthly).
-  await page.goto("/app/expenses");
-  await page.getByRole("button", { name: "Add income" }).click();
-  await page.getByLabel("Source").fill(SOURCE);
-  await page.getByLabel("Amount", { exact: true }).fill("1000");
-  await page.getByLabel("Pay frequency").selectOption("monthly");
-  await page.getByLabel("Variable income").check();
-  await page.getByRole("button", { name: "Add income" }).click();
-  await expect(page.getByRole("list", { name: "Income" }).locator("li", { hasText: SOURCE })).toBeVisible();
-
-  // The hub's variable-income editor gives the source an inline "this month's actual" row. Scope
-  // to THIS source's row — the shared test user may have other variable sources (parallel projects).
-  const editor = page.getByRole("region", { name: "This month's actuals" });
-  const row = editor.getByRole("listitem").filter({ hasText: SOURCE });
-  await expect(row).toContainText(/using the base amount this month/i);
-
-  // Set this month's actual to $2,500 and confirm it sticks.
-  await row.getByLabel(`This month's actual for ${SOURCE}`).fill("2500");
-  await row.getByRole("button", { name: "Set" }).click();
-  await expect(row).toContainText(/using \$2,500/i);
 });

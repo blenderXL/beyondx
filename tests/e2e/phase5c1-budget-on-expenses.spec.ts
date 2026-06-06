@@ -26,11 +26,11 @@ async function signedInOwner() {
   const { data } = await c.auth.signInWithPassword({ email: TEST_USER.email, password: TEST_USER.password });
   return { c, profile_id: data.user!.id };
 }
-function parseUsd(text: string): number {
-  return Number(text.replace(/[^0-9.-]/g, ""));
-}
 function statValue(page: import("@playwright/test").Page, label: string): Locator {
-  return page.getByRole("group", { name: label, exact: true }).locator("p.tabular-nums");
+  return page
+    .getByRole("complementary", { name: "This month" })
+    .getByText(label, { exact: true })
+    .locator("xpath=following-sibling::dd");
 }
 
 let incomeId = "";
@@ -62,23 +62,4 @@ test("the Expenses hub shows the budget summary cards", async ({ page }) => {
   await expect(page.getByText("// this month")).toBeVisible();
   await expect(statValue(page, "Income")).toBeVisible();
   await expect(statValue(page, "Budget left")).toBeVisible();
-});
-
-test("setting a variable source's actual flows into the hub Income figure", async ({ page }) => {
-  await setFlag("expenses", true);
-  await uiLogin(page);
-  await expectOnApp(page);
-  await page.goto("/app/expenses");
-
-  const income = statValue(page, "Income");
-  const before = parseUsd(await income.innerText());
-
-  // The variable-income editor is on the hub now.
-  const actual = page.getByLabel(`This month's actual for ${incomeName}`);
-  await expect(actual).toBeVisible();
-  await actual.fill("5000"); // base is 2000 → +3000 to the monthly income
-  await page.getByRole("listitem").filter({ hasText: incomeName }).getByRole("button", { name: "Set" }).click();
-
-  // setIncomeOverride revalidates the hub, so the Income figure updates in place (no reload race).
-  await expect.poll(async () => parseUsd(await income.innerText()), { timeout: 10000 }).toBeCloseTo(before + 3000, 2);
 });

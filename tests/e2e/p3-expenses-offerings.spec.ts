@@ -62,9 +62,9 @@ test("redesigned form prefills from a debt; tithe is gone from income; rail rend
   await expect(form.getByLabel("Amount")).toHaveValue("75");
   await form.getByRole("button", { name: "Cancel" }).click();
 
-  // The rail summarizes spending + subscriptions (the seeded Netflix sub counts).
-  const rail = page.getByRole("complementary", { name: "Where your money goes" });
-  await expect(rail).toContainText(/money going toward/i);
+  // The sidebar summarizes this month + subscriptions (the seeded Netflix sub counts).
+  const rail = page.getByRole("complementary", { name: "This month" });
+  await expect(rail).toContainText(/budget left/i);
   await expect(rail).toContainText(/active subscription/i);
 
   // Income is managed on the Expenses hub now (Phase 5C) and the form has no tithe field.

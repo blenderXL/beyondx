@@ -80,13 +80,12 @@ test("checking off a debt-linked expense draws the balance down by principal; un
   await page.goto("/app/expenses");
   await page.getByLabel("Search expenses").fill(linkedExp);
 
-  const box = page.getByRole("checkbox", { name: `Mark ${linkedExp} paid` });
-  await expect(box).not.toBeChecked();
-  await box.check();
+  // The expense card's pay action is a "Pay now" ⇄ "Revert" button now (not a checkbox).
+  await page.getByRole("button", { name: `Pay ${linkedExp}` }).click();
   // $1,000 @ 24% → 20 interest; pay 100 → 80 principal → balance 920 (NOT 900).
   await expect.poll(debtBalance).toBe(920);
 
-  await box.uncheck();
+  await page.getByRole("button", { name: `Revert ${linkedExp}` }).click();
   await expect.poll(debtBalance).toBe(1000);
 });
 
@@ -110,7 +109,7 @@ test("checking off a plain expense records a payment but moves no balance", asyn
   await page.goto("/app/expenses");
   await page.getByLabel("Search expenses").fill(plainExp);
 
-  await page.getByRole("checkbox", { name: `Mark ${plainExp} paid` }).check();
+  await page.getByRole("button", { name: `Pay ${plainExp}` }).click();
   await expect.poll(paidCount).toBe(1);
 });
 

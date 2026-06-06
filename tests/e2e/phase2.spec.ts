@@ -132,7 +132,10 @@ test.describe("Phase 2 — ledger spine behind feature flags", () => {
     await expect(card()).toContainText("$115.00");
     await expect(card()).toContainText("pay day 5th");
 
-    await card().getByRole("button", { name: "Archive" }).click();
+    // Archive lives in the edit modal now (no buttons on the card) — open it, then archive.
+    await card().getByText(name).click();
+    const editDialog = page.getByRole("dialog", { name: "Edit expense" });
+    await editDialog.getByRole("button", { name: "Archive" }).click();
     await expect(card()).toHaveCount(0);
   });
 
