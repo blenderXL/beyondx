@@ -49,9 +49,10 @@ test("search narrows the list to matching expenses", async ({ page }) => {
   await expectOnApp(page);
   await page.goto("/app/expenses");
 
+  const list = page.getByRole("list", { name: "Expenses" });
   await page.getByLabel("Search expenses").fill(expA);
-  await expect(page.getByRole("listitem").filter({ hasText: expA })).toBeVisible();
-  await expect(page.getByRole("listitem").filter({ hasText: expB })).toHaveCount(0);
+  await expect(list.getByRole("listitem").filter({ hasText: expA })).toBeVisible();
+  await expect(list.getByRole("listitem").filter({ hasText: expB })).toHaveCount(0);
 });
 
 test("group filter shows only the chosen group", async ({ page }) => {
@@ -60,9 +61,10 @@ test("group filter shows only the chosen group", async ({ page }) => {
   await expectOnApp(page);
   await page.goto("/app/expenses");
 
+  const list = page.getByRole("list", { name: "Expenses" });
   await page.getByLabel("Filter by group").selectOption("subscription");
-  await expect(page.getByRole("listitem").filter({ hasText: expB })).toBeVisible();
-  await expect(page.getByRole("listitem").filter({ hasText: expA })).toHaveCount(0);
+  await expect(list.getByRole("listitem").filter({ hasText: expB })).toBeVisible();
+  await expect(list.getByRole("listitem").filter({ hasText: expA })).toHaveCount(0);
 });
 
 test("the tracked + listed-total stats live in the right rail", async ({ page }) => {

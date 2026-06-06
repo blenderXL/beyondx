@@ -163,6 +163,17 @@ export default async function ExpensesPage({
       monthly_contribution: Number(g.monthly_contribution),
     }));
 
+  // Per-source monthly income (override-resolved, same math as buildMonthlyPlan) — powers the
+  // offering card's "10% × each source" breakdown so it sums to the offering total.
+  const incomeBreakdown = incomes
+    .map((i) => {
+      const ov = overrides[i.id];
+      const base = i.is_variable && ov != null ? ov : Number(i.amount);
+      const monthly = i.cadence === "one_time" ? base : monthlyAmount(base, i.cadence);
+      return { source: i.source, monthly };
+    })
+    .filter((b) => b.monthly > 0);
+
   // Variable income sources get an inline "set this month's actual" editor on the hub.
   const variableIncomes = incomes
     .filter((i) => i.is_variable)
@@ -189,6 +200,7 @@ export default async function ExpensesPage({
       plan={plan}
       variableIncomes={variableIncomes}
       incomes={incomes}
+      incomeBreakdown={incomeBreakdown}
       months={months}
       currentMonth={billingMonth}
     />
