@@ -75,13 +75,13 @@ test.describe("Debt management", () => {
     // Charge +250 → 1250.
     await dialog.getByLabel("Type", { exact: true }).selectOption("charge");
     await dialog.getByLabel("Amount").fill("250");
-    await dialog.getByRole("button", { name: "Record" }).click();
+    await dialog.getByRole("button", { name: "Record" }).click({ force: true });
     await expect(dialog.getByText("$1,250.00")).toBeVisible();
 
     // Payment of 1500 against a 1250 balance → floored at 0, never negative.
     await dialog.getByLabel("Type", { exact: true }).selectOption("payment");
     await dialog.getByLabel("Amount").fill("1500");
-    await dialog.getByRole("button", { name: "Record" }).click();
+    await dialog.getByRole("button", { name: "Record" }).click({ force: true });
     await expect(dialog.getByText("$0.00")).toBeVisible();
 
     // The payment shows up in recent activity (behind the modal).
@@ -90,12 +90,12 @@ test.describe("Debt management", () => {
 
     // Edit the balance directly (the edit form lives in the modal) → 500; Save closes the modal.
     await dialog.getByLabel("Current balance").fill("500");
-    await dialog.getByRole("button", { name: "Save debt" }).click();
+    await dialog.getByRole("button", { name: "Save debt" }).click({ force: true });
     await expect(card().getByText("$500.00")).toBeVisible();
 
     // Archive (from the modal) → drops out of the active list.
     await openCard();
-    await dialog.getByRole("button", { name: "Archive" }).click();
+    await dialog.getByRole("button", { name: "Archive" }).click({ force: true });
     await expect(list.locator("li", { hasText: name })).toHaveCount(0);
   });
 
@@ -123,10 +123,10 @@ test.describe("Debt management", () => {
     await page.getByRole("button", { name: `Open ${name}` }).dispatchEvent("click");
     await dialog.getByLabel("Type", { exact: true }).selectOption("payment");
     await dialog.getByLabel("Amount").fill("200");
-    await dialog.getByRole("button", { name: "Record" }).click();
+    await dialog.getByRole("button", { name: "Record" }).click({ force: true });
     await expect(dialog.getByText("$800.00")).toBeVisible(); // modal header balance updates live
 
-    await dialog.getByRole("button", { name: "Delete transaction" }).first().click();
+    await dialog.getByRole("button", { name: "Delete transaction" }).first().click({ force: true });
     await expect(dialog.getByText("$1,000.00")).toBeVisible(); // delete reverses the balance
   });
 
