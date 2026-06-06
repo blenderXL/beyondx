@@ -41,7 +41,7 @@ export function AppShell({ userId, enabledFlags, email, displayName, tier, child
   }, [open]);
 
   return (
-    <div className="min-h-dvh bg-[var(--color-canvas)] md:grid md:h-screen md:grid-cols-[15rem_1fr] md:overflow-hidden">
+    <div className="app-shell min-h-dvh bg-[var(--color-canvas)] md:grid md:h-screen md:grid-cols-[15rem_1fr] md:overflow-hidden">
       <IdentifyUser userId={userId} />
 
       {/* Static rail — desktop only */}
