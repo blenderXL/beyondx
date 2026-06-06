@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.8](https://github.com/blenderXL/beyondx/compare/v0.1.7...v0.1.8) (2026-06-06)
+
+
+### Features
+
+* **dashboard:** live dashboard with agenda, payoff stats, shared budget ([#49](https://github.com/blenderXL/beyondx/issues/49)) ([2f03fbd](https://github.com/blenderXL/beyondx/commit/2f03fbdc3aaf66e933b498ebefb1c0e9c7873d2f))
+* **expenses:** group-by view + per-income offerings breakdown ([#51](https://github.com/blenderXL/beyondx/issues/51)) ([c71dce7](https://github.com/blenderXL/beyondx/commit/c71dce727a0fb9ce3b7b1203da509e16f4f0282f))
+* **expenses:** modal editor + click-to-edit amount on cards ([#50](https://github.com/blenderXL/beyondx/issues/50)) ([58e62d6](https://github.com/blenderXL/beyondx/commit/58e62d68d5d8798890bdc01093a36c83f7c878da))
+* **nav:** retire Insights into the Debt payoff planner; reorder nav ([#47](https://github.com/blenderXL/beyondx/issues/47)) ([3263a8e](https://github.com/blenderXL/beyondx/commit/3263a8e4cfa1d29bab483da58fd5aca3925d42a5))
+* **payoff:** rebuild as Strategy &amp; Projections with insights merged in ([#48](https://github.com/blenderXL/beyondx/issues/48)) ([d66d979](https://github.com/blenderXL/beyondx/commit/d66d97928955fc6ebbc66dc0826ae43e09d06a74))
+* **theme:** scope Obsidian Terminal design tokens to the app shell ([#46](https://github.com/blenderXL/beyondx/issues/46)) ([ceba92b](https://github.com/blenderXL/beyondx/commit/ceba92bfe618820052155b7e10eecf1f5feb3e7b))
+
 ## [0.1.7](https://github.com/blenderXL/beyondx/compare/v0.1.6...v0.1.7) (2026-06-05)
 
 
