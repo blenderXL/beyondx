@@ -190,11 +190,10 @@ export async function addTransaction(
 }
 
 const PLANS_PATH = "/app/plans";
-const INSIGHTS_PATH = "/app/insights";
 
 /**
- * Persist the user's chosen payoff strategy on their profile so the Payoff Plan and Insights
- * read the same method. Called directly (not a form) from the method select; an invalid value
+ * Persist the user's chosen payoff strategy on their profile so the Debt payoff planner reads
+ * the same method. Called directly (not a form) from the method select; an invalid value
  * is ignored. A failed write is captured but not surfaced — it's a preference, not data.
  */
 export async function setPayoffMethod(method: PayoffMethod): Promise<void> {
@@ -207,7 +206,6 @@ export async function setPayoffMethod(method: PayoffMethod): Promise<void> {
     return;
   }
   revalidatePath(PLANS_PATH);
-  revalidatePath(INSIGHTS_PATH);
 }
 
 /* ---- Phase 2: income / expenses / savings ----

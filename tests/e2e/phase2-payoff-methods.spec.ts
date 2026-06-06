@@ -65,7 +65,7 @@ test("the payoff-method select offers all six strategies", async ({ page }) => {
   }
 });
 
-test("method drives ordering + persists across reload + Insights curve label", async ({ page }) => {
+test("method drives ordering + persists across reload", async ({ page }) => {
   // The interactive flow relies on the server action persisting payoff_method; pre-migration
   // the write no-ops and the action's refresh snaps the select back to the default. Gate the
   // whole flow on the 0013 column (deploy-dev applies it on merge).
@@ -74,7 +74,6 @@ test("method drives ordering + persists across reload + Insights curve label", a
   test.skip(Boolean(probe.error), "profiles.payoff_method not migrated yet (0013)");
 
   await setFlag("payoffEngine", true);
-  await setFlag("insights", true);
   await uiLogin(page);
   await expectOnApp(page);
   await page.goto("/app/plans");
@@ -91,13 +90,17 @@ test("method drives ordering + persists across reload + Insights curve label", a
   await select.selectOption("highest_balance"); // largest balance first → B (5000) before A (500)
   await expect.poll(async () => (await orderIndex(page, debtB)) < (await orderIndex(page, debtA))).toBe(true);
 
-  // Persisted: snowball survives a reload (no localStorage involved for the method).
+  // Persisted: snowball survives a reload (no localStorage involved for the method). The rapid
+  // selectOption calls above fire overlapping server-action writes that can land out of order;
+  // drain them first, then select snowball as the sole in-flight write and confirm it reaches
+  // the DB before reloading.
+  await page.waitForLoadState("networkidle");
   await select.selectOption("snowball");
   await expect(select).toHaveValue("snowball");
+  await expect
+    .poll(async () => (await c.from("profiles").select("payoff_method").maybeSingle()).data?.payoff_method)
+    .toBe("snowball");
+  await page.waitForLoadState("networkidle");
   await page.reload();
   await expect(page.getByLabel("Method", { exact: true })).toHaveValue("snowball");
-
-  // Insights reflects the same method in its curve label.
-  await page.goto("/app/insights");
-  await expect(page.getByText("// payoff curve (snowball)")).toBeVisible();
 });

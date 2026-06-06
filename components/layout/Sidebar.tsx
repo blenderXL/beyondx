@@ -8,7 +8,6 @@ import {
   Wallet,
   PiggyBank,
   CalendarRange,
-  LineChart,
   Sparkles,
   Settings,
   Lock,
@@ -20,11 +19,11 @@ import type { FlagKey } from "@/lib/flags/registry";
 const NAV = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/app/debts", label: "Debts", icon: CreditCard },
+  // Insights was merged into the Payoff page, renamed, and moved under Debts (it reads debt data).
+  { href: "/app/plans", label: "Debt payoff planner", icon: CalendarRange, flag: "payoffEngine" },
   { href: "/app/savings", label: "Savings", icon: PiggyBank, flag: "savings" },
   // Income + Budget were folded into Expenses (Phase 5); their routes redirect to /app/expenses.
   { href: "/app/expenses", label: "Expenses", icon: Wallet, flag: "expenses" },
-  { href: "/app/plans", label: "Payoff Plan", icon: CalendarRange, flag: "payoffEngine" },
-  { href: "/app/insights", label: "Insights", icon: LineChart, flag: "insights" },
   { href: "/app/assistant", label: "Assistant", icon: Sparkles, proOnly: true },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ] as const satisfies readonly {
