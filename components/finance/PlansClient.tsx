@@ -16,7 +16,7 @@ import {
   type InsightDebt,
 } from "@/lib/finance/insights";
 import { SparkArea, BarList, UtilizationGauge, type BarItem } from "@/components/finance/charts";
-import { setPayoffMethod } from "@/app/(app)/actions";
+import { setPayoffMethod, setPayoffBudget } from "@/app/(app)/actions";
 import { buildAmortizationCsv } from "@/lib/finance/amortizationCsv";
 import { formatUsd, formatPercent } from "@/lib/finance/derive";
 import { inputClass, labelClass, ghostButtonClass } from "@/components/finance/formStyles";
@@ -46,36 +46,40 @@ export function PlansClient({
   debts,
   insightDebts,
   initialMethod,
+  initialBudget,
 }: {
   debts: PayoffDebtInput[];
   /** Same debts shaped for distribution math (carries credit_limit for utilization). */
   insightDebts: InsightDebt[];
   /** The method persisted on the profile (server-resolved; defaults to avalanche). */
   initialMethod: PayoffMethod;
+  /** The budget persisted on the profile; null pre-migration / before the user sets one. */
+  initialBudget: number | null;
 }) {
   const totalMin = useMemo(() => debts.reduce((s, d) => s + d.min_payment, 0), [debts]);
   const totalBalance = useMemo(() => debts.reduce((s, d) => s + d.balance, 0), [debts]);
+  const defaultBudget = Math.max(Math.round(totalMin) + 100, Math.round(totalMin));
   const [method, setMethod] = useState<PayoffMethod>(initialMethod);
-  // Default budget: minimums + 10% of balance-ish, but at least minimums + $100.
-  const [budget, setBudget] = useState<number>(Math.max(Math.round(totalMin) + 100, Math.round(totalMin)));
+  // Method + budget are both persisted on the profile so the Dashboard projects the same
+  // payoff date. Initialize the budget from the profile (no hydration flash); pre-migration
+  // (initialBudget null) fall back to the per-browser localStorage cache.
+  const [budget, setBudget] = useState<number>(initialBudget ?? defaultBudget);
 
-  // The method is persisted on the profile (shared with the planner); only the budget stays
-  // client-only. Read it once AFTER first render so SSR/CSR markup matches (no hydration
-  // flash); the `hydrated` gate stops the save effect from clobbering storage with the
-  // default before the read runs.
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
-    try {
-      const b = localStorage.getItem(BUDGET_KEY);
-      if (b !== null) {
-        const n = Number(b);
-        if (Number.isFinite(n) && n >= 0) setBudget(n);
+    if (initialBudget == null) {
+      try {
+        const b = localStorage.getItem(BUDGET_KEY);
+        if (b !== null) {
+          const n = Number(b);
+          if (Number.isFinite(n) && n >= 0) setBudget(n);
+        }
+      } catch {
+        /* storage unavailable (private mode / disabled) — fall back to defaults */
       }
-    } catch {
-      /* storage unavailable (private mode / disabled) — fall back to defaults */
     }
     setHydrated(true);
-  }, []);
+  }, [initialBudget]);
   useEffect(() => {
     if (!hydrated) return;
     try {
@@ -280,6 +284,7 @@ export function PlansClient({
                 step={50}
                 value={budget}
                 onChange={(e) => setBudget(Number(e.target.value) || 0)}
+                onBlur={() => void setPayoffBudget(budget)}
                 className={inputClass}
               />
               <span className="mt-1 block font-mono text-[10px] text-[var(--color-text-muted)]">

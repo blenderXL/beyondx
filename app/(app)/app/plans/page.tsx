@@ -20,16 +20,12 @@ export default async function PlansPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Pre-migration-safe: `payoff_method` only exists on nzx-dev/prod after 0013 lands
-  // (deploy-dev on merge). Reading it before then errors → fall back to the default.
-  const { data: profile, error: profileErr } = await supabase
-    .from("profiles")
-    .select("payoff_method")
-    .eq("id", user.id)
-    .maybeSingle();
-  const initialMethod = resolvePayoffMethod(
-    profileErr ? null : (profile as { payoff_method?: unknown } | null)?.payoff_method,
-  );
+  // Pre-migration-safe: select("*") never errors on a not-yet-added column (payoff_method 0013,
+  // payoff_budget 0016), so the planner degrades to defaults until deploy-dev applies them.
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+  const prof = profile as { payoff_method?: unknown; payoff_budget?: number | null } | null;
+  const initialMethod = resolvePayoffMethod(prof?.payoff_method);
+  const initialBudget = prof?.payoff_budget == null ? null : Number(prof.payoff_budget);
 
   const { data } = await supabase
     .from("debts")
@@ -60,5 +56,12 @@ export default async function PlansPage() {
     credit_limit: d.credit_limit === null ? null : Number(d.credit_limit),
   }));
 
-  return <PlansClient debts={debts} insightDebts={insightDebts} initialMethod={initialMethod} />;
+  return (
+    <PlansClient
+      debts={debts}
+      insightDebts={insightDebts}
+      initialMethod={initialMethod}
+      initialBudget={initialBudget}
+    />
+  );
 }
