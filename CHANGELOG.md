@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.10](https://github.com/blenderXL/beyondx/compare/v0.1.9...v0.1.10) (2026-06-06)
+
+
+### Features
+
+* **debts:** polish the debts page to the stitch reference ([#61](https://github.com/blenderXL/beyondx/issues/61)) ([bb27bf5](https://github.com/blenderXL/beyondx/commit/bb27bf5494904dfa1cf0e9373650dd83b32b0fa8))
+* **expenses:** match the stitch expense layout — compact cards, sharp toolbar, income rail ([#60](https://github.com/blenderXL/beyondx/issues/60)) ([10d2453](https://github.com/blenderXL/beyondx/commit/10d2453350193751290171fe76a3b78aedf0e701))
+* **payoff:** give the payoff chart depth + clean labels, compact strategy box ([#62](https://github.com/blenderXL/beyondx/issues/62)) ([9a037c9](https://github.com/blenderXL/beyondx/commit/9a037c9796c83504cb24684ffd9982dae4ed5e47))
+
+
+### Bug Fixes
+
+* **payoff:** stretch the payoff chart to fill the card width ([#58](https://github.com/blenderXL/beyondx/issues/58)) ([3a5619d](https://github.com/blenderXL/beyondx/commit/3a5619d5e7209d8f1f611da21b356f34eeb872d2))
+
 ## [0.1.9](https://github.com/blenderXL/beyondx/compare/v0.1.8...v0.1.9) (2026-06-06)
 
 
