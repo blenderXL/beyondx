@@ -40,6 +40,111 @@ export function SparkArea({
   );
 }
 
+function compactUsdShort(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${Math.round(n / 1_000)}k`;
+  return `$${Math.round(n)}`;
+}
+
+/**
+ * Payoff projection: the chosen strategy's balance curve over time, overlaid with the
+ * minimums-only baseline for comparison. Labeled X (years) and Y ($ balance) axes. Plain SVG.
+ */
+export function PayoffChart({
+  strategy,
+  baseline,
+  strategyLabel,
+}: {
+  strategy: number[];
+  baseline: number[];
+  strategyLabel: string;
+}) {
+  const n = Math.max(strategy.length, baseline.length);
+  if (n < 2) {
+    return <p className="font-mono text-[11px] text-[var(--color-text-muted)]">// not enough data to chart yet</p>;
+  }
+  const W = 340;
+  const H = 184;
+  const ml = 46;
+  const mb = 24;
+  const mt = 10;
+  const mr = 8;
+  const pw = W - ml - mr;
+  const ph = H - mt - mb;
+  const max = Math.max(1, ...strategy, ...baseline);
+  const x = (i: number) => ml + (i / (n - 1)) * pw;
+  const y = (v: number) => mt + ph - (v / max) * ph;
+  const toPath = (vals: number[]) => "M" + vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" L");
+  const yTicks = [0, max / 2, max];
+  const xTicks: number[] = [];
+  for (let i = 0; i < n; i += 12) xTicks.push(i);
+  if (xTicks[xTicks.length - 1] !== n - 1) xTicks.push(n - 1);
+  const now = new Date();
+  const yearLabel = (i: number) =>
+    i === 0 ? "Now" : String(new Date(now.getFullYear(), now.getMonth() + i, 1).getFullYear());
+  const tickText = { fontSize: 9, fontFamily: "var(--font-mono)", fill: "var(--color-text-muted)" } as const;
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-[184px] w-full" role="img" aria-label="Payoff curve vs. minimums only">
+        {yTicks.map((t, i) => (
+          <g key={i}>
+            <line
+              x1={ml}
+              y1={y(t)}
+              x2={W - mr}
+              y2={y(t)}
+              stroke="var(--color-border-subtle)"
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
+            <text x={ml - 6} y={y(t) + 3} textAnchor="end" style={tickText}>
+              {compactUsdShort(t)}
+            </text>
+          </g>
+        ))}
+        {xTicks.map((i) => (
+          <text key={i} x={x(i)} y={H - 8} textAnchor="middle" style={tickText}>
+            {yearLabel(i)}
+          </text>
+        ))}
+        {/* Baseline: minimums-only, muted + dashed. */}
+        <path
+          d={toPath(baseline)}
+          fill="none"
+          stroke="var(--color-text-muted)"
+          strokeWidth={1.25}
+          strokeDasharray="3 3"
+          vectorEffect="non-scaling-stroke"
+        />
+        {/* Strategy: emerald area + line. */}
+        <path
+          d={`${toPath(strategy)} L${x(strategy.length - 1).toFixed(1)},${y(0)} L${x(0)},${y(0)} Z`}
+          fill="var(--color-accent-emerald)"
+          opacity={0.12}
+        />
+        <path
+          d={toPath(strategy)}
+          fill="none"
+          stroke="var(--color-accent-emerald)"
+          strokeWidth={1.75}
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      <div className="mt-2 flex items-center gap-4 font-mono text-[10px] text-[var(--color-text-muted)]">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-0.5 w-3" style={{ background: "var(--color-accent-emerald)" }} aria-hidden />
+          {strategyLabel}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-0 w-3 border-t border-dashed border-[var(--color-text-muted)]" aria-hidden />
+          minimums only
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export interface BarItem {
   label: string;
   amount: number;

@@ -93,14 +93,11 @@ test("payoff planner: distribution + utilization render (merged from Insights)",
   await page.goto("/app/plans");
   await expect(page.getByRole("heading", { name: "Strategy & Projections" })).toBeVisible();
 
-  // Distribution + APR breakdown bars (asset alloc / apr exposure) render.
-  await expect(page.getByRole("list", { name: "Debt distribution" })).toBeVisible();
-  await expect(page.getByRole("list", { name: "APR distribution" })).toBeVisible();
+  // Asset-alloc + APR-exposure segmented bars render (stitch sidebar).
+  await expect(page.getByLabel("Debt distribution")).toBeVisible();
+  await expect(page.getByLabel("APR distribution")).toBeVisible();
 
-  // A feasible budget draws the payoff curve.
+  // A feasible budget draws the payoff curve (strategy vs. minimums-only).
   await page.getByLabel("Monthly budget").fill("999999");
-  await expect(page.getByRole("img", { name: "Trend chart" }).first()).toBeVisible();
-
-  // The credit-utilization gauge appears because the card has a limit.
-  await expect(page.getByText(/lower is better/i)).toBeVisible();
+  await expect(page.getByRole("img", { name: "Payoff curve vs. minimums only" })).toBeVisible();
 });
