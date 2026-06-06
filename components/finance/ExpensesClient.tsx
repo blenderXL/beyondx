@@ -1,8 +1,10 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import { StatCard } from "@/components/layout/StatCard";
+import { Modal } from "@/components/ui/Modal";
 import {
   createExpense,
   updateExpense,
@@ -433,6 +435,17 @@ export function ExpensesClient({
 }) {
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const toList = useCallback(() => setMode({ kind: "list" }), []);
+
+  // The dashboard's quick-add FAB links here with ?new=1 — open the create modal once, then
+  // strip the param so a refresh doesn't reopen it.
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      setMode({ kind: "create" });
+      router.replace("/app/expenses");
+    }
+  }, [searchParams, router]);
   const total = expenses.reduce((sum, e) => sum + expenseDisplayAmount(e, income), 0);
   const paid = useMemo(() => new Set(paidExpenseIds), [paidExpenseIds]);
   const paidDebt = useMemo(() => new Set(paidDebtIds), [paidDebtIds]);
@@ -465,24 +478,27 @@ export function ExpensesClient({
             Your expenses
           </h1>
         </div>
-        {mode.kind === "list" ? (
-          <div className="flex items-end gap-2">
-            <MonthSwitcher months={months} selected={currentMonth} currentMonth={currentMonth} />
-            {expenses.length > 0 ? <PayAllButton billingMonth={billingMonth} allPaid={allPaid} /> : null}
-            <button onClick={() => setMode({ kind: "create" })} className={primaryButtonClass}>
-              New expense
-            </button>
-          </div>
-        ) : null}
+        <div className="flex items-end gap-2">
+          <MonthSwitcher months={months} selected={currentMonth} currentMonth={currentMonth} />
+          {expenses.length > 0 ? <PayAllButton billingMonth={billingMonth} allPaid={allPaid} /> : null}
+          <button onClick={() => setMode({ kind: "create" })} className={primaryButtonClass}>
+            New expense
+          </button>
+        </div>
       </header>
 
-      {mode.kind === "create" ? <ExpenseForm debts={debts} onDone={toList} onCancel={toList} /> : null}
-      {mode.kind === "edit" ? (
-        <ExpenseForm expense={mode.expense} debts={debts} onDone={toList} onCancel={toList} />
-      ) : null}
+      <Modal
+        open={mode.kind !== "list"}
+        onClose={toList}
+        label={mode.kind === "edit" ? "Edit expense" : "New expense"}
+      >
+        {mode.kind === "create" ? <ExpenseForm debts={debts} onDone={toList} onCancel={toList} /> : null}
+        {mode.kind === "edit" ? (
+          <ExpenseForm expense={mode.expense} debts={debts} onDone={toList} onCancel={toList} />
+        ) : null}
+      </Modal>
 
-      {mode.kind === "list" ? (
-        <>
+      <>
           <BudgetSummary plan={plan} />
           <section className="mb-8">
             <IncomeClient incomes={incomes} embedded />
@@ -568,7 +584,6 @@ export function ExpensesClient({
               </>
             )}
           </>
-      ) : null}
     </div>
   );
 }
@@ -696,10 +711,19 @@ function PayAllButton({ billingMonth, allPaid }: { billingMonth: string; allPaid
   );
 }
 
+/** Day-of-month with an ordinal suffix: 1 → "1st", 22 → "22nd". */
+function ordinal(day: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = day % 100;
+  return `${day}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
+}
+
 /**
- * Expense card with inline quick-edit of amount + pay day (no full-form round trip). The
- * unchanged fields ride along as hidden inputs so the server validator gets a complete
- * expense; a percent offering keeps its % display and only its pay day is editable.
+ * Expense card. Click the dollar amount to quick-edit it in place (the unchanged fields ride
+ * along as hidden inputs so the server validator gets a complete expense). Click anywhere else
+ * on the card to open the full editor modal. A percent offering shows its % (edit it in the
+ * modal). The checkbox, inline editor, and footer buttons stop propagation so they don't open
+ * the modal.
  */
 function ExpenseCard({
   expense,
@@ -714,102 +738,114 @@ function ExpenseCard({
 }) {
   const isPercentOffering = expense.expense_group === "offering" && expense.pct_of_income != null;
   const [state, formAction, pending] = useActionState(updateExpense, INITIAL_FINANCE_STATE);
-  const [dirty, setDirty] = useState(false);
+  const [editingAmount, setEditingAmount] = useState(false);
   useEffect(() => {
-    if (state.ok) setDirty(false);
+    if (state.ok) setEditingAmount(false);
   }, [state.ok]);
 
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+
   return (
-    <li className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <CheckOff expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} />
-          <div className="min-w-0">
-            <p
-              className={`font-sans text-sm font-medium break-words ${
+    <li>
+      <div
+        onClick={onEdit}
+        className="group cursor-pointer rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 transition-colors hover:border-[var(--color-border-strong)]"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <span onClick={stop}>
+              <CheckOff expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} />
+            </span>
+            <div className="min-w-0">
+              <p
+                className={`font-sans text-sm font-medium break-words ${
+                  paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+                }`}
+              >
+                {expense.category}
+              </p>
+              <p className="mt-0.5 font-mono text-[10px] tracking-[0.16em] break-words text-[var(--color-text-muted)] uppercase">
+                {expense.expense_group ? EXPENSE_GROUP_LABELS[expense.expense_group] : "Ungrouped"}
+                {expense.payee ? ` · ${expense.payee}` : ""}
+                {expense.debt_id ? " · linked" : ""}
+              </p>
+            </div>
+          </div>
+          {isPercentOffering ? (
+            <p className="shrink-0 font-sans text-lg font-medium text-[var(--color-text-primary)] tabular-nums">
+              {expense.pct_of_income}% of income
+            </p>
+          ) : !editingAmount ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                stop(e);
+                setEditingAmount(true);
+              }}
+              aria-label={`Edit amount for ${expense.category}`}
+              className={`shrink-0 font-sans text-lg font-medium tabular-nums transition-colors hover:text-[var(--color-accent-emerald)] ${
                 paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
               }`}
             >
-              {expense.category}
-            </p>
-            <p className="mt-0.5 font-mono text-[10px] tracking-[0.16em] break-words text-[var(--color-text-muted)] uppercase">
-              {expense.expense_group ? EXPENSE_GROUP_LABELS[expense.expense_group] : "Ungrouped"}
-              {expense.payee ? ` · ${expense.payee}` : ""}
-              {expense.debt_id ? " · linked" : ""}
-            </p>
-          </div>
+              {formatUsd(Number(expense.amount))}
+            </button>
+          ) : null}
         </div>
-        {isPercentOffering ? (
-          <p className="shrink-0 font-sans text-lg font-medium text-[var(--color-text-primary)] tabular-nums">
-            {expense.pct_of_income}% of income
+
+        {editingAmount && !isPercentOffering ? (
+          <form action={formAction} onClick={stop} className="mt-3 flex items-end gap-2">
+            <input type="hidden" name="id" value={expense.id} />
+            <input type="hidden" name="category" value={expense.category} />
+            <input type="hidden" name="expense_group" value={expense.expense_group ?? ""} />
+            <input type="hidden" name="payee" value={expense.payee ?? ""} />
+            <input type="hidden" name="cadence" value={expense.cadence} />
+            <input type="hidden" name="debt_id" value={expense.debt_id ?? ""} />
+            <input type="hidden" name="due_day" value={expense.due_day ?? ""} />
+            <label className="flex-1">
+              <span className={inlineLabelClass}>Amount $</span>
+              <input
+                name="amount"
+                inputMode="decimal"
+                autoFocus
+                defaultValue={String(expense.amount)}
+                aria-label={`Amount for ${expense.category}`}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setEditingAmount(false);
+                }}
+                className={inlineFieldClass}
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={pending}
+              className="flex h-9 shrink-0 items-center rounded-md bg-[var(--color-text-primary)] px-3 font-mono text-[10px] tracking-[0.18em] text-[var(--color-canvas)] uppercase transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              {pending ? "…" : "Save"}
+            </button>
+            <button type="button" onClick={() => setEditingAmount(false)} className={ghostButtonClass}>
+              Cancel
+            </button>
+          </form>
+        ) : null}
+
+        <p className="mt-2 font-mono text-[11px] text-[var(--color-text-secondary)]">
+          {EXPENSE_CADENCE_LABELS[expense.cadence]}
+          {expense.due_day ? ` · ${paid ? "paid" : "pay day"} ${ordinal(expense.due_day)}` : ""}
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2" onClick={stop}>
+          <button onClick={onEdit} className={ghostButtonClass}>
+            Edit
+          </button>
+          <ArchiveButton id={expense.id} name={expense.category} />
+        </div>
+
+        {state.error ? (
+          <p role="alert" className={`mt-2 ${errorClass}`}>
+            // {state.error}
           </p>
         ) : null}
       </div>
-
-      <form action={formAction} className="mt-3 flex items-end gap-2">
-        <input type="hidden" name="id" value={expense.id} />
-        <input type="hidden" name="category" value={expense.category} />
-        <input type="hidden" name="expense_group" value={expense.expense_group ?? ""} />
-        <input type="hidden" name="payee" value={expense.payee ?? ""} />
-        <input type="hidden" name="cadence" value={expense.cadence} />
-        <input type="hidden" name="debt_id" value={expense.debt_id ?? ""} />
-        {isPercentOffering ? (
-          <>
-            <input type="hidden" name="pct_of_income" value={String(expense.pct_of_income)} />
-            <input type="hidden" name="amount" value="0" />
-          </>
-        ) : (
-          <label className="flex-1">
-            <span className={inlineLabelClass}>Amount $</span>
-            <input
-              name="amount"
-              inputMode="decimal"
-              defaultValue={String(expense.amount)}
-              aria-label={`Amount for ${expense.category}`}
-              onChange={() => setDirty(true)}
-              className={inlineFieldClass}
-            />
-          </label>
-        )}
-        <label className="w-20">
-          <span className={inlineLabelClass}>Pay day</span>
-          <input
-            name="due_day"
-            type="number"
-            min={1}
-            max={31}
-            step={1}
-            defaultValue={expense.due_day ?? ""}
-            aria-label={`Pay day for ${expense.category}`}
-            onChange={() => setDirty(true)}
-            className={inlineFieldClass}
-          />
-        </label>
-        <button
-          type="submit"
-          disabled={!dirty || pending}
-          className="flex h-9 shrink-0 items-center rounded-md bg-[var(--color-text-primary)] px-3 font-mono text-[10px] tracking-[0.18em] text-[var(--color-canvas)] uppercase transition-opacity hover:opacity-90 disabled:opacity-40"
-        >
-          {pending ? "…" : "Save"}
-        </button>
-      </form>
-
-      <p className="mt-2 font-mono text-[11px] text-[var(--color-text-secondary)]">
-        {EXPENSE_CADENCE_LABELS[expense.cadence]}
-      </p>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button onClick={onEdit} className={ghostButtonClass}>
-          Edit
-        </button>
-        <ArchiveButton id={expense.id} name={expense.category} />
-      </div>
-
-      {state.error ? (
-        <p role="alert" className={`mt-2 ${errorClass}`}>
-          // {state.error}
-        </p>
-      ) : null}
     </li>
   );
 }

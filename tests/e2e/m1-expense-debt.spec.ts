@@ -73,15 +73,17 @@ test("expense form: expanded groups, Pay day label, and field info-icons", async
   await expect(page).toHaveURL(/\/app(\/|$)/);
   await page.goto("/app/expenses");
   await page.getByRole("button", { name: "New expense" }).click();
+  // The editor opens in a modal; scope to it (the list + group filter stay mounted behind).
+  const form = page.getByRole("dialog", { name: "New expense" });
 
   // Expanded groups include Credit card.
-  await expect(page.getByRole("option", { name: "Credit card" })).toHaveCount(1);
+  await expect(form.getByRole("option", { name: "Credit card" })).toHaveCount(1);
   // "Pay day" replaced "Due day".
-  await expect(page.getByText("Pay day (1–31)")).toBeVisible();
-  await expect(page.getByText("Due day (1–31)")).toHaveCount(0);
+  await expect(form.getByText("Pay day (1–31)")).toBeVisible();
+  await expect(form.getByText("Due day (1–31)")).toHaveCount(0);
 
   // Info-icon reveals a tooltip on focus.
-  await page.getByRole("button", { name: "More information" }).first().focus();
+  await form.getByRole("button", { name: "More information" }).first().focus();
   await expect(page.getByRole("tooltip").first()).toBeVisible();
 });
 
@@ -126,12 +128,13 @@ test("bridge: paying a linked expense draws down the debt; un-checking restores 
   // pick the debt to prefill, then override the name + amount).
   await page.goto("/app/expenses");
   await page.getByRole("button", { name: "New expense" }).click();
-  await page.getByRole("button", { name: "Pay toward a debt" }).click();
-  await page.getByLabel("Which debt").selectOption({ label: debtName });
-  await page.getByLabel("Name").fill(expName);
-  await page.getByLabel("Amount").fill("200");
-  await page.getByLabel("Pay day (1–31)").fill("10");
-  await page.getByRole("button", { name: "Add expense" }).click();
+  const expForm = page.getByRole("dialog", { name: "New expense" });
+  await expForm.getByRole("button", { name: "Pay toward a debt" }).click();
+  await expForm.getByLabel("Which debt").selectOption({ label: debtName });
+  await expForm.getByLabel("Name").fill(expName);
+  await expForm.getByLabel("Amount").fill("200");
+  await expForm.getByLabel("Pay day (1–31)").fill("10");
+  await expForm.getByRole("button", { name: "Add expense" }).click();
   await expect(page.getByRole("list", { name: "Expenses" }).locator("li", { hasText: expName })).toBeVisible();
 
   // Expenses hub: the linked expense is a checkable card; the debt isn't shown as a separate
@@ -147,7 +150,8 @@ test("bridge: paying a linked expense draws down the debt; un-checking restores 
 
   const checkbox = page.getByRole("checkbox", { name: `Mark ${expName} paid` });
   await checkbox.check();
-  await expect(expCard.locator(".line-through")).toBeVisible();
+  // Paid styles both the name and the amount with line-through; first() avoids strict mode.
+  await expect(expCard.locator(".line-through").first()).toBeVisible();
 
   // The 0%-APR debt's balance drops by the full $200 (principal == payment) → $800.
   await page.goto("/app/debts");
