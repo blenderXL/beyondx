@@ -17,6 +17,7 @@ import { applyTransactionToBalance } from "@/lib/finance/balance";
 import { splitPayment } from "@/lib/finance/payment";
 import { isPayoffMethod, type PayoffMethod } from "@/lib/finance/payoff";
 import { captureError } from "@/lib/telemetry/capture";
+import type { PaystubInputs } from "@/lib/paystub/tax";
 import type { FinanceActionState } from "@/lib/finance/actionState";
 
 /**
@@ -274,6 +275,17 @@ export async function setPayoffBudget(budget: number): Promise<void> {
   }
   revalidatePath(PLANS_PATH);
   revalidatePath("/app");
+}
+
+/** Persist the paycheck-calculator inputs (one row per user) so the form is pre-filled next
+ * visit. Fire-and-forget from the client; the estimate itself is computed client-side. */
+export async function savePaystubInputs(inputs: PaystubInputs): Promise<void> {
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return;
+  const { error } = await supabase
+    .from("paystub_inputs")
+    .upsert({ profile_id: userId, inputs }, { onConflict: "profile_id" });
+  if (error) captureError(error, { action: "savePaystubInputs" });
 }
 
 /* ---- Phase 2: income / expenses / savings ----

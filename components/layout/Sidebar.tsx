@@ -8,6 +8,7 @@ import {
   Wallet,
   PiggyBank,
   CalendarRange,
+  Calculator,
   Sparkles,
   Settings,
   Lock,
@@ -24,6 +25,7 @@ const NAV = [
   { href: "/app/savings", label: "Savings", icon: PiggyBank, flag: "savings" },
   // Income + Budget were folded into Expenses (Phase 5); their routes redirect to /app/expenses.
   { href: "/app/expenses", label: "Expenses", icon: Wallet, flag: "expenses" },
+  { href: "/app/paystub", label: "Paycheck calc", icon: Calculator },
   { href: "/app/assistant", label: "Assistant", icon: Sparkles, proOnly: true },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ] as const satisfies readonly {
