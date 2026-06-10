@@ -60,3 +60,13 @@ export function filterAndSortExpenses(expenses: Expense[], opts: ExpenseViewOpti
   }
   return sorted;
 }
+
+/**
+ * Stable partition: unpaid items first, paid items last, preserving the incoming order within
+ * each partition. Lets the chosen sort hold while settled bills sink to the bottom of any view.
+ */
+export function partitionPaidLast<T extends { id: string }>(items: T[], paid: Set<string>): T[] {
+  const unpaid = items.filter((e) => !paid.has(e.id));
+  const done = items.filter((e) => paid.has(e.id));
+  return [...unpaid, ...done];
+}

@@ -125,10 +125,17 @@ export default async function ExpensesPage({
   });
 
   const subs = expenses.filter((e) => e.expense_group === "subscription");
+  // Planned monthly savings = sum of each goal's recurring monthly_contribution (the money the
+  // user routes into the savings spots they created). Subtracted from the rail's budget-left.
+  const savingsMonthly = savingsRows.reduce(
+    (s, g) => s + (g.monthly_contribution != null ? Number(g.monthly_contribution) : 0),
+    0,
+  );
   const rail: ExpensesRail = {
     byGroup: plan.byGroup,
     subscriptionCount: subs.length,
     subscriptionTotal: subs.reduce((s, e) => s + monthlyAmount(Number(e.amount), e.cadence), 0),
+    savingsMonthly,
   };
 
   const debts: DebtOption[] = debtRows.map((d) => ({

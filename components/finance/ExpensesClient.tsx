@@ -6,6 +6,7 @@ import {
   Search,
   LayoutGrid,
   Layers,
+  List,
   ChevronDown,
   Calendar,
   CreditCard,
@@ -48,7 +49,7 @@ import {
   type DebtType,
   type Income,
 } from "@/lib/finance/types";
-import { filterAndSortExpenses, EXPENSE_SORTS, type ExpenseSort } from "@/lib/finance/expensesView";
+import { filterAndSortExpenses, partitionPaidLast, EXPENSE_SORTS, type ExpenseSort } from "@/lib/finance/expensesView";
 import { splitPayment } from "@/lib/finance/payment";
 import type { MonthlyPlan } from "@/lib/finance/planner";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
@@ -105,6 +106,8 @@ export interface ExpensesRail {
   byGroup: { group: string; amount: number }[];
   subscriptionCount: number;
   subscriptionTotal: number;
+  /** Planned monthly savings = sum of each goal's monthly_contribution. */
+  savingsMonthly: number;
 }
 
 /** Per-source monthly income (override-resolved) — the offering card breaks its % down over these. */
@@ -457,7 +460,7 @@ function ExpenseForm({
 type Mode = { kind: "list" } | { kind: "create" } | { kind: "edit"; id: string };
 
 /** Card grid vs. grouped-by-category (the "group by" view, mirroring the debts page). */
-type ExpenseView = "card" | "category";
+type ExpenseView = "card" | "category" | "list";
 const VIEW_KEY = "nzx.expenses.view";
 
 export function ExpensesClient({
@@ -541,7 +544,7 @@ export function ExpensesClient({
   useEffect(() => {
     try {
       const v = localStorage.getItem(VIEW_KEY);
-      if (v === "card" || v === "category") setView(v);
+      if (v === "card" || v === "category" || v === "list") setView(v);
     } catch {
       /* storage unavailable — use the default */
     }
@@ -565,10 +568,18 @@ export function ExpensesClient({
     [expenses, query, group, sort],
   );
   const grouped = useMemo(() => groupByExpenseGroup(visible, income), [visible, income]);
+  // Settled bills sink to the bottom of every view (sort holds within unpaid/paid partitions).
+  const orderedVisible = useMemo(() => partitionPaidLast(visible, paid), [visible, paid]);
+  const groupedOrdered = useMemo(
+    () => grouped.map((g) => ({ ...g, expenses: partitionPaidLast(g.expenses, paid) })),
+    [grouped, paid],
+  );
   // Resolve the edit target from the live list so archiving it closes the modal.
   const editExpense = mode.kind === "edit" ? (expenses.find((e) => e.id === mode.id) ?? null) : null;
-  // THIS-MONTH budget math (user's formula): budget left = income − expenses − offerings (no debt mins).
-  const budgetLeft = Math.round((plan.income - plan.expenses - plan.offerings) * 100) / 100;
+  // THIS-MONTH budget math (user's formula): budget left = income − expenses − giving − savings
+  // (no debt minimums). Savings = the planned monthly contributions to the user's savings goals.
+  const budgetLeft =
+    Math.round((plan.income - plan.expenses - plan.offerings - rail.savingsMonthly) * 100) / 100;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -645,7 +656,7 @@ export function ExpensesClient({
                     </div>
                   ) : view === "category" ? (
                     <div className="space-y-8">
-                      {grouped.map((g) => (
+                      {groupedOrdered.map((g) => (
                         <section key={g.group} aria-label={g.label}>
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <p className={labelClass}>// {g.label.toLowerCase()}</p>
@@ -668,9 +679,25 @@ export function ExpensesClient({
                         </section>
                       ))}
                     </div>
+                  ) : view === "list" ? (
+                    <ul
+                      aria-label="Expenses"
+                      className="divide-y divide-[var(--color-border-subtle)] overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)]"
+                    >
+                      {orderedVisible.map((expense) => (
+                        <ExpenseRow
+                          key={expense.id}
+                          expense={expense}
+                          paid={paid.has(expense.id)}
+                          billingMonth={billingMonth}
+                          income={income}
+                          onEdit={() => setMode({ kind: "edit", id: expense.id })}
+                        />
+                      ))}
+                    </ul>
                   ) : (
                     <ul aria-label="Expenses" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {visible.map((expense) => (
+                      {orderedVisible.map((expense) => (
                         <ExpenseCard
                           key={expense.id}
                           expense={expense}
@@ -755,15 +782,16 @@ function ExpenseControls({
       <div className="flex h-9 shrink-0 items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-1">
         {(
           [
-            { v: "card" as const, Icon: LayoutGrid, label: "Card" },
-            { v: "category" as const, Icon: Layers, label: "Group" },
+            { v: "card" as const, Icon: LayoutGrid, label: "Card", aria: "Card view" },
+            { v: "list" as const, Icon: List, label: "List", aria: "List view" },
+            { v: "category" as const, Icon: Layers, label: "Group", aria: "Group by category" },
           ]
-        ).map(({ v, Icon, label }) => (
+        ).map(({ v, Icon, label, aria }) => (
           <button
             key={v}
             type="button"
             onClick={() => onView(v)}
-            aria-label={v === "card" ? "Card view" : "Group by category"}
+            aria-label={aria}
             aria-pressed={view === v}
             className={`flex items-center gap-2 rounded px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition-colors ${
               view === v
@@ -844,13 +872,17 @@ function PayToggle({
   name,
   paid,
   billingMonth,
+  compact = false,
 }: {
   expenseId: string;
   name: string;
   paid: boolean;
   billingMonth: string;
+  /** Auto-width pill for the list row (vs. the full-width card button). */
+  compact?: boolean;
 }) {
   const [, formAction, pending] = useActionState(togglePaid, INITIAL_FINANCE_STATE);
+  const size = compact ? "px-3 py-1.5" : "w-full py-2";
   return (
     <form action={formAction}>
       <input type="hidden" name="kind" value="expense" />
@@ -863,8 +895,8 @@ function PayToggle({
         aria-label={paid ? `Revert ${name}` : `Pay ${name}`}
         className={
           paid
-            ? "flex w-full items-center justify-center gap-2 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-40"
-            : "flex w-full items-center justify-center gap-2 rounded-md border border-[color-mix(in_oklab,var(--color-accent-red),transparent_70%)] bg-[var(--color-elevated)] py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent-red)] transition-colors hover:bg-[color-mix(in_oklab,var(--color-accent-red),transparent_88%)] disabled:opacity-40"
+            ? `flex ${size} items-center justify-center gap-2 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-40`
+            : `flex ${size} items-center justify-center gap-2 rounded-md border border-[color-mix(in_oklab,var(--color-accent-red),transparent_70%)] bg-[var(--color-elevated)] font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent-red)] transition-colors hover:bg-[color-mix(in_oklab,var(--color-accent-red),transparent_88%)] disabled:opacity-40`
         }
       >
         {pending ? (
@@ -1186,6 +1218,77 @@ function ExpenseCard({
 }
 
 /**
+ * Compact list-view row for an expense (mirrors the debts list). The row body opens the editor;
+ * the Pay/Revert pill lives outside that button so it isn't a nested interactive element.
+ */
+function ExpenseRow({
+  expense,
+  paid,
+  billingMonth,
+  income,
+  onEdit,
+}: {
+  expense: Expense;
+  paid: boolean;
+  billingMonth: string;
+  income: number;
+  onEdit: () => void;
+}) {
+  const accent = paid ? "--color-accent-emerald" : groupAccent(expense.expense_group);
+  const Icon = groupIcon(expense.expense_group);
+  return (
+    <li className="relative flex items-center gap-3 pl-5 pr-4">
+      <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`Edit ${expense.category}`}
+        className="flex min-w-0 flex-1 items-center gap-3 py-3 text-left"
+      >
+        <span
+          aria-hidden
+          className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-elevated)]"
+          style={{ color: `var(${accent})` }}
+        >
+          <Icon className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span
+              className={`truncate font-sans text-sm font-medium ${
+                paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+              }`}
+            >
+              {expense.category}
+            </span>
+            {paid ? (
+              <span className="shrink-0 rounded bg-[color-mix(in_oklab,var(--color-accent-emerald),transparent_85%)] px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--color-accent-emerald)]">
+                Paid
+              </span>
+            ) : null}
+          </span>
+          <span className="mt-0.5 block truncate font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
+            {expense.expense_group ? EXPENSE_GROUP_LABELS[expense.expense_group] : "Ungrouped"}
+            {expense.due_day ? ` · ${paid ? "paid" : "pay day"} ${ordinal(expense.due_day)}` : ""}
+            {expense.debt_id || expense.savings_goal_id ? " · linked" : ""}
+          </span>
+        </span>
+        <span
+          className={`shrink-0 font-sans text-base font-medium tabular-nums ${
+            paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+          }`}
+        >
+          {formatUsd(expenseDisplayAmount(expense, income))}
+        </span>
+      </button>
+      <span onClick={(e) => e.stopPropagation()} className="shrink-0">
+        <PayToggle expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} compact />
+      </span>
+    </li>
+  );
+}
+
+/**
  * A recurring debt obligation as a checkable bill. The payment defaults to the minimum and is
  * editable for the month; checking off records the payment and draws the balance down by the
  * principal portion (shown live as you edit the amount).
@@ -1357,8 +1460,12 @@ function ExpensesRail({
             <dd className="tabular-nums text-[var(--color-accent-red)]">−{formatUsd(plan.expenses)}</dd>
           </div>
           <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-2.5">
-            <dt className="text-[var(--color-text-secondary)]">Offerings / giving</dt>
+            <dt className="text-[var(--color-text-secondary)]">Giving</dt>
             <dd className="tabular-nums text-[var(--color-accent-purple)]">−{formatUsd(plan.offerings)}</dd>
+          </div>
+          <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-2.5">
+            <dt className="text-[var(--color-text-secondary)]">Savings</dt>
+            <dd className="tabular-nums text-[var(--color-accent-blue)]">−{formatUsd(rail.savingsMonthly)}</dd>
           </div>
           <div className="flex items-center justify-between pt-1">
             <dt className="font-sans text-sm font-medium text-[var(--color-text-primary)]">Budget left</dt>
@@ -1373,6 +1480,7 @@ function ExpensesRail({
         <div className="mt-3 flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
           <div className="h-full bg-[var(--color-accent-red)]" style={{ width: `${pctOf(plan.expenses)}%` }} />
           <div className="h-full bg-[var(--color-accent-purple)]" style={{ width: `${pctOf(plan.offerings)}%` }} />
+          <div className="h-full bg-[var(--color-accent-blue)]" style={{ width: `${pctOf(rail.savingsMonthly)}%` }} />
           <div className="h-full bg-[var(--color-accent-emerald)]" style={{ width: `${pctOf(Math.max(0, budgetLeft))}%` }} />
         </div>
 
