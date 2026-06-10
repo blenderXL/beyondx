@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { filterAndSortExpenses, EXPENSE_SORTS, type ExpenseViewOptions } from "@/lib/finance/expensesView";
+import {
+  filterAndSortExpenses,
+  partitionPaidLast,
+  EXPENSE_SORTS,
+  type ExpenseViewOptions,
+} from "@/lib/finance/expensesView";
 import type { Expense } from "@/lib/finance/types";
 
 const exp = (over: Partial<Expense> & { category: string }): Expense => ({
@@ -80,5 +85,22 @@ describe("filterAndSortExpenses", () => {
   it("exposes a labeled sort list", () => {
     expect(EXPENSE_SORTS.map((s) => s.value)).toContain("amount_desc");
     expect(EXPENSE_SORTS.every((s) => typeof s.label === "string")).toBe(true);
+  });
+});
+
+describe("partitionPaidLast", () => {
+  it("moves paid items to the end, preserving order within each partition", () => {
+    const paid = new Set([internet.id, claude.id]);
+    expect(partitionPaidLast([internet, water, claude], paid).map((e) => e.category)).toEqual([
+      "Water",
+      "Internet",
+      "Claude",
+    ]);
+  });
+
+  it("is a no-op when nothing is paid, and doesn't mutate the input", () => {
+    const input = [internet, water];
+    expect(partitionPaidLast(input, new Set()).map((e) => e.category)).toEqual(["Internet", "Water"]);
+    expect(input.map((e) => e.category)).toEqual(["Internet", "Water"]);
   });
 });

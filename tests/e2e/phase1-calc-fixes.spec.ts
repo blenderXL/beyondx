@@ -106,8 +106,8 @@ test("a percent offering is reflected in the expenses listed total", async ({ pa
   const income = parseUsd(await statValue(page, "Income").innerText());
   expect(income).toBeGreaterThan(0);
 
-  // The offering's resolved $ now shows in the sidebar's "Offerings / giving" row.
-  const listed = statValue(page, "Offerings / giving");
+  // The offering's resolved $ now shows in the sidebar's "Giving" row.
+  const listed = statValue(page, "Giving");
   const before = parseUsd(await listed.innerText());
 
   // A 10%-of-income offering stores amount=0; the offerings total must still grow by 10% of income.
