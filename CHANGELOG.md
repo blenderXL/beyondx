@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.11](https://github.com/blenderXL/beyondx/compare/v0.1.10...v0.1.11) (2026-06-10)
+
+
+### Features
+
+* **dashboard:** surface the This-month stats above the agenda + assistant insight ([#66](https://github.com/blenderXL/beyondx/issues/66)) ([c17e091](https://github.com/blenderXL/beyondx/commit/c17e0916c9571614e70c0fe1bdd7189325335692))
+* **debts:** paid-off debts sink to bottom, clearer two-way transactions, card trend ([#64](https://github.com/blenderXL/beyondx/issues/64)) ([aa25ccf](https://github.com/blenderXL/beyondx/commit/aa25ccf39f71cd9a599184c753bcadfcbda92b61))
+* **expenses:** list view, settled bills sink to the bottom, savings budget line ([#63](https://github.com/blenderXL/beyondx/issues/63)) ([946c9ae](https://github.com/blenderXL/beyondx/commit/946c9ae39809d2411b3967a517f2a61afd38c6c8))
+* **paystub:** add a paycheck / take-home calculator page ([#67](https://github.com/blenderXL/beyondx/issues/67)) ([6abe9c2](https://github.com/blenderXL/beyondx/commit/6abe9c245f87644ea3a5197d69bd145f7170a2e7))
+* **savings:** restyle pot cards to match the debt/expense card look ([#65](https://github.com/blenderXL/beyondx/issues/65)) ([229b759](https://github.com/blenderXL/beyondx/commit/229b75964cede5ce0ac3bf1396f7a065aed8c098))
+
 ## [0.1.10](https://github.com/blenderXL/beyondx/compare/v0.1.9...v0.1.10) (2026-06-06)
 
 
