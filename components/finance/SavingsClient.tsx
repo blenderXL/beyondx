@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useState } from "react";
+import { PiggyBank } from "lucide-react";
 import { StatCard } from "@/components/layout/StatCard";
 import { createSavingsGoal, updateSavingsGoal, archiveSavingsGoal, addContribution } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
@@ -221,24 +222,37 @@ export function SavingsClient({
                 return (
                   <li
                     key={goal.id}
-                    className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5"
+                    className="relative overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6"
                   >
+                    <span
+                      aria-hidden
+                      className="absolute left-0 top-0 h-full w-1"
+                      style={{ background: "var(--color-accent-emerald)" }}
+                    />
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-sans text-base font-medium text-[var(--color-text-primary)]">{goal.name}</p>
-                        <span className="mt-1 inline-block rounded-full border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-2 py-0.5 font-mono text-[10px] tracking-[0.14em] text-[var(--color-text-muted)] uppercase">
-                          {SAVINGS_TYPE_LABELS[goal.type ?? "general"]}
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span
+                          aria-hidden
+                          className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-elevated)] text-[var(--color-accent-emerald)]"
+                        >
+                          <PiggyBank className="size-[18px]" />
                         </span>
+                        <div className="min-w-0">
+                          <p className="truncate font-sans text-base font-medium text-[var(--color-text-primary)]">
+                            {goal.name}
+                          </p>
+                          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
+                            {SAVINGS_TYPE_LABELS[goal.type ?? "general"]}
+                          </p>
+                        </div>
                       </div>
-                      <p className="font-sans text-2xl font-medium text-[var(--color-text-primary)] tabular-nums">
-                        {formatUsd(Number(goal.current_amount))}
+                      <p className="flex shrink-0 items-baseline gap-1 font-sans tabular-nums">
+                        <span className="text-sm text-[var(--color-text-muted)]">$</span>
+                        <span className="text-2xl font-medium text-[var(--color-text-primary)]">
+                          {formatUsd(Number(goal.current_amount)).replace(/^\$/, "")}
+                        </span>
                       </p>
                     </div>
-                    {goal.target_amount !== null ? (
-                      <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
-                        target {formatUsd(Number(goal.target_amount))}
-                      </p>
-                    ) : null}
                     {progress !== null ? (
                       <div className="mt-4">
                         <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
@@ -247,10 +261,15 @@ export function SavingsClient({
                             style={{ width: `${Math.round(progress * 100)}%`, background: "var(--color-accent-emerald)" }}
                           />
                         </div>
-                        <p className="mt-1 font-mono text-[10px] text-[var(--color-text-muted)]">
-                          {Math.round(progress * 100)}% of target
+                        <p className="mt-1 flex items-center justify-between font-mono text-[10px] text-[var(--color-text-muted)]">
+                          <span>{Math.round(progress * 100)}% of target</span>
+                          <span className="tabular-nums">{formatUsd(Number(goal.target_amount))}</span>
                         </p>
                       </div>
+                    ) : goal.target_amount !== null ? (
+                      <p className="mt-3 font-mono text-[11px] text-[var(--color-text-muted)]">
+                        target {formatUsd(Number(goal.target_amount))}
+                      </p>
                     ) : null}
                     <div className="mt-5 flex flex-wrap items-center gap-2">
                       <button onClick={() => setMode({ kind: "contribute", goal })} className={primaryButtonClass}>
