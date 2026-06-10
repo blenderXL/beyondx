@@ -94,6 +94,43 @@ export function DashboardClient(props: Props) {
         />
       </div>
 
+      {/* This month: targets + quick stats — surfaced above the agenda + assistant insight. */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        <section className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6 lg:col-span-6">
+          <h3 className="mb-6 font-sans text-base font-medium text-[var(--color-text-primary)]">This month</h3>
+          <div className="space-y-6">
+            <TargetBar label="Budget committed" current={props.outflow} total={income} pct={committedPct} accent="--color-accent-emerald" />
+            <TargetBar label="Subscriptions" current={props.subscriptionTotal} total={income} pct={subsPct} accent="--color-accent-pink" />
+          </div>
+        </section>
+
+        <div className="grid grid-cols-2 gap-4 lg:col-span-6">
+          <div className="flex flex-col justify-center rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6">
+            <p className={labelMono}>Available this month</p>
+            <p
+              className="mt-2 font-sans text-2xl font-medium tabular-nums"
+              style={{ color: props.leftover < 0 ? "var(--color-accent-red)" : "var(--color-text-primary)" }}
+            >
+              {formatUsd(props.leftover)}
+            </p>
+            <p className="mt-1 font-mono text-[10px] text-[var(--color-text-muted)]">income − outflow</p>
+          </div>
+          <div className="flex flex-col justify-center rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6">
+            <p className={labelMono}>Est. next inflow</p>
+            <p className="mt-2 font-sans text-2xl font-medium tabular-nums text-[var(--color-text-primary)]">
+              {props.nextInflow ? formatUsd(props.nextInflow.amount) : "—"}
+            </p>
+            <p className="mt-1 font-mono text-[10px] text-[var(--color-text-muted)]">
+              {props.nextInflow
+                ? props.nextInflow.inDays === 0
+                  ? "today"
+                  : `in ${props.nextInflow.inDays} day${props.nextInflow.inDays === 1 ? "" : "s"}`
+                : "add an income source"}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Agenda + AI insight */}
       <div className="grid gap-6 lg:grid-cols-12">
         <section className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6 lg:col-span-8">
@@ -142,43 +179,6 @@ export function DashboardClient(props: Props) {
             // pro · coming in v1.2
           </p>
         </section>
-      </div>
-
-      {/* Targets + quick stats */}
-      <div className="grid gap-6 lg:grid-cols-12">
-        <section className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6 lg:col-span-6">
-          <h3 className="mb-6 font-sans text-base font-medium text-[var(--color-text-primary)]">This month</h3>
-          <div className="space-y-6">
-            <TargetBar label="Budget committed" current={props.outflow} total={income} pct={committedPct} accent="--color-accent-emerald" />
-            <TargetBar label="Subscriptions" current={props.subscriptionTotal} total={income} pct={subsPct} accent="--color-accent-pink" />
-          </div>
-        </section>
-
-        <div className="grid grid-cols-2 gap-4 lg:col-span-6">
-          <div className="flex flex-col justify-center rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6">
-            <p className={labelMono}>Available this month</p>
-            <p
-              className="mt-2 font-sans text-2xl font-medium tabular-nums"
-              style={{ color: props.leftover < 0 ? "var(--color-accent-red)" : "var(--color-text-primary)" }}
-            >
-              {formatUsd(props.leftover)}
-            </p>
-            <p className="mt-1 font-mono text-[10px] text-[var(--color-text-muted)]">income − outflow</p>
-          </div>
-          <div className="flex flex-col justify-center rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6">
-            <p className={labelMono}>Est. next inflow</p>
-            <p className="mt-2 font-sans text-2xl font-medium tabular-nums text-[var(--color-text-primary)]">
-              {props.nextInflow ? formatUsd(props.nextInflow.amount) : "—"}
-            </p>
-            <p className="mt-1 font-mono text-[10px] text-[var(--color-text-muted)]">
-              {props.nextInflow
-                ? props.nextInflow.inDays === 0
-                  ? "today"
-                  : `in ${props.nextInflow.inDays} day${props.nextInflow.inDays === 1 ? "" : "s"}`
-                : "add an income source"}
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* Quick add */}
