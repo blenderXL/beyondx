@@ -95,4 +95,14 @@ describe("filterAndSortDebts — sorting", () => {
       "Rental Home",
     ]);
   });
+
+  it("paid-off debts (zero balance) always sink to the bottom", () => {
+    const paid = debt({ name: "Paid Off", balance: 0, apr: 99 });
+    const active = debt({ name: "Active", balance: 500, apr: 5 });
+    // Even though apr_desc would rank the paid debt first, a zero balance forces it last.
+    expect(filterAndSortDebts([paid, active], opts({ sort: "apr_desc" })).map((d) => d.name)).toEqual([
+      "Active",
+      "Paid Off",
+    ]);
+  });
 });

@@ -77,5 +77,9 @@ export function filterAndSortDebts(debts: Debt[], opts: DebtViewOptions): Debt[]
       sorted.sort((a, b) => b.name.localeCompare(a.name));
       break;
   }
-  return sorted;
+  // Paid-off debts (zero balance) sink to the bottom of every view; the chosen sort still
+  // holds within the active and paid-off partitions.
+  const active = sorted.filter((d) => Number(d.balance) > 0);
+  const paidOff = sorted.filter((d) => Number(d.balance) <= 0);
+  return [...active, ...paidOff];
 }

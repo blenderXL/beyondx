@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { LayoutGrid, List, Layers, Search, ChevronDown, Sparkles } from "lucide-react";
 import { DebtAccountFormCard } from "@/components/finance/DebtAccountFormCard";
 import { DebtDetail, type DebtTxn } from "@/components/finance/DebtDetail";
-import { DonutChart } from "@/components/finance/charts";
+import { DonutChart, SparkArea } from "@/components/finance/charts";
+import { monthlyBalanceSeries } from "@/lib/finance/balanceHistory";
 import { Modal } from "@/components/ui/Modal";
 import {
   DEBT_TYPE_LABELS,
@@ -181,7 +182,7 @@ export function DebtsClient({ debts, recent, txnsByDebt, insight }: Props) {
                       </div>
                       <ul aria-label={g.label} className={CARD_GRID}>
                         {g.debts.map((debt) => (
-                          <DebtCard key={debt.id} debt={debt} onOpen={() => open(debt)} />
+                          <DebtCard key={debt.id} debt={debt} txns={txnsByDebt[debt.id] ?? []} onOpen={() => open(debt)} />
                         ))}
                       </ul>
                     </section>
@@ -190,7 +191,7 @@ export function DebtsClient({ debts, recent, txnsByDebt, insight }: Props) {
               ) : (
                 <ul aria-label="Debts" className={CARD_GRID}>
                   {visibleDebts.map((debt) => (
-                    <DebtCard key={debt.id} debt={debt} onOpen={() => open(debt)} />
+                    <DebtCard key={debt.id} debt={debt} txns={txnsByDebt[debt.id] ?? []} onOpen={() => open(debt)} />
                   ))}
                 </ul>
               )}
@@ -415,10 +416,12 @@ function cardBar(debt: Debt): { pct: number; tone: string } | null {
   return { pct: progress, tone: "--color-accent-emerald" };
 }
 
-function DebtCard({ debt, onOpen }: { debt: Debt; onOpen: () => void }) {
+function DebtCard({ debt, txns, onOpen }: { debt: Debt; txns: DebtTxn[]; onOpen: () => void }) {
   const accent = bucketAccentVar(debt.type);
   const stats = cardStats(debt);
   const bar = cardBar(debt);
+  // Tiny month-to-month balance trend, shown only when there's enough reconstructable history.
+  const trend = monthlyBalanceSeries(Number(debt.balance), txns);
   return (
     <li>
       <button
@@ -451,6 +454,17 @@ function DebtCard({ debt, onOpen }: { debt: Debt; onOpen: () => void }) {
               className="h-full rounded-full"
               style={{ width: `${Math.round(bar.pct * 100)}%`, background: `var(${bar.tone})` }}
             />
+          </div>
+        ) : null}
+
+        {trend.length >= 2 ? (
+          <div className="mt-4">
+            <p className="mb-1 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
+              Balance trend
+            </p>
+            <div className="h-9">
+              <SparkArea values={trend} accentVar={accent} height={36} />
+            </div>
           </div>
         ) : null}
       </button>
