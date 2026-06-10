@@ -30,7 +30,8 @@ export function SparkArea({
     <svg
       viewBox={`0 0 ${w} ${height}`}
       preserveAspectRatio="none"
-      className="h-[120px] w-full"
+      className="w-full"
+      style={{ height }}
       role="img"
       aria-label="Trend chart"
     >

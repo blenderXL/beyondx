@@ -65,11 +65,17 @@ export function DebtDetail({ debt, txns, onClose }: { debt: Debt; txns: DebtTxn[
 
 function TxnRow({ txn }: { txn: DebtTxn }) {
   const [state, formAction, pending] = useActionState(deleteTransaction, INITIAL_FINANCE_STATE);
+  // A payment pays the balance down (emerald, −); a charge adds new spend (amber, +).
+  const isPayment = txn.kind === "payment";
+  const isCharge = txn.kind === "charge";
+  const tone = isPayment ? "--color-accent-emerald" : isCharge ? "--color-accent-amber" : "--color-text-secondary";
+  const label = isPayment ? "Paid down" : isCharge ? "Added to balance" : "Contribution";
   return (
-    <li className="flex items-center justify-between gap-4 px-4 py-3">
+    <li className="relative flex items-center justify-between gap-4 py-3 pl-4 pr-4">
+      <span aria-hidden className="absolute left-0 top-0 h-full w-0.5" style={{ background: `var(${tone})` }} />
       <div className="min-w-0">
         <p className="font-sans text-sm text-[var(--color-text-primary)]">
-          {txn.kind === "payment" ? "Payment" : txn.kind === "charge" ? "Charge" : "Contribution"}
+          {label}
           {txn.fromExpense ? " · from expense" : ""}
         </p>
         <p className="font-mono text-[11px] text-[var(--color-text-muted)]">
@@ -78,11 +84,8 @@ function TxnRow({ txn }: { txn: DebtTxn }) {
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-3">
-        <span
-          className="font-mono text-sm tabular-nums"
-          style={{ color: txn.kind === "payment" ? "var(--color-accent-emerald)" : "var(--color-text-primary)" }}
-        >
-          {txn.kind === "payment" ? "−" : "+"}
+        <span className="font-mono text-sm tabular-nums" style={{ color: `var(${tone})` }}>
+          {isPayment ? "−" : isCharge ? "+" : ""}
           {formatUsd(txn.amount)}
         </span>
         {txn.fromExpense ? (
