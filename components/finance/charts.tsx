@@ -10,15 +10,13 @@ export function SparkArea({
   values,
   accentVar = "--color-accent-emerald",
   height = 120,
-  fit = "zero",
+  area = true,
 }: {
   values: number[];
   accentVar?: string;
   height?: number;
-  /** "zero" anchors the y-scale at 0 (balances paying down to 0 read true); "range" fits the
-   *  series' own min..max with padding so small variations show in a tiny glyph (and a flat
-   *  series draws a centered line instead of a full block). */
-  fit?: "zero" | "range";
+  /** Draw the filled area beneath the line. Off for tiny line-only glyphs (e.g. the card mini). */
+  area?: boolean;
 }) {
   if (values.length < 2) {
     return (
@@ -26,20 +24,16 @@ export function SparkArea({
     );
   }
   const w = 100;
+  const max = Math.max(...values, 1);
   const stepX = w / (values.length - 1);
-  let yOf: (v: number) => number;
-  if (fit === "range") {
-    const lo = Math.min(...values);
-    const span = Math.max(...values) - lo;
-    const pad = height * 0.18;
-    yOf = (v) => (span <= 0 ? height / 2 : height - pad - ((v - lo) / span) * (height - pad * 2));
-  } else {
-    const max = Math.max(...values, 1);
-    yOf = (v) => height - (v / max) * height;
-  }
+  // Anchor the y-scale at 0 so the slope reflects the TRUE magnitude of change: a balance that
+  // barely moved reads nearly flat instead of being stretched to look like it hits zero. A small
+  // vertical inset (line-only glyphs) keeps a high, near-flat line off the very top edge.
+  const pad = area ? 0 : height * 0.12;
+  const yOf = (v: number) => pad + (height - 2 * pad) * (1 - v / max);
   const pts = values.map((v, i) => `${(i * stepX).toFixed(2)},${yOf(v).toFixed(2)}`);
   const line = `M${pts.join(" L")}`;
-  const area = `M0,${height} L${pts.join(" L")} L${w},${height} Z`;
+  const areaPath = `M0,${height} L${pts.join(" L")} L${w},${height} Z`;
   return (
     <svg
       viewBox={`0 0 ${w} ${height}`}
@@ -49,7 +43,7 @@ export function SparkArea({
       role="img"
       aria-label="Trend chart"
     >
-      <path d={area} fill={`var(${accentVar})`} opacity={0.15} />
+      {area ? <path d={areaPath} fill={`var(${accentVar})`} opacity={0.15} /> : null}
       <path d={line} fill="none" stroke={`var(${accentVar})`} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
     </svg>
   );
