@@ -10,10 +10,15 @@ export function SparkArea({
   values,
   accentVar = "--color-accent-emerald",
   height = 120,
+  fit = "zero",
 }: {
   values: number[];
   accentVar?: string;
   height?: number;
+  /** "zero" anchors the y-scale at 0 (balances paying down to 0 read true); "range" fits the
+   *  series' own min..max with padding so small variations show in a tiny glyph (and a flat
+   *  series draws a centered line instead of a full block). */
+  fit?: "zero" | "range";
 }) {
   if (values.length < 2) {
     return (
@@ -21,9 +26,18 @@ export function SparkArea({
     );
   }
   const w = 100;
-  const max = Math.max(...values, 1);
   const stepX = w / (values.length - 1);
-  const pts = values.map((v, i) => `${(i * stepX).toFixed(2)},${(height - (v / max) * height).toFixed(2)}`);
+  let yOf: (v: number) => number;
+  if (fit === "range") {
+    const lo = Math.min(...values);
+    const span = Math.max(...values) - lo;
+    const pad = height * 0.18;
+    yOf = (v) => (span <= 0 ? height / 2 : height - pad - ((v - lo) / span) * (height - pad * 2));
+  } else {
+    const max = Math.max(...values, 1);
+    yOf = (v) => height - (v / max) * height;
+  }
+  const pts = values.map((v, i) => `${(i * stepX).toFixed(2)},${yOf(v).toFixed(2)}`);
   const line = `M${pts.join(" L")}`;
   const area = `M0,${height} L${pts.join(" L")} L${w},${height} Z`;
   return (

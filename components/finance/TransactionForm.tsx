@@ -9,6 +9,7 @@ import { formatUsd } from "@/lib/finance/derive";
 import type { Debt } from "@/lib/finance/types";
 import {
   inputClass,
+  dateInputClass,
   labelClass,
   primaryButtonClass,
   ghostButtonClass,
@@ -102,7 +103,7 @@ export function TransactionForm({ debt, onDone, onCancel }: Props) {
 
         <label className="block">
           <span className={labelClass}>Date</span>
-          <input type="date" name="occurred_on" className={inputClass} />
+          <input type="date" name="occurred_on" className={dateInputClass} />
         </label>
 
         <label className="block sm:col-span-2">

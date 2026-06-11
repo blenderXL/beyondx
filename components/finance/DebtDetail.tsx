@@ -59,6 +59,9 @@ export function DebtDetail({ debt, txns, onClose }: { debt: Debt; txns: DebtTxn[
             </section>
           ) : null}
 
+          {/* Log a transaction first, then the history list below it. */}
+          <TransactionForm debt={debt} onDone={() => {}} onCancel={onClose} />
+
           <section>
             <p className={labelClass}>// transactions</p>
             {txns.length === 0 ? (
@@ -70,9 +73,6 @@ export function DebtDetail({ debt, txns, onClose }: { debt: Debt; txns: DebtTxn[
                 ))}
               </ul>
             )}
-            <div className="mt-4">
-              <TransactionForm debt={debt} onDone={() => {}} onCancel={onClose} />
-            </div>
           </section>
         </div>
       </div>
