@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/blenderXL/beyondx/compare/v0.1.13...v0.1.14) (2026-06-11)
+
+
+### Bug Fixes
+
+* **debts:** card mini-graph reflects true magnitude (no false zeroing) ([#82](https://github.com/blenderXL/beyondx/issues/82)) ([c6a4c3d](https://github.com/blenderXL/beyondx/commit/c6a4c3d9e02202e7bf37aa0a4a84cbe0c21c5378))
+
 ## [0.1.13](https://github.com/blenderXL/beyondx/compare/v0.1.12...v0.1.13) (2026-06-11)
 
 
