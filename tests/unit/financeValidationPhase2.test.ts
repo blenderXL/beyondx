@@ -161,6 +161,35 @@ describe("validateSavingsGoalInput", () => {
     expect(validateSavingsGoalInput({ name: "X", type: "roth_ira" }).values?.type).toBe("roth_ira");
     expect(validateSavingsGoalInput({ name: "X", type: "crypto" }).ok).toBe(false);
   });
+
+  it("recurring_kind=fixed keeps the monthly amount and nulls the percent", () => {
+    const r = validateSavingsGoalInput({
+      name: "X",
+      recurring_kind: "fixed",
+      monthly_contribution: "150",
+      pct_of_income: "10",
+    });
+    expect(r.values).toMatchObject({ monthly_contribution: 150, pct_of_income: null });
+  });
+
+  it("recurring_kind=percent keeps the percent and nulls the monthly amount", () => {
+    const r = validateSavingsGoalInput({
+      name: "X",
+      recurring_kind: "percent",
+      monthly_contribution: "150",
+      pct_of_income: "12.5",
+    });
+    expect(r.values).toMatchObject({ monthly_contribution: null, pct_of_income: 12.5 });
+  });
+
+  it("recurring_kind=none clears both recurring fields", () => {
+    const r = validateSavingsGoalInput({ name: "X", recurring_kind: "none", monthly_contribution: "150" });
+    expect(r.values).toMatchObject({ monthly_contribution: null, pct_of_income: null });
+  });
+
+  it("rejects an out-of-range percent", () => {
+    expect(validateSavingsGoalInput({ name: "X", recurring_kind: "percent", pct_of_income: "150" }).ok).toBe(false);
+  });
 });
 
 describe("validateContributionInput", () => {

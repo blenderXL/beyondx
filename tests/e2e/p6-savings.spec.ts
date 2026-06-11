@@ -56,8 +56,9 @@ test("add a pot, record a contribution → balance grows and the trajectory rend
   await expect(card).toBeVisible();
   await expect(card).toContainText("$0.00");
 
-  // Contribute $250 → the pot balance becomes $250.
-  await card.getByRole("button", { name: "Contribute" }).click();
+  // Contribute $250 → the pot balance becomes $250. Click the card to open its detail modal,
+  // then record the contribution there (the card→modal convention).
+  await card.getByText(POT).click();
   await page.getByLabel("Contribution amount").fill("250");
   await page.getByRole("button", { name: "Record contribution" }).click();
 
@@ -82,4 +83,22 @@ test("a typed pot shows its type chip", async ({ page }) => {
   const card = page.getByRole("list", { name: "Savings pots" }).locator("li", { hasText: TYPED });
   await expect(card).toBeVisible();
   await expect(card).toContainText("Roth IRA");
+});
+
+test("the recurring selector reveals a fixed amount or a percent-of-income field", async ({ page }) => {
+  await uiLogin(page);
+  await expect(page).toHaveURL(/\/app(\/|$)/);
+  await page.goto("/app/savings");
+
+  await page.getByRole("button", { name: "New pot" }).click();
+  // Off by default — neither recurring field is shown.
+  await expect(page.getByLabel("Monthly contribution")).toBeHidden();
+  await expect(page.getByLabel("Percent of income")).toBeHidden();
+
+  await page.getByLabel("Recurring contribution").selectOption("fixed");
+  await expect(page.getByLabel("Monthly contribution")).toBeVisible();
+
+  await page.getByLabel("Recurring contribution").selectOption("percent");
+  await expect(page.getByLabel("Percent of income")).toBeVisible();
+  await expect(page.getByLabel("Monthly contribution")).toBeHidden();
 });

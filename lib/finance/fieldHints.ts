@@ -46,6 +46,7 @@ export const SAVINGS_HINTS = {
   target_amount: "An optional goal — the bar shows progress toward it.",
   type: "What kind of account this is (e.g. Roth IRA, HSA, Emergency).",
   monthly_contribution: "An optional recurring amount you add each month. Set it and the pot shows on Expenses as a bill to check off.",
+  recurring: "Make this a recurring contribution — a fixed dollar amount or a percent of your monthly income. It then shows on Expenses each month as a bill to check off.",
 } as const;
 
 export const PLAN_HINTS = {

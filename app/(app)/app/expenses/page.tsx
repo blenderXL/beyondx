@@ -125,12 +125,18 @@ export default async function ExpensesPage({
   });
 
   const subs = expenses.filter((e) => e.expense_group === "subscription");
-  // Planned monthly savings = sum of each goal's recurring monthly_contribution (the money the
-  // user routes into the savings spots they created). Subtracted from the rail's budget-left.
-  const savingsMonthly = savingsRows.reduce(
-    (s, g) => s + (g.monthly_contribution != null ? Number(g.monthly_contribution) : 0),
-    0,
-  );
+  // A pot's recurring monthly contribution: a fixed monthly_contribution OR a percent of total
+  // monthly income (pct_of_income), resolved against plan.income — same math everywhere.
+  const effectiveSavingsMonthly = (g: SavingsGoal): number => {
+    if (g.monthly_contribution != null && Number(g.monthly_contribution) > 0) return Number(g.monthly_contribution);
+    if (g.pct_of_income != null && Number(g.pct_of_income) > 0) {
+      return Math.round(((plan.income * Number(g.pct_of_income)) / 100) * 100) / 100;
+    }
+    return 0;
+  };
+  // Planned monthly savings = sum of each goal's recurring contribution (the money the user
+  // routes into the savings spots they created). Subtracted from the rail's budget-left.
+  const savingsMonthly = savingsRows.reduce((s, g) => s + effectiveSavingsMonthly(g), 0);
   const rail: ExpensesRail = {
     byGroup: plan.byGroup,
     subscriptionCount: subs.length,
@@ -164,14 +170,11 @@ export default async function ExpensesPage({
       dueDay: d.next_due_date ? new Date(`${d.next_due_date}T00:00:00Z`).getUTCDate() : d.due_day,
     }));
 
-  // Recurring savings (a positive monthly contribution) auto-appear as checkable bill rows.
+  // Recurring savings (a positive fixed or percent-of-income contribution) auto-appear as
+  // checkable bill rows, pre-filled with the resolved monthly amount.
   const savingsBills: SavingsBill[] = savingsRows
-    .filter((g) => g.monthly_contribution != null && Number(g.monthly_contribution) > 0)
-    .map((g) => ({
-      id: g.id,
-      name: g.name,
-      monthly_contribution: Number(g.monthly_contribution),
-    }));
+    .map((g) => ({ id: g.id, name: g.name, monthly_contribution: effectiveSavingsMonthly(g) }))
+    .filter((b) => b.monthly_contribution > 0);
 
   // Per-source monthly income (override-resolved, same math as buildMonthlyPlan) — powers the
   // offering card's "10% × each source" breakdown so it sums to the offering total.

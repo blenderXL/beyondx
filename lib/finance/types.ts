@@ -367,6 +367,9 @@ export interface SavingsGoal {
   /** Optional recurring monthly contribution (migration 0015); when set, the pot shows as a
    *  checkable bill on the Expenses page. Null/0 ⇒ not a recurring bill. */
   monthly_contribution: number | null;
+  /** Alternative recurring contribution as a percent (0–100) of total monthly income
+   *  (migration 0018). Mutually exclusive with monthly_contribution. Null ⇒ not percent-based. */
+  pct_of_income?: number | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
