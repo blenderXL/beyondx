@@ -10,7 +10,7 @@ import {
   type PayoffMethod,
 } from "@/lib/finance/payoff";
 import { bucketDistribution, type InsightDebt } from "@/lib/finance/insights";
-import { PayoffChart } from "@/components/finance/charts";
+import { PayoffChart } from "@/components/finance/PayoffChart";
 import { setPayoffMethod, setPayoffBudget } from "@/app/(app)/actions";
 import { buildAmortizationCsv } from "@/lib/finance/amortizationCsv";
 import { formatUsd, formatPercent } from "@/lib/finance/derive";
@@ -121,6 +121,24 @@ export function PlansClient({
     return raw;
   }, [totalBalance, baselineResult.schedule, timeline.length]);
 
+  // Cumulative interest paid over time (index 0 = today = 0), for the chart's interest curve.
+  const interestSeries = useMemo(() => {
+    let acc = 0;
+    return [0, ...result.schedule.map((m) => (acc = Math.round((acc + m.totalInterest) * 100) / 100))];
+  }, [result.schedule]);
+  // One per-debt balance curve (index 0 = today's balance, then each month's remaining balance).
+  const debtSeries = useMemo(
+    () =>
+      debts.map((d) => ({
+        id: d.id,
+        name: d.name,
+        balance: [d.balance, ...result.schedule.map((m) => m.byDebt[d.id]?.balance ?? 0)],
+      })),
+    [debts, result.schedule],
+  );
+  // Calendar label per chart point: "Today" then each scheduled month.
+  const pointLabels = useMemo(() => ["Today", ...monthLabels], [monthLabels]);
+
   // Asset-alloc segments (by bucket) for the single segmented bar + legend.
   const buckets = useMemo(() => bucketDistribution(insightDebts), [insightDebts]);
   // APR-exposure as low/mid/high bands (% of total balance).
@@ -172,7 +190,14 @@ export function PlansClient({
             <p className={labelClass}>// payoff curve ({methodLabel})</p>
             <div className="mt-4">
               {result.feasible ? (
-                <PayoffChart strategy={timeline} baseline={baseline} strategyLabel={methodLabel} />
+                <PayoffChart
+                  strategy={timeline}
+                  baseline={baseline}
+                  interest={interestSeries}
+                  debts={debtSeries}
+                  pointLabels={pointLabels}
+                  strategyLabel={methodLabel}
+                />
               ) : (
                 <p className="font-mono text-[11px] text-[var(--color-text-muted)]">
                   // raise the budget above {formatUsd(totalMin)} to project a payoff curve
