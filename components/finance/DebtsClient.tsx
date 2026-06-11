@@ -442,13 +442,14 @@ function DebtCard({ debt, txns, onOpen }: { debt: Debt; txns: DebtTxn[]; onOpen:
             </p>
           </div>
           {/* Tiny at-a-glance trend — shown on every card; a debt with no logged history yet
-              renders a flat line at its current balance. */}
+              renders a flat line at its current balance. Zero-anchored + line-only so the slope
+              reflects the real magnitude (a barely-moved balance stays near-flat near the top). */}
           <span aria-hidden className="mt-0.5 w-16 shrink-0 opacity-80">
             <SparkArea
               values={trend.length >= 2 ? trend : [Number(debt.balance), Number(debt.balance)]}
               accentVar={accent}
               height={24}
-              fit="range"
+              area={false}
             />
           </span>
         </div>
