@@ -1,7 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Minus, Plus, Maximize2 } from "lucide-react";
 import { formatUsd } from "@/lib/finance/derive";
+
+const clampN = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 /** Palette for the per-debt curves (cycled). Emerald = total, amber = interest, so start elsewhere. */
 const DEBT_PALETTE = [
@@ -68,12 +71,8 @@ export function PayoffChart({
     return m;
   }, [strategy, baseline, interest, debts]);
 
-  if (n < 2) {
-    return <p className="font-mono text-[11px] text-[var(--color-text-muted)]">// not enough data to chart yet</p>;
-  }
-
   // Wide aspect ratio so the chart fills the card; `w-full` (height from the viewBox) scales it
-  // uniformly — a fixed pixel height + meet would letterbox a narrow viewBox in the middle.
+  // uniformly. Declared before the early return so the wheel listener can use the geometry.
   const W = 760;
   const H = 184;
   const ml = 46;
@@ -82,7 +81,51 @@ export function PayoffChart({
   const mr = 8;
   const pw = W - ml - mr;
   const ph = H - mt - mb;
-  const x = (i: number) => ml + (i / (n - 1)) * pw;
+
+  // Visible x-window [d0, d1] in point-index units — zoomable via the wheel + the +/- buttons.
+  const [domain, setDomain] = useState<[number, number] | null>(null);
+  useEffect(() => setDomain([0, Math.max(1, n - 1)]), [n]);
+  const d0 = domain ? clampN(domain[0], 0, n - 2) : 0;
+  const d1 = domain ? clampN(domain[1], d0 + 1, n - 1) : Math.max(1, n - 1);
+  const span = d1 - d0;
+  const isZoomed = d0 > 0 || d1 < n - 1;
+
+  // Zoom keeping `centerIdx` fixed; window width clamped to [~2 points, full range].
+  const zoomAt = (centerIdx: number, factor: number) => {
+    setDomain(() => {
+      const curW = d1 - d0;
+      const newW = clampN(curW * factor, Math.min(2, n - 1), n - 1);
+      const t = curW > 0 ? (centerIdx - d0) / curW : 0.5;
+      let a = centerIdx - t * newW;
+      let b = a + newW;
+      if (a < 0) { b -= a; a = 0; }
+      if (b > n - 1) { a -= b - (n - 1); b = n - 1; }
+      return [Math.max(0, a), Math.min(n - 1, b)];
+    });
+  };
+
+  // Wheel zoom centered on the cursor (non-passive listener so the page doesn't scroll).
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      if (!rect.width) return;
+      const vbx = ((e.clientX - rect.left) / rect.width) * W;
+      const centerIdx = clampN(d0 + ((vbx - ml) / pw) * (d1 - d0), 0, n - 1);
+      zoomAt(centerIdx, e.deltaY < 0 ? 0.85 : 1 / 0.85);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d0, d1, n]);
+
+  if (n < 2) {
+    return <p className="font-mono text-[11px] text-[var(--color-text-muted)]">// not enough data to chart yet</p>;
+  }
+
+  const x = (i: number) => ml + ((i - d0) / span) * pw;
   const y = (v: number) => mt + ph - (v / max) * ph;
   const toPath = (vals: number[]) => "M" + vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" L");
   const yTicks = [0, max / 2, max];
@@ -90,16 +133,14 @@ export function PayoffChart({
   const now = new Date();
   const yearLabel = (i: number) =>
     i === 0 ? "Today" : String(new Date(now.getFullYear(), now.getMonth() + i, 1).getFullYear());
-  // ~4 evenly spaced year ticks (Today + up to 3 future years), always ending at the payoff.
-  const stepYears = Math.max(1, Math.round((n - 1) / 12 / 3));
-  const rawTicks: number[] = [];
-  for (let i = 0; i < n - 1; i += stepYears * 12) rawTicks.push(i);
-  rawTicks.push(n - 1);
-  // Drop a tick when the next one carries the same year label (keep the later/right-most).
-  const xTicks = rawTicks.filter((i, idx) => {
-    const next = rawTicks[idx + 1];
-    return next === undefined || yearLabel(next) !== yearLabel(i);
-  });
+  // ~4 ticks across the VISIBLE window, deduped (drop a tick that repeats the next one's year).
+  const rawTicks = Array.from({ length: 5 }, (_, k) => Math.round(d0 + (span * k) / 4));
+  const xTicks = rawTicks
+    .filter((i, idx) => rawTicks.indexOf(i) === idx)
+    .filter((i, idx, arr) => {
+      const next = arr[idx + 1];
+      return next === undefined || yearLabel(next) !== yearLabel(i);
+    });
   const tickText = { fontSize: 9, fontFamily: "var(--font-mono)", fill: "var(--color-text-muted)" } as const;
 
   const visibleDebts = debts.filter((d) => shownDebts[d.id]);
@@ -108,8 +149,8 @@ export function PayoffChart({
     const rect = svgRef.current?.getBoundingClientRect();
     if (!rect || rect.width === 0) return;
     const vbx = ((e.clientX - rect.left) / rect.width) * W; // viewBox-space x
-    const i = Math.round(((vbx - ml) / pw) * (n - 1));
-    setHover(Math.min(n - 1, Math.max(0, i)));
+    const i = Math.round(d0 + ((vbx - ml) / pw) * span);
+    setHover(clampN(i, Math.ceil(d0), Math.floor(d1)));
   }
 
   // Tooltip rows for the hovered point — total + (visible) interest + visible debts.
@@ -147,6 +188,10 @@ export function PayoffChart({
               <stop offset="0%" stopColor="var(--color-accent-emerald)" stopOpacity="0.32" />
               <stop offset="100%" stopColor="var(--color-accent-emerald)" stopOpacity="0" />
             </linearGradient>
+            {/* Clip the plotted curves to the plot area so a zoomed window doesn't overflow. */}
+            <clipPath id="payoffClip">
+              <rect x={ml} y={mt} width={pw} height={ph} />
+            </clipPath>
           </defs>
           {yTicks.map((t, i) => (
             <g key={i}>
@@ -176,6 +221,7 @@ export function PayoffChart({
             </text>
           ))}
 
+          <g clipPath="url(#payoffClip)">
           {/* Baseline: minimums-only, muted + dashed. */}
           <path
             d={toPath(baseline)}
@@ -247,7 +293,23 @@ export function PayoffChart({
               ))}
             </g>
           ) : null}
+          </g>
         </svg>
+
+        {/* Zoom controls — wheel zoom works anywhere over the chart; these mirror it. */}
+        <div className="absolute right-1 top-1 z-10 flex items-center gap-1">
+          <ZoomButton label="Zoom in" onClick={() => zoomAt((d0 + d1) / 2, 0.6)} disabled={span <= Math.min(2, n - 1)}>
+            <Plus className="size-3.5" aria-hidden />
+          </ZoomButton>
+          <ZoomButton label="Zoom out" onClick={() => zoomAt((d0 + d1) / 2, 1 / 0.6)} disabled={!isZoomed}>
+            <Minus className="size-3.5" aria-hidden />
+          </ZoomButton>
+          {isZoomed ? (
+            <ZoomButton label="Reset zoom" onClick={() => setDomain([0, n - 1])}>
+              <Maximize2 className="size-3.5" aria-hidden />
+            </ZoomButton>
+          ) : null}
+        </div>
 
         {/* Tooltip — HTML overlay positioned at the guide. */}
         {hover !== null ? (
@@ -300,6 +362,31 @@ export function PayoffChart({
         ))}
       </div>
     </div>
+  );
+}
+
+/** A small square icon button for the chart zoom controls. */
+function ZoomButton({
+  label,
+  onClick,
+  disabled,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className="flex size-7 items-center justify-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-30"
+    >
+      {children}
+    </button>
   );
 }
 
