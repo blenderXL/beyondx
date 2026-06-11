@@ -127,7 +127,7 @@ export function DebtsClient({ debts, recent, txnsByDebt, insight }: Props) {
       <Modal open={mode.kind === "create"} onClose={toList} label="New debt">
         {mode.kind === "create" ? <DebtAccountFormCard onDone={toList} onCancel={toList} /> : null}
       </Modal>
-      <Modal open={detailDebt != null} onClose={toList} label="Debt details" size="2xl">
+      <Modal open={detailDebt != null} onClose={toList} label="Debt details" size="4xl">
         {detailDebt ? (
           <DebtDetail debt={detailDebt} txns={txnsByDebt[detailDebt.id] ?? []} onClose={toList} />
         ) : null}

@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from "framer-motion";
  * AppShell tree). Closes on backdrop click + Escape; locks body scroll while open and
  * restores focus to the previously-focused element on close.
  */
-const SIZE_MAX_W = { lg: "max-w-lg", xl: "max-w-xl", "2xl": "max-w-2xl" } as const;
+const SIZE_MAX_W = { lg: "max-w-lg", xl: "max-w-xl", "2xl": "max-w-2xl", "3xl": "max-w-3xl", "4xl": "max-w-4xl" } as const;
 
 export function Modal({
   open,
