@@ -583,12 +583,17 @@ export function ExpensesClient({
 
   return (
     <div className="mx-auto max-w-6xl">
-      <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      {/* Debt-style header: headline metric (budget left) on the left, controls on the right, divider. */}
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-x-8 gap-y-4 border-b border-[var(--color-border-subtle)] pb-6">
+        <h1 className="sr-only">Your expenses</h1>
         <div>
-          <p className={labelClass}>// expenses</p>
-          <h1 className="mt-2 font-sans text-3xl font-medium text-[var(--color-text-primary)]">
-            Your expenses
-          </h1>
+          <p className={labelClass}>// budget left</p>
+          <p
+            className="mt-1 font-sans text-4xl font-medium tabular-nums"
+            style={{ color: budgetLeft < 0 ? "var(--color-accent-red)" : "var(--color-text-primary)" }}
+          >
+            {formatUsd(budgetLeft)}
+          </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <MonthSwitcher months={months} selected={currentMonth} currentMonth={currentMonth} />
