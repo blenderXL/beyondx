@@ -431,13 +431,22 @@ function DebtCard({ debt, txns, onOpen }: { debt: Debt; txns: DebtTxn[]; onOpen:
         className="group relative w-full overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6 text-left transition-colors hover:border-[var(--color-border-strong)]"
       >
         <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
-        {/* Whole card is the button — no external-link affordance needed. */}
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em]" style={{ color: `var(${accent})` }}>
-          {DEBT_BUCKET_LABELS[typeBucket(debt.type)]}
-        </p>
-        <p className="mt-1 font-sans text-base font-medium break-words text-[var(--color-text-primary)]">
-          {debt.name}
-        </p>
+        {/* Header — category + name on the left; a tiny at-a-glance balance trend top-right. */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em]" style={{ color: `var(${accent})` }}>
+              {DEBT_BUCKET_LABELS[typeBucket(debt.type)]}
+            </p>
+            <p className="mt-1 font-sans text-base font-medium break-words text-[var(--color-text-primary)]">
+              {debt.name}
+            </p>
+          </div>
+          {trend.length >= 2 ? (
+            <span aria-hidden className="mt-0.5 w-16 shrink-0 opacity-80">
+              <SparkArea values={trend} accentVar={accent} height={24} />
+            </span>
+          ) : null}
+        </div>
 
         <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 font-mono text-[11px]">
           {stats.map((s) => (
@@ -454,17 +463,6 @@ function DebtCard({ debt, txns, onOpen }: { debt: Debt; txns: DebtTxn[]; onOpen:
               className="h-full rounded-full"
               style={{ width: `${Math.round(bar.pct * 100)}%`, background: `var(${bar.tone})` }}
             />
-          </div>
-        ) : null}
-
-        {trend.length >= 2 ? (
-          <div className="mt-4">
-            <p className="mb-1 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--color-text-muted)]">
-              Balance trend
-            </p>
-            <div className="h-9">
-              <SparkArea values={trend} accentVar={accent} height={36} />
-            </div>
           </div>
         ) : null}
       </button>
