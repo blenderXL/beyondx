@@ -2,7 +2,6 @@
 
 import { useActionState, useCallback, useEffect, useState } from "react";
 import { PiggyBank } from "lucide-react";
-import { StatCard } from "@/components/layout/StatCard";
 import {
   createSavingsGoal,
   updateSavingsGoal,
@@ -18,6 +17,7 @@ import { FieldHint } from "@/components/finance/FieldHint";
 import { SAVINGS_HINTS } from "@/lib/finance/fieldHints";
 import {
   inputClass,
+  dateInputClass,
   labelClass,
   primaryButtonClass,
   ghostButtonClass,
@@ -128,60 +128,63 @@ function SavingsForm({ goal, onDone, onCancel }: { goal?: SavingsGoal; onDone: (
           />
         </label>
 
-        {/* Recurring contribution: off, a fixed $ amount, or a percent of monthly income. */}
-        <label className="block">
-          <span className={labelClass}>
-            Recurring contribution
-            <FieldHint text={SAVINGS_HINTS.recurring} label="recurring contribution" />
-          </span>
-          <select
-            name="recurring_kind"
-            aria-label="Recurring contribution"
-            value={recurring}
-            onChange={(e) => setRecurring(e.target.value as RecurringKind)}
-            className={inputClass}
-          >
-            <option value="none">None</option>
-            <option value="fixed">Fixed amount</option>
-            <option value="percent">% of income</option>
-          </select>
-        </label>
-
-        {recurring === "fixed" ? (
+        {/* Recurring contribution — its own full-width row so the longer label never skews the
+            2-col grid; the fixed-amount / percent field sits inline beside the selector. */}
+        <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2 sm:items-start">
           <label className="block">
             <span className={labelClass}>
-              Monthly contribution
-              <FieldHint text={SAVINGS_HINTS.monthly_contribution} label="monthly contribution" />
+              Recurring
+              <FieldHint text={SAVINGS_HINTS.recurring} label="recurring contribution" />
             </span>
-            <input
-              type="text"
-              inputMode="decimal"
-              name="monthly_contribution"
-              aria-label="Monthly contribution"
-              defaultValue={goal?.monthly_contribution ?? ""}
-              placeholder="0.00"
+            <select
+              name="recurring_kind"
+              aria-label="Recurring contribution"
+              value={recurring}
+              onChange={(e) => setRecurring(e.target.value as RecurringKind)}
               className={inputClass}
-            />
+            >
+              <option value="none">None</option>
+              <option value="fixed">Fixed amount</option>
+              <option value="percent">% of income</option>
+            </select>
           </label>
-        ) : null}
 
-        {recurring === "percent" ? (
-          <label className="block">
-            <span className={labelClass}>Percent of income</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              name="pct_of_income"
-              aria-label="Percent of income"
-              defaultValue={goal?.pct_of_income ?? ""}
-              placeholder="e.g. 10"
-              className={inputClass}
-            />
-            <span className="mt-1 block font-mono text-[10px] text-[var(--color-text-muted)]">
-              Shows on Expenses each month as that % of your total income.
-            </span>
-          </label>
-        ) : null}
+          {recurring === "fixed" ? (
+            <label className="block">
+              <span className={labelClass}>
+                Monthly contribution
+                <FieldHint text={SAVINGS_HINTS.monthly_contribution} label="monthly contribution" />
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                name="monthly_contribution"
+                aria-label="Monthly contribution"
+                defaultValue={goal?.monthly_contribution ?? ""}
+                placeholder="0.00"
+                className={inputClass}
+              />
+            </label>
+          ) : null}
+
+          {recurring === "percent" ? (
+            <label className="block">
+              <span className={labelClass}>Percent of income</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                name="pct_of_income"
+                aria-label="Percent of income"
+                defaultValue={goal?.pct_of_income ?? ""}
+                placeholder="e.g. 10"
+                className={inputClass}
+              />
+              <span className="mt-1 block font-mono text-[10px] text-[var(--color-text-muted)]">
+                Shows on Expenses each month as that % of your total income.
+              </span>
+            </label>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-6 flex items-center gap-3">
@@ -226,17 +229,27 @@ export function SavingsClient({
   const hasTrajectory = trajectory.some((v) => v > 0);
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <header className="mb-8 flex items-end justify-between gap-4">
+    <div className="mx-auto max-w-6xl">
+      {/* Debt-style header: headline metric on the left, stats + action on the right, divider. */}
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-x-8 gap-y-4 border-b border-[var(--color-border-subtle)] pb-6">
+        <h1 className="sr-only">Your savings pots</h1>
         <div>
-          <p className={labelClass}>// savings</p>
-          <h1 className="mt-2 font-sans text-3xl font-medium text-[var(--color-text-primary)]">
-            Your savings pots
-          </h1>
+          <p className={labelClass}>// total saved</p>
+          <p className="mt-1 font-sans text-4xl font-medium tabular-nums text-[var(--color-text-primary)]">
+            {formatUsd(total)}
+          </p>
         </div>
-        <button onClick={() => setMode({ kind: "create" })} className={primaryButtonClass}>
-          New pot
-        </button>
+        <div className="flex items-end gap-8">
+          <div className="text-right">
+            <p className={labelClass}>Pots</p>
+            <p className="mt-1 font-sans text-2xl font-medium tabular-nums text-[var(--color-text-primary)]">
+              {goals.length}
+            </p>
+          </div>
+          <button onClick={() => setMode({ kind: "create" })} className={primaryButtonClass}>
+            New pot
+          </button>
+        </div>
       </header>
 
       <Modal open={mode.kind === "create"} onClose={toList} label="New savings pot">
@@ -247,11 +260,6 @@ export function SavingsClient({
           <SavingsDetail goal={detailGoal} trajectory={trajectoryByGoal[detailGoal.id] ?? []} months={months} onClose={toList} />
         ) : null}
       </Modal>
-
-      <div className="mb-8 grid gap-4 sm:grid-cols-2">
-        <StatCard label="Pots" value={String(goals.length)} accentVar="--color-accent-emerald" />
-        <StatCard label="Total saved" value={formatUsd(total)} accentVar="--color-accent-blue" />
-      </div>
 
       {hasTrajectory ? (
         <section className="mb-8 rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5">
@@ -274,7 +282,10 @@ export function SavingsClient({
           </p>
         </div>
       ) : (
-        <ul aria-label="Savings pots" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul
+          aria-label="Savings pots"
+          className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(16rem,1fr))]"
+        >
           {goals.map((goal) => (
             <SavingsCard key={goal.id} goal={goal} onOpen={() => open(goal)} />
           ))}
@@ -310,7 +321,7 @@ function SavingsCard({ goal, onOpen }: { goal: SavingsGoal; onOpen: () => void }
     <li>
       <div
         onClick={onOpen}
-        className="group relative cursor-pointer overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6 transition-colors hover:border-[var(--color-border-strong)]"
+        className="group relative flex min-h-[13.5rem] cursor-pointer flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6 transition-colors hover:border-[var(--color-border-strong)]"
       >
         <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: "var(--color-accent-emerald)" }} />
 
@@ -392,7 +403,7 @@ function SavingsCard({ goal, onOpen }: { goal: SavingsGoal; onOpen: () => void }
         )}
 
         {progress !== null ? (
-          <div className="mt-4">
+          <div className="mt-auto pt-4">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
               <div
                 className="h-full rounded-full"
@@ -405,7 +416,7 @@ function SavingsCard({ goal, onOpen }: { goal: SavingsGoal; onOpen: () => void }
             </p>
           </div>
         ) : goal.target_amount !== null ? (
-          <p className="mt-3 font-mono text-[11px] text-[var(--color-text-muted)]">
+          <p className="mt-auto pt-3 font-mono text-[11px] text-[var(--color-text-muted)]">
             target {formatUsd(Number(goal.target_amount))}
           </p>
         ) : null}
@@ -517,7 +528,7 @@ function ContributionForm({ goal, onDone, onCancel }: { goal: SavingsGoal; onDon
         </label>
         <label className="block">
           <span className={labelClass}>Date</span>
-          <input type="date" name="occurred_on" aria-label="Contribution date" className={inputClass} />
+          <input type="date" name="occurred_on" aria-label="Contribution date" className={dateInputClass} />
         </label>
       </div>
 
