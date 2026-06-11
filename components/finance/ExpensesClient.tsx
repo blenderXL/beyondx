@@ -624,6 +624,21 @@ export function ExpensesClient({
         ) : null}
       </Modal>
 
+      {/* Full-width toolbar above the bills + rail grid (debt-page structure). */}
+      {expenses.length > 0 ? (
+        <ExpenseControls
+          query={query}
+          onQuery={setQuery}
+          group={group}
+          onGroup={setGroup}
+          presentGroups={presentGroups}
+          sort={sort}
+          onSort={setSort}
+          view={view}
+          onView={setView}
+        />
+      ) : null}
+
       <div className="lg:grid lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-6">
         {/* Left: the bills */}
         <div>
@@ -637,17 +652,6 @@ export function ExpensesClient({
             <>
               {expenses.length > 0 ? (
                 <>
-                  <ExpenseControls
-                    query={query}
-                    onQuery={setQuery}
-                    group={group}
-                    onGroup={setGroup}
-                    presentGroups={presentGroups}
-                    sort={sort}
-                    onSort={setSort}
-                    view={view}
-                    onView={setView}
-                  />
                   {visible.length === 0 ? (
                     <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
                       <p className="font-mono text-sm text-[var(--color-text-muted)]">
@@ -773,54 +777,27 @@ function ExpenseControls({
   view: ExpenseView;
   onView: (v: ExpenseView) => void;
 }) {
-  // One sharp control height shared by every toolbar element so they align (stitch reference).
+  // One sharp control height shared across the toolbar (matches the debts toolbar exactly).
   const ctrl =
     "h-9 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] font-mono text-[12px] text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-text-primary)]";
   return (
-    <div className="mb-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-      {/* View toggle — far left, like the stitch CARD / GROUP pill. */}
-      <div className="flex h-9 shrink-0 items-center gap-1 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-1">
-        {(
-          [
-            { v: "card" as const, Icon: LayoutGrid, label: "Card", aria: "Card view" },
-            { v: "list" as const, Icon: List, label: "List", aria: "List view" },
-            { v: "category" as const, Icon: Layers, label: "Group", aria: "Group by category" },
-          ]
-        ).map(({ v, Icon, label, aria }) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => onView(v)}
-            aria-label={aria}
-            aria-pressed={view === v}
-            className={`flex items-center gap-2 rounded px-3 py-1 font-mono text-[10px] uppercase tracking-[0.16em] transition-colors ${
-              view === v
-                ? "bg-[var(--color-surface)] text-[var(--color-text-primary)]"
-                : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-            }`}
-          >
-            <Icon className="size-3.5" aria-hidden />
-            {label}
-          </button>
-        ))}
+    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="relative flex-1">
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-muted)]"
+          aria-hidden
+        />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          aria-label="Search expenses"
+          placeholder="Search by name or payee…"
+          className={`${ctrl} w-full pl-9 pr-3 placeholder:text-[var(--color-text-muted)]`}
+        />
       </div>
 
-      {/* Search + filters — grouped on the right. */}
-      <div className="flex flex-1 items-center gap-3 sm:flex-none">
-        <div className="relative flex-1 sm:w-64 sm:flex-none">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-muted)]"
-            aria-hidden
-          />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => onQuery(e.target.value)}
-            aria-label="Search expenses"
-            placeholder="Search by name or payee…"
-            className={`${ctrl} w-full pl-9 pr-3 placeholder:text-[var(--color-text-muted)]`}
-          />
-        </div>
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative shrink-0">
           <select
             value={group}
@@ -837,6 +814,7 @@ function ExpenseControls({
           </select>
           <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-muted)]" aria-hidden />
         </div>
+
         <div className="relative shrink-0">
           <select
             value={sort}
@@ -851,6 +829,31 @@ function ExpenseControls({
             ))}
           </select>
           <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-muted)]" aria-hidden />
+        </div>
+
+        <div className="flex h-9 shrink-0 items-center rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] p-0.5">
+          {(
+            [
+              { v: "card" as const, Icon: LayoutGrid, label: "Card view" },
+              { v: "list" as const, Icon: List, label: "List view" },
+              { v: "category" as const, Icon: Layers, label: "Group by category" },
+            ]
+          ).map(({ v, Icon, label }) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onView(v)}
+              aria-label={label}
+              aria-pressed={view === v}
+              className={`flex size-8 items-center justify-center rounded ${
+                view === v
+                  ? "bg-[var(--color-surface)] text-[var(--color-text-primary)]"
+                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+              }`}
+            >
+              <Icon className="size-4" aria-hidden />
+            </button>
+          ))}
         </div>
       </div>
     </div>
@@ -1433,6 +1436,8 @@ function ExpensesRail({
   rail: ExpensesRail;
 }) {
   const income = plan.income;
+  // Total planned outflow this month — the mirror of "budget left" (expenses + giving + savings).
+  const totalPlanned = Math.round((plan.expenses + plan.offerings + rail.savingsMonthly) * 100) / 100;
   // Segmented "where income goes" bar: expenses / offerings / leftover (clamped to income).
   const pctOf = (n: number) => (income > 0 ? Math.max(0, Math.min(100, (n / income) * 100)) : 0);
 
@@ -1475,6 +1480,10 @@ function ExpensesRail({
             >
               {formatUsd(budgetLeft)}
             </dd>
+          </div>
+          <div className="flex items-center justify-between border-t border-[var(--color-border-subtle)] pt-2.5">
+            <dt className="text-[var(--color-text-muted)]">Total expenses planned</dt>
+            <dd className="tabular-nums text-[var(--color-text-secondary)]">{formatUsd(totalPlanned)}</dd>
           </div>
         </dl>
         <div className="mt-3 flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
