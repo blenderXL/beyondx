@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.13](https://github.com/blenderXL/beyondx/compare/v0.1.12...v0.1.13) (2026-06-11)
+
+
+### Features
+
+* **debts:** reorder detail (log before list) + mini-graph on every card ([#80](https://github.com/blenderXL/beyondx/issues/80)) ([2c0a740](https://github.com/blenderXL/beyondx/commit/2c0a7406be9edbb59546cf7a7fba0675cf64651f))
+* **planner:** zoomable payoff chart (scroll + on-screen +/- buttons) ([#81](https://github.com/blenderXL/beyondx/issues/81)) ([27191e1](https://github.com/blenderXL/beyondx/commit/27191e13903a5f8cac0e4802feb9c552fa1839de))
+* **savings:** debt-style header, consistent card sizing, aligned form ([#78](https://github.com/blenderXL/beyondx/issues/78)) ([21f3451](https://github.com/blenderXL/beyondx/commit/21f345181ff953eb87e6a3a5c790fbee571fd504))
+* **ui:** debt-style headline headers on expenses + planner ([#79](https://github.com/blenderXL/beyondx/issues/79)) ([9bb185d](https://github.com/blenderXL/beyondx/commit/9bb185d2814cb9a4e695e893415e5741f0b79e1d))
+
+
+### Bug Fixes
+
+* **savings:** renumber pct_of_income migration 0018 → 0019 ([#76](https://github.com/blenderXL/beyondx/issues/76)) ([d7d464c](https://github.com/blenderXL/beyondx/commit/d7d464ca0921bd641be444add531d804134cc948))
+
 ## [0.1.12](https://github.com/blenderXL/beyondx/compare/v0.1.11...v0.1.12) (2026-06-11)
 
 
