@@ -477,6 +477,7 @@ export interface SavingsGoalValues {
   current_amount: number;
   type: SavingsType;
   monthly_contribution: number | null;
+  pct_of_income: number | null;
 }
 
 export function validateSavingsGoalInput(fields: RawFields): ValidationResult<SavingsGoalValues> {
@@ -495,6 +496,28 @@ export function validateSavingsGoalInput(fields: RawFields): ValidationResult<Sa
   const monthly = optionalMoney(fields.monthly_contribution, "Monthly contribution");
   if (monthly.error) return fail(monthly.error);
 
+  // Recurring contribution: a fixed $ amount OR a percent of monthly income, never both. The
+  // form posts `recurring_kind` (none|fixed|percent) to disambiguate; a blank value keeps the
+  // legacy behavior (whatever fields parsed) so DB-seeded / older callers still work.
+  let monthly_contribution = monthly.value;
+  let pct_of_income: number | null = null;
+  const pctStr = str(fields.pct_of_income);
+  if (pctStr !== "") {
+    const n = parseMoney(pctStr);
+    if (n === null) return fail("Contribution percent must be a number.");
+    if (n < 0 || n > 100) return fail("Contribution percent must be between 0 and 100.");
+    pct_of_income = round4(n);
+  }
+  const recurringKind = str(fields.recurring_kind);
+  if (recurringKind === "none") {
+    monthly_contribution = null;
+    pct_of_income = null;
+  } else if (recurringKind === "percent") {
+    monthly_contribution = null;
+  } else if (recurringKind === "fixed") {
+    pct_of_income = null;
+  }
+
   // Type — defaults to "general" when blank. The action omits a "general" type from the
   // write payload so pots still save before migration 0012 lands (only typed pots need it).
   const typeRaw = str(fields.type);
@@ -512,7 +535,8 @@ export function validateSavingsGoalInput(fields: RawFields): ValidationResult<Sa
       target_amount: target.value,
       current_amount: current.value ?? 0,
       type,
-      monthly_contribution: monthly.value,
+      monthly_contribution,
+      pct_of_income,
     },
   };
 }

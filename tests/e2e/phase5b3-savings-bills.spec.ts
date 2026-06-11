@@ -56,6 +56,9 @@ test("the savings form exposes a Monthly contribution field", async ({ page }) =
   await expectOnApp(page);
   await page.goto("/app/savings");
   await page.getByRole("button", { name: "New pot" }).click();
+  // The recurring contribution is now a fixed-amount-or-percent selector; choosing "Fixed amount"
+  // reveals the monthly-contribution field.
+  await page.getByLabel("Recurring contribution").selectOption("fixed");
   await expect(page.getByLabel("Monthly contribution")).toBeVisible();
 });
 

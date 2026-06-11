@@ -16,6 +16,8 @@ import {
 import { applyTransactionToBalance } from "@/lib/finance/balance";
 import { splitPayment } from "@/lib/finance/payment";
 import { isPayoffMethod, type PayoffMethod } from "@/lib/finance/payoff";
+import { buildMonthlyPlan } from "@/lib/finance/planner";
+import type { Income } from "@/lib/finance/types";
 import { captureError } from "@/lib/telemetry/capture";
 import type { PaystubInputs } from "@/lib/paystub/tax";
 import type { FinanceActionState } from "@/lib/finance/actionState";
@@ -488,6 +490,8 @@ function savingsPayload(values: import("@/lib/finance/validation").SavingsGoalVa
   const payload = { ...values } as Record<string, unknown>;
   if (values.type === "general") delete payload.type;
   if (values.monthly_contribution === null) delete payload.monthly_contribution;
+  // pct_of_income lands with migration 0018 — omit when unset so writes stay safe before then.
+  if (values.pct_of_income === null) delete payload.pct_of_income;
   return payload;
 }
 
@@ -856,14 +860,17 @@ export async function payAllExpenses(_p: FinanceActionState, formData: FormData)
   const billingMonth = String(formData.get("billing_month") ?? "").trim();
   if (!ISO_MONTH.test(billingMonth)) return { error: "Couldn't update — bad request." };
 
-  const [expensesRes, debtsRes, savingsRes, paidRes, contribRes] = await Promise.all([
+  const [expensesRes, debtsRes, savingsRes, paidRes, contribRes, incomesRes, overridesRes] = await Promise.all([
     // select("*") so a missing savings_goal_id column (pre-0017) reads as undefined.
     supabase.from("expenses").select("*").is("archived_at", null),
     supabase.from("debts").select("id, min_payment").is("archived_at", null),
-    // select("*") so a missing monthly_contribution column (pre-0015) reads as undefined.
+    // select("*") so a missing monthly_contribution/pct_of_income column (pre-0015/0018) reads as undefined.
     supabase.from("savings_goals").select("*").is("archived_at", null),
     supabase.from("transactions").select("expense_id, debt_id").eq("kind", "payment").eq("billing_month", billingMonth),
     supabase.from("transactions").select("savings_goal_id").eq("kind", "contribution").eq("billing_month", billingMonth),
+    // Incomes + this month's variable actuals — needed to resolve percent-of-income savings bills.
+    supabase.from("incomes").select("*").is("archived_at", null),
+    supabase.from("income_overrides").select("income_id, amount").eq("billing_month", billingMonth),
   ]);
   if (expensesRes.error) return dbFailure(expensesRes.error, "payAll.expenses", "Couldn't load expenses. Please try again.");
   if (debtsRes.error) return dbFailure(debtsRes.error, "payAll.debts", "Couldn't load debts. Please try again.");
@@ -937,12 +944,32 @@ export async function payAllExpenses(_p: FinanceActionState, formData: FormData)
     }
   }
 
-  // Recurring savings (a positive monthly_contribution) record a contribution + bump the pot.
+  // Recurring savings record a contribution + bump the pot. A pot contributes a fixed
+  // monthly_contribution OR a percent of total monthly income (pct_of_income) — resolve the
+  // percent with the same income math the Expenses page uses so the amounts match.
+  const totalIncome = buildMonthlyPlan({
+    incomes: (incomesRes.data ?? []) as Income[],
+    expenses: [],
+    debts: [],
+    overrides: Object.fromEntries(
+      ((overridesRes.data ?? []) as { income_id: string; amount: number }[]).map((o) => [o.income_id, Number(o.amount)]),
+    ),
+  }).income;
   const paidSavingsIds = new Set(
     ((contribRes.data ?? []) as { savings_goal_id: string | null }[]).map((t) => t.savings_goal_id).filter(Boolean),
   );
-  for (const g of (savingsRes.data ?? []) as { id: string; current_amount: number; monthly_contribution: number | null }[]) {
-    const monthly = g.monthly_contribution == null ? 0 : Number(g.monthly_contribution);
+  for (const g of (savingsRes.data ?? []) as {
+    id: string;
+    current_amount: number;
+    monthly_contribution: number | null;
+    pct_of_income?: number | null;
+  }[]) {
+    const monthly =
+      g.monthly_contribution != null && Number(g.monthly_contribution) > 0
+        ? Number(g.monthly_contribution)
+        : g.pct_of_income != null && Number(g.pct_of_income) > 0
+          ? round2((totalIncome * Number(g.pct_of_income)) / 100)
+          : 0;
     if (monthly <= 0 || paidSavingsIds.has(g.id)) continue;
     const amount = round2(monthly);
     const { error: insErr } = await supabase.from("transactions").insert({
