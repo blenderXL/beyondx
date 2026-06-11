@@ -7,6 +7,8 @@ import { TransactionForm } from "@/components/finance/TransactionForm";
 import { archiveDebt, deleteTransaction } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
 import { formatUsd } from "@/lib/finance/derive";
+import { SparkArea } from "@/components/finance/charts";
+import { monthlyBalanceSeries } from "@/lib/finance/balanceHistory";
 import { labelClass, errorClass } from "@/components/finance/formStyles";
 import type { Debt } from "@/lib/finance/types";
 
@@ -27,6 +29,7 @@ export interface DebtTxn {
  * inside the shared click-away Modal.
  */
 export function DebtDetail({ debt, txns, onClose }: { debt: Debt; txns: DebtTxn[]; onClose: () => void }) {
+  const trend = monthlyBalanceSeries(Number(debt.balance), txns);
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -41,24 +44,38 @@ export function DebtDetail({ debt, txns, onClose }: { debt: Debt; txns: DebtTxn[
         <ArchiveButton debt={debt} />
       </div>
 
-      {/* Keyed by updated_at so the edit form's defaults refresh after a transaction changes the balance. */}
-      <DebtAccountFormCard key={debt.updated_at} debt={debt} onDone={onClose} onCancel={onClose} />
+      {/* Two-column: edit the account on the left; trend + transactions + log on the right. */}
+      <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-6">
+        {/* Keyed by updated_at so the edit form's defaults refresh after a transaction changes the balance. */}
+        <DebtAccountFormCard key={debt.updated_at} debt={debt} onDone={onClose} onCancel={onClose} />
 
-      <section>
-        <p className={labelClass}>// transactions</p>
-        {txns.length === 0 ? (
-          <p className="mt-3 font-mono text-[11px] text-[var(--color-text-muted)]">// no transactions yet</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-[var(--color-border-subtle)] overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)]">
-            {txns.map((t) => (
-              <TxnRow key={t.id} txn={t} />
-            ))}
-          </ul>
-        )}
-        <div className="mt-4">
-          <TransactionForm debt={debt} onDone={() => {}} onCancel={onClose} />
+        <div className="mt-6 space-y-6 lg:mt-0">
+          {trend.length >= 2 ? (
+            <section className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
+              <p className={labelClass}>// balance trend</p>
+              <div className="mt-3">
+                <SparkArea values={trend} accentVar="--color-accent-emerald" height={96} />
+              </div>
+            </section>
+          ) : null}
+
+          <section>
+            <p className={labelClass}>// transactions</p>
+            {txns.length === 0 ? (
+              <p className="mt-3 font-mono text-[11px] text-[var(--color-text-muted)]">// no transactions yet</p>
+            ) : (
+              <ul className="mt-3 divide-y divide-[var(--color-border-subtle)] overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)]">
+                {txns.map((t) => (
+                  <TxnRow key={t.id} txn={t} />
+                ))}
+              </ul>
+            )}
+            <div className="mt-4">
+              <TransactionForm debt={debt} onDone={() => {}} onCancel={onClose} />
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
