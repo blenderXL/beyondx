@@ -181,7 +181,36 @@ export function PlansClient({
 
   return (
     <div className="mx-auto max-w-6xl">
-      <Header />
+      {/* Debt-style header: headline metric (debt-free) on the left, balance/interest stats right. */}
+      <header className="mb-8 flex flex-wrap items-end justify-between gap-x-8 gap-y-4 border-b border-[var(--color-border-subtle)] pb-6">
+        <h1 className="sr-only">Debt payoff planner</h1>
+        <div>
+          <p className={labelClass}>// debt-free</p>
+          <p className="mt-1 font-sans text-4xl font-medium tabular-nums text-[var(--color-text-primary)]">
+            {result.feasible ? humanMonths(result.months) : "—"}
+          </p>
+          <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
+            {result.feasible ? monthOnly(result.months) : `raise budget above ${formatUsd(totalMin)}`}
+          </p>
+        </div>
+        <div className="flex items-end gap-8">
+          <div className="text-right">
+            <p className={labelClass}>Balance</p>
+            <p className="mt-1 font-sans text-2xl font-medium tabular-nums text-[var(--color-text-primary)]">
+              {compactUsd(totalBalance)}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className={labelClass}>Interest</p>
+            <p
+              className="mt-1 font-sans text-2xl font-medium tabular-nums"
+              style={{ color: "var(--color-accent-amber)" }}
+            >
+              {result.feasible ? compactUsd(result.totalInterest) : "—"}
+            </p>
+          </div>
+        </div>
+      </header>
 
       <div className="flex flex-col gap-6 lg:flex-row">
         {/* Center: projections */}
@@ -327,13 +356,6 @@ export function PlansClient({
             </p>
           </section>
 
-          {/* Macro stats */}
-          <div className="grid grid-cols-3 divide-x divide-[var(--color-border-subtle)] overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)]">
-            <MacroStat label="Debt-free" value={result.feasible ? humanMonths(result.months) : "—"} sub={result.feasible ? monthOnly(result.months) : "raise budget"} />
-            <MacroStat label="Balance" value={compactUsd(totalBalance)} />
-            <MacroStat label="Interest" value={result.feasible ? compactUsd(result.totalInterest) : "—"} accent="--color-accent-amber" />
-          </div>
-
           {/* Distributions — single segmented bars + legends (stitch reference) */}
           <section className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
@@ -440,22 +462,6 @@ function compactUsd(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}k`;
   return formatUsd(n);
-}
-
-function MacroStat({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
-  return (
-    <div className="p-3">
-      <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--color-text-muted)]">{label}</p>
-      <p
-        className="mt-1 truncate font-sans text-sm font-medium tabular-nums"
-        style={{ color: accent ? `var(${accent})` : "var(--color-text-primary)" }}
-        title={value}
-      >
-        {value}
-      </p>
-      {sub ? <p className="truncate font-mono text-[9px] text-[var(--color-text-muted)]">{sub}</p> : null}
-    </div>
-  );
 }
 
 function Header() {
