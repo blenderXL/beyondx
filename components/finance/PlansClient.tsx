@@ -83,6 +83,14 @@ export function PlansClient({
     }
   }, [hydrated, budget]);
 
+  // Persist the budget to the profile, debounced on change — so the latest value sticks even
+  // when the user edits then navigates away without blurring the input (blur-only dropped it).
+  useEffect(() => {
+    if (!hydrated) return;
+    const t = setTimeout(() => void setPayoffBudget(budget), 600);
+    return () => clearTimeout(t);
+  }, [hydrated, budget]);
+
   /** Update local state immediately, then persist the choice to the profile. */
   function changeMethod(next: PayoffMethod) {
     setMethod(next);
@@ -284,7 +292,6 @@ export function PlansClient({
                     step={50}
                     value={budget}
                     onChange={(e) => setBudget(Number(e.target.value) || 0)}
-                    onBlur={() => void setPayoffBudget(budget)}
                     className="h-8 w-full rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] pl-5 pr-2 font-mono text-[12px] text-[var(--color-text-primary)] tabular-nums outline-none transition-colors focus:border-[var(--color-text-primary)]"
                   />
                 </span>
@@ -315,7 +322,7 @@ export function PlansClient({
                 ))}
               </div>
             </div>
-            <div aria-label="Debt distribution" className="flex h-2.5 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
+            <div aria-label="Debt distribution" className="flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
               {buckets.map((b) => (
                 <div key={b.bucket} className="h-full" style={{ width: `${b.pct * 100}%`, background: `var(${b.accentVar})` }} />
               ))}
