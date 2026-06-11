@@ -1049,7 +1049,7 @@ function ExpenseCard({
     <li>
       <div
         onClick={onEdit}
-        className={`group relative cursor-pointer overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 pl-5 transition-colors hover:border-[var(--color-border-strong)] ${
+        className={`group relative cursor-pointer overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6 transition-colors hover:border-[var(--color-border-strong)] ${
           paid ? "opacity-80" : ""
         }`}
       >
