@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.12](https://github.com/blenderXL/beyondx/compare/v0.1.11...v0.1.12) (2026-06-11)
+
+
+### Features
+
+* **debts:** two-column detail modal — edit left, trend + transactions right ([#72](https://github.com/blenderXL/beyondx/issues/72)) ([d713a39](https://github.com/blenderXL/beyondx/commit/d713a39c6badd6c2b48226c35bbb021b609a0cd3))
+* **expenses:** debt-style toolbar, full-width layout + total-planned metric ([#75](https://github.com/blenderXL/beyondx/issues/75)) ([cd8d3dd](https://github.com/blenderXL/beyondx/commit/cd8d3ddc22a8ac6ae35df57e70b32a9509efc135))
+* **planner:** richer payoff chart — interest + per-debt curves + hover tooltip ([#73](https://github.com/blenderXL/beyondx/issues/73)) ([3db98e9](https://github.com/blenderXL/beyondx/commit/3db98e9eebfb64ae45c6e4b8921f92d6418df15e))
+* **savings:** card→modal convention + recurring fixed-$-or-%-of-income ([#74](https://github.com/blenderXL/beyondx/issues/74)) ([18864f9](https://github.com/blenderXL/beyondx/commit/18864f9555cf86a537dd6c91c27b1c8532d0f60d))
+* **ui:** consistent card sizing + move debt balance-trend to a top-right mini ([#69](https://github.com/blenderXL/beyondx/issues/69)) ([f5f67fd](https://github.com/blenderXL/beyondx/commit/f5f67fd4b3b1b0d3f12477e55b0360ea42568267))
+
+
+### Bug Fixes
+
+* **planner:** persist budget reliably + match asset-alloc bar to apr-exposure ([#71](https://github.com/blenderXL/beyondx/issues/71)) ([8c2f0dd](https://github.com/blenderXL/beyondx/commit/8c2f0dd2aaf3b4dbb5db37d5f0f828d63cfb4553))
+
 ## [0.1.11](https://github.com/blenderXL/beyondx/compare/v0.1.10...v0.1.11) (2026-06-10)
 
 
