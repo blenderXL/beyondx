@@ -3,6 +3,7 @@ import { ShieldCheck, ChevronRight } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getEntitlements } from "@/lib/entitlements/getEntitlements";
 import { PortfolioControls } from "@/components/settings/PortfolioControls";
+import { ResetAccount } from "@/components/settings/ResetAccount";
 import { DangerZone } from "@/components/settings/DangerZone";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +67,8 @@ export default async function SettingsPage() {
       </div>
 
       <PortfolioControls />
+
+      <ResetAccount />
 
       {user?.email ? <DangerZone email={user.email} /> : null}
     </div>

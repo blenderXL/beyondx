@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { captureError } from "@/lib/telemetry/capture";
 import {
@@ -138,6 +139,67 @@ export async function importPortfolio(raw: string): Promise<ImportResult> {
       transactions: data.transactions.length,
     },
   };
+}
+
+/**
+ * Every user-entered data table, in child→parent order so deletes never trip a foreign key
+ * (most FKs cascade/set-null, but ordering keeps it safe regardless). The account itself —
+ * `profiles`, auth, security/MFA, tier, and the `legal_acceptances` audit trail — is preserved.
+ */
+const RESET_TABLES = [
+  "transactions",
+  "income_overrides",
+  "plan_runs",
+  "expenses",
+  "plans",
+  "cards",
+  "debts",
+  "savings_goals",
+  "incomes",
+  "accounts",
+  "paystub_inputs",
+] as const;
+
+// The exact phrase the user must type to reset — case-insensitive on input. NOT exported:
+// a "use server" module may export only async functions (the client uses its own literal).
+const RESET_CONFIRM_PHRASE = "RESET";
+
+/**
+ * Wipe everything the user has entered (debts, incomes, expenses, savings pots, cards,
+ * transactions, plans, paystub inputs, budget) while keeping their account, login, tier, and
+ * legal consent. Deletes are RLS-scoped to the caller (and filtered by `profile_id`). Not a
+ * single transaction — a mid-way failure returns an error and is safe to retry (deletes are
+ * idempotent), matching the app's accepted non-atomicity for single-user manual actions.
+ */
+export async function resetAccount(confirm: string): Promise<{ ok?: boolean; error?: string }> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { error: "You're signed out. Log in and try again." };
+
+  if (confirm.trim().toUpperCase() !== RESET_CONFIRM_PHRASE) {
+    return { error: `Type ${RESET_CONFIRM_PHRASE} to confirm.` };
+  }
+
+  for (const table of RESET_TABLES) {
+    const { error } = await supabase.from(table).delete().eq("profile_id", user.id);
+    if (error) {
+      captureError(error, { action: `resetAccount.${table}` });
+      return { error: "Couldn't reset everything. Some data may remain — try again." };
+    }
+  }
+
+  // Clear the user-entered payoff budget (a column on `profiles`); the row itself stays.
+  const { error: profileError } = await supabase
+    .from("profiles")
+    .update({ payoff_budget: null })
+    .eq("id", user.id);
+  if (profileError) {
+    captureError(profileError, { action: "resetAccount.profile" });
+    return { error: "Couldn't reset everything. Some data may remain — try again." };
+  }
+
+  // Every signed-in surface reads this data — refresh them all.
+  revalidatePath("/app", "layout");
+  return { ok: true };
 }
 
 /**
