@@ -5,13 +5,7 @@ import { headers } from "next/headers";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { captureError } from "@/lib/telemetry/capture";
 import { CURRENT_LEGAL_VERSION, LEGAL_DOCUMENTS } from "@/lib/legal/version";
-
-export interface AcceptLegalState {
-  error: string | null;
-  ok?: boolean;
-}
-
-export const INITIAL_ACCEPT_STATE: AcceptLegalState = { error: null };
+import type { AcceptLegalState } from "@/lib/legal/acceptState";
 
 /**
  * Record the signed-in user's acceptance of the current legal version. Writes the denormalized

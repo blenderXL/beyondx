@@ -3,7 +3,8 @@
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { acceptLegal, INITIAL_ACCEPT_STATE } from "@/app/(app)/app/legal/actions";
+import { acceptLegal } from "@/app/(app)/app/legal/actions";
+import { INITIAL_ACCEPT_STATE } from "@/lib/legal/acceptState";
 
 /**
  * First-login legal acknowledgment gate. Rendered by the app layout when the signed-in user
