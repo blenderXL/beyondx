@@ -1659,7 +1659,7 @@ function CardsRail({ cards, summaries }: { cards: Card[]; summaries: CardSummary
         <button
           type="button"
           onClick={() => setMode({ kind: "create" })}
-          aria-label="Add card"
+          aria-label="New card"
           className="text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-accent-blue)]"
         >
           <Plus className="size-4" aria-hidden />
