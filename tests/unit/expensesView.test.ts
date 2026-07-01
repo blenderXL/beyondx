@@ -2,10 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   filterAndSortExpenses,
   partitionPaidLast,
+  summarizeByCard,
   EXPENSE_SORTS,
   type ExpenseViewOptions,
 } from "@/lib/finance/expensesView";
-import type { Expense } from "@/lib/finance/types";
+import type { Card, Expense } from "@/lib/finance/types";
 
 const exp = (over: Partial<Expense> & { category: string }): Expense => ({
   id: over.category,
@@ -102,5 +103,61 @@ describe("partitionPaidLast", () => {
     const input = [internet, water];
     expect(partitionPaidLast(input, new Set()).map((e) => e.category)).toEqual(["Internet", "Water"]);
     expect(input.map((e) => e.category)).toEqual(["Internet", "Water"]);
+  });
+});
+
+describe("summarizeByCard", () => {
+  const card = (id: string, over: Partial<Card> = {}): Card => ({
+    id,
+    profile_id: "p",
+    name: id,
+    card_type: "credit",
+    archived_at: null,
+    created_at: "",
+    updated_at: "",
+    ...over,
+  });
+  const amex = card("amex");
+  const visa = card("visa", { card_type: "debit" });
+
+  it("rolls planned + paid + count up per card, in card order", () => {
+    const es = [
+      exp({ category: "Rent", amount: 1500, card_id: amex.id }),
+      exp({ category: "Groceries", amount: 400, card_id: amex.id }),
+      exp({ category: "Gym", amount: 50, card_id: visa.id }),
+    ];
+    const paid = new Set(["Rent"]); // exp() uses category as id
+    const out = summarizeByCard(es, [amex, visa], 0, paid);
+    expect(out).toEqual([
+      { cardId: "amex", planned: 1900, paid: 1500, count: 2 },
+      { cardId: "visa", planned: 50, paid: 0, count: 1 },
+    ]);
+  });
+
+  it("buckets untagged and archived/unknown-card expenses into a trailing unassigned row", () => {
+    const es = [
+      exp({ category: "Rent", amount: 1500, card_id: amex.id }),
+      exp({ category: "Water", amount: 60 }), // no card
+      exp({ category: "Old", amount: 25, card_id: "ghost" }), // card not in active list
+    ];
+    const out = summarizeByCard(es, [amex], 0, new Set());
+    expect(out).toEqual([
+      { cardId: "amex", planned: 1500, paid: 0, count: 1 },
+      { cardId: null, planned: 85, paid: 0, count: 2 },
+    ]);
+  });
+
+  it("shows every active card even at $0 and omits an empty unassigned bucket", () => {
+    const out = summarizeByCard([], [amex, visa], 0, new Set());
+    expect(out).toEqual([
+      { cardId: "amex", planned: 0, paid: 0, count: 0 },
+      { cardId: "visa", planned: 0, paid: 0, count: 0 },
+    ]);
+  });
+
+  it("resolves a percent offering against income", () => {
+    const es = [exp({ category: "Tithe", amount: 0, expense_group: "offering", pct_of_income: 10, card_id: amex.id })];
+    const out = summarizeByCard(es, [amex], 5000, new Set());
+    expect(out[0]).toEqual({ cardId: "amex", planned: 500, paid: 0, count: 1 });
   });
 });

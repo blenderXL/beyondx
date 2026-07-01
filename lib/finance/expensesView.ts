@@ -3,7 +3,8 @@
  * already-loaded expenses so search-as-you-type / filter / sort stay instant. Mirrors
  * `debtsView.ts` and is kept separate from the component so the logic is unit-testable.
  */
-import type { Expense, ExpenseGroup } from "./types";
+import type { Card, Expense, ExpenseGroup } from "./types";
+import { expenseDisplayAmount } from "./derive";
 
 export type ExpenseSort = "amount_desc" | "amount_asc" | "name_asc" | "name_desc" | "payday_asc" | "payday_desc";
 
@@ -69,4 +70,50 @@ export function partitionPaidLast<T extends { id: string }>(items: T[], paid: Se
   const unpaid = items.filter((e) => !paid.has(e.id));
   const done = items.filter((e) => paid.has(e.id));
   return [...unpaid, ...done];
+}
+
+/** Per-card rollup for the Expenses rail. `cardId: null` is the "unassigned" bucket. */
+export interface CardSummary {
+  cardId: string | null;
+  planned: number;
+  paid: number;
+  count: number;
+}
+
+/**
+ * Roll the month's expenses up by the card they're tagged with (migration 0021). `planned`
+ * sums each expense's display amount (percent offerings resolved against `income`, same figure
+ * the list shows); `paid` sums only the ones checked off this month. Every active card appears
+ * (even at $0, so a freshly-added card is visible); an expense whose `card_id` points at an
+ * archived/unknown card — or none — falls into the trailing "unassigned" bucket, which is
+ * omitted when empty. Pure + unit-tested.
+ */
+export function summarizeByCard(
+  expenses: Expense[],
+  cards: Card[],
+  income: number,
+  paidExpenseIds: Set<string>,
+): CardSummary[] {
+  const empty = (cardId: string | null): CardSummary => ({ cardId, planned: 0, paid: 0, count: 0 });
+  const byCard = new Map<string | null, CardSummary>();
+  for (const c of cards) byCard.set(c.id, empty(c.id));
+  const unassigned = empty(null);
+
+  for (const e of expenses) {
+    const bucket = e.card_id && byCard.has(e.card_id) ? byCard.get(e.card_id)! : unassigned;
+    const amount = expenseDisplayAmount(e, income);
+    bucket.planned += amount;
+    bucket.count += 1;
+    if (paidExpenseIds.has(e.id)) bucket.paid += amount;
+  }
+
+  const rounded = (s: CardSummary): CardSummary => ({
+    ...s,
+    planned: Math.round((s.planned + Number.EPSILON) * 100) / 100,
+    paid: Math.round((s.paid + Number.EPSILON) * 100) / 100,
+  });
+
+  const result = cards.map((c) => rounded(byCard.get(c.id)!));
+  if (unassigned.count > 0) result.push(rounded(unassigned));
+  return result;
 }
