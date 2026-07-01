@@ -5,6 +5,7 @@
  */
 
 import {
+  CARD_TYPES,
   DEBT_TYPES,
   dueDateApplies,
   EXPENSE_CADENCES,
@@ -12,6 +13,7 @@ import {
   INCOME_CADENCES,
   SAVINGS_TYPES,
   TITHE_MODES,
+  type CardType,
   type DebtType,
   type ExpenseCadence,
   type ExpenseGroup,
@@ -243,6 +245,25 @@ export function validateDebtInput(
       notes,
     },
   };
+}
+
+export interface CardValues {
+  name: string;
+  card_type: CardType;
+}
+
+/** A payment card (migration 0021): just a name + credit/debit kind. */
+export function validateCardInput(fields: RawFields): ValidationResult<CardValues> {
+  const fail = (error: string): ValidationResult<CardValues> => ({ ok: false, error, values: null });
+
+  const name = str(fields.name);
+  if (!name) return fail("Give the card a name.");
+  if (name.length > 120) return fail("Name is too long (max 120 characters).");
+
+  const card_type = (str(fields.card_type) || "credit") as CardType;
+  if (!CARD_TYPES.includes(card_type)) return fail("Choose credit or debit.");
+
+  return { ok: true, error: null, values: { name, card_type } };
 }
 
 export interface TransactionValues {

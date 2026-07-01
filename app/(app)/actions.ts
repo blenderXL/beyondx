@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import {
+  validateCardInput,
   validateDebtInput,
   validateExpenseInput,
   validateIncomeInput,
@@ -478,6 +479,60 @@ export async function updateExpense(_p: FinanceActionState, formData: FormData):
 }
 export async function archiveExpense(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
   return archiveOwned("expenses", EXPENSES_PATH, idOf(formData));
+}
+
+// Payment cards (migration 0021) — managed on the Expenses hub, so revalidate there.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function createCard(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const r = validateCardInput(Object.fromEntries(formData));
+  if (!r.ok || !r.values) return { error: r.error };
+  return insertOwned("cards", EXPENSES_PATH, { ...r.values });
+}
+export async function updateCard(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const r = validateCardInput(Object.fromEntries(formData));
+  if (!r.ok || !r.values) return { error: r.error };
+  return updateOwned("cards", EXPENSES_PATH, idOf(formData), { ...r.values });
+}
+export async function archiveCard(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  return archiveOwned("cards", EXPENSES_PATH, idOf(formData));
+}
+
+/** Reject a card tag that isn't the user's own active card (RLS scopes the lookup). */
+async function assertLinkedCardOwned(cardId: string | null): Promise<FinanceActionState | null> {
+  if (!cardId) return null;
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return SIGNED_OUT;
+  const { data, error } = await supabase
+    .from("cards")
+    .select("id")
+    .eq("id", cardId)
+    .is("archived_at", null)
+    .maybeSingle();
+  if (error) return dbFailure(error, "expense.linkCard", "Couldn't verify the card. Please try again.");
+  if (!data) return { error: "That card isn't available." };
+  return null;
+}
+
+/**
+ * Tag (or clear) the payment card on a single expense. A blank `card_id` clears the tag.
+ * Ownership of both the expense (RLS on the update) and the card (guard below) is enforced.
+ */
+export async function setExpenseCard(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const id = idOf(formData);
+  if (!id) return { error: "Missing expense id." };
+
+  const raw = String(formData.get("card_id") ?? "").trim();
+  let card_id: string | null = null;
+  if (raw !== "") {
+    if (!UUID_RE.test(raw)) return { error: "Choose a valid card." };
+    card_id = raw;
+  }
+
+  const linkError = await assertLinkedCardOwned(card_id);
+  if (linkError) return linkError;
+
+  return updateOwned("expenses", EXPENSES_PATH, id, { card_id });
 }
 
 // Savings pots

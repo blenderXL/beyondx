@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Calendar,
   CreditCard,
+  Banknote,
   Undo2,
   Home,
   Zap,
@@ -36,6 +37,8 @@ import {
   payAllExpenses,
   revertAllExpenses,
   archiveIncome,
+  archiveCard,
+  setExpenseCard,
 } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
 import {
@@ -44,12 +47,22 @@ import {
   EXPENSE_GROUPS,
   EXPENSE_GROUP_LABELS,
   INCOME_CADENCE_LABELS,
+  CARD_TYPE_LABELS,
+  type Card,
   type Expense,
   type ExpenseGroup,
   type DebtType,
   type Income,
 } from "@/lib/finance/types";
-import { filterAndSortExpenses, partitionPaidLast, EXPENSE_SORTS, type ExpenseSort } from "@/lib/finance/expensesView";
+import {
+  filterAndSortExpenses,
+  partitionPaidLast,
+  summarizeByCard,
+  EXPENSE_SORTS,
+  type ExpenseSort,
+  type CardSummary,
+} from "@/lib/finance/expensesView";
+import { CardFormCard } from "@/components/finance/CardFormCard";
 import { splitPayment } from "@/lib/finance/payment";
 import type { MonthlyPlan } from "@/lib/finance/planner";
 import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
@@ -466,6 +479,7 @@ const VIEW_KEY = "nzx.expenses.view";
 export function ExpensesClient({
   expenses,
   debts,
+  cards,
   rail,
   income,
   billingMonth,
@@ -483,6 +497,8 @@ export function ExpensesClient({
 }: {
   expenses: Expense[];
   debts: DebtOption[];
+  /** The user's payment cards, for the inline picker + the rail's per-card totals (migration 0021). */
+  cards: Card[];
   /** Savings goals for the form's "Pay toward savings" picker. */
   savingsOptions: SavingsOption[];
   rail: ExpensesRail;
@@ -580,6 +596,8 @@ export function ExpensesClient({
   // (no debt minimums). Savings = the planned monthly contributions to the user's savings goals.
   const budgetLeft =
     Math.round((plan.income - plan.expenses - plan.offerings - rail.savingsMonthly) * 100) / 100;
+  // Per-card planned/paid rollup for the rail (migration 0021).
+  const cardSummaries = useMemo(() => summarizeByCard(expenses, cards, income, paid), [expenses, cards, income, paid]);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -681,6 +699,7 @@ export function ExpensesClient({
                                 paid={paid.has(expense.id)}
                                 billingMonth={billingMonth}
                                 incomeBreakdown={incomeBreakdown}
+                                cards={cards}
                                 onEdit={() => setMode({ kind: "edit", id: expense.id })}
                               />
                             ))}
@@ -700,6 +719,7 @@ export function ExpensesClient({
                           paid={paid.has(expense.id)}
                           billingMonth={billingMonth}
                           income={income}
+                          cards={cards}
                           onEdit={() => setMode({ kind: "edit", id: expense.id })}
                         />
                       ))}
@@ -713,6 +733,7 @@ export function ExpensesClient({
                           paid={paid.has(expense.id)}
                           billingMonth={billingMonth}
                           incomeBreakdown={incomeBreakdown}
+                          cards={cards}
                           onEdit={() => setMode({ kind: "edit", id: expense.id })}
                         />
                       ))}
@@ -754,7 +775,14 @@ export function ExpensesClient({
         </div>
 
         {/* Right: the stitch sidebar — budget, breakdown, income, subscriptions */}
-        <ExpensesRail plan={plan} budgetLeft={budgetLeft} incomes={incomes} rail={rail} />
+        <ExpensesRail
+          plan={plan}
+          budgetLeft={budgetLeft}
+          incomes={incomes}
+          rail={rail}
+          cards={cards}
+          cardSummaries={cardSummaries}
+        />
       </div>
     </div>
   );
@@ -1026,12 +1054,14 @@ function ExpenseCard({
   paid,
   billingMonth,
   incomeBreakdown,
+  cards,
   onEdit,
 }: {
   expense: Expense;
   paid: boolean;
   billingMonth: string;
   incomeBreakdown: IncomeBreakdownItem[];
+  cards: Card[];
   onEdit: () => void;
 }) {
   const isPercentOffering = expense.expense_group === "offering" && expense.pct_of_income != null;
@@ -1210,6 +1240,13 @@ function ExpenseCard({
           {expense.debt_id || expense.savings_goal_id ? " · linked" : ""}
         </p>
 
+        {/* Inline payment-card picker (migration 0021) — only when the user has cards. */}
+        {cards.length > 0 ? (
+          <span onClick={stop} className="mt-3 block">
+            <ExpenseCardPicker expense={expense} cards={cards} />
+          </span>
+        ) : null}
+
         {/* The card's only button — pay this month, or revert. Edit/archive are a card-body click. */}
         <span onClick={stop} className="mt-4 block">
           <PayToggle expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} />
@@ -1234,12 +1271,14 @@ function ExpenseRow({
   paid,
   billingMonth,
   income,
+  cards,
   onEdit,
 }: {
   expense: Expense;
   paid: boolean;
   billingMonth: string;
   income: number;
+  cards: Card[];
   onEdit: () => void;
 }) {
   const accent = paid ? "--color-accent-emerald" : groupAccent(expense.expense_group);
@@ -1289,10 +1328,58 @@ function ExpenseRow({
           {formatUsd(expenseDisplayAmount(expense, income))}
         </span>
       </button>
+      {cards.length > 0 ? (
+        <span onClick={(e) => e.stopPropagation()} className="hidden w-32 shrink-0 sm:block">
+          <ExpenseCardPicker expense={expense} cards={cards} />
+        </span>
+      ) : null}
       <span onClick={(e) => e.stopPropagation()} className="shrink-0">
         <PayToggle expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} compact />
       </span>
     </li>
+  );
+}
+
+/**
+ * Inline payment-card picker (migration 0021). A styled native select that auto-submits
+ * `setExpenseCard` on change — blank clears the tag. Wrapped by callers in a stop-propagation
+ * span so choosing a card doesn't open the expense editor.
+ */
+function ExpenseCardPicker({ expense, cards }: { expense: Expense; cards: Card[] }) {
+  const [state, formAction, pending] = useActionState(setExpenseCard, INITIAL_FINANCE_STATE);
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="id" value={expense.id} />
+      <label className="sr-only" htmlFor={`card-${expense.id}`}>
+        Payment card for {expense.category}
+      </label>
+      <div className="relative">
+        <select
+          id={`card-${expense.id}`}
+          name="card_id"
+          defaultValue={expense.card_id ?? ""}
+          disabled={pending}
+          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          className="h-8 w-full appearance-none rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] pl-2 pr-7 font-mono text-[11px] text-[var(--color-text-secondary)] outline-none transition-colors focus:border-[var(--color-text-primary)] disabled:opacity-50"
+        >
+          <option value="">No card</option>
+          {cards.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-muted)]"
+          aria-hidden
+        />
+      </div>
+      {state.error ? (
+        <span role="alert" className={`mt-1 block ${errorClass}`}>
+          {state.error}
+        </span>
+      ) : null}
+    </form>
   );
 }
 
@@ -1427,6 +1514,11 @@ const RAIL_ACCENTS = [
   "--color-accent-red",
 ];
 
+/** Stable per-card accent, cycled by the card's position in the list. */
+function cardAccent(index: number): string {
+  return RAIL_ACCENTS[index % RAIL_ACCENTS.length]!;
+}
+
 /** The Expenses right sidebar (stitch reference): this-month budget + spending breakdown,
  * the single income manager, and the subscriptions summary. */
 function ExpensesRail({
@@ -1434,11 +1526,15 @@ function ExpensesRail({
   budgetLeft,
   incomes,
   rail,
+  cards,
+  cardSummaries,
 }: {
   plan: MonthlyPlan;
   budgetLeft: number;
   incomes: Income[];
   rail: ExpensesRail;
+  cards: Card[];
+  cardSummaries: CardSummary[];
 }) {
   const income = plan.income;
   // Total planned outflow this month — the mirror of "budget left" (expenses + giving + savings).
@@ -1521,6 +1617,9 @@ function ExpensesRail({
         ) : null}
       </section>
 
+      {/* PAYMENT CARDS — manage cards + per-card planned totals (migration 0021) */}
+      <CardsRail cards={cards} summaries={cardSummaries} />
+
       {/* INCOME SOURCES — the single income manager */}
       <IncomeRail incomes={incomes} />
 
@@ -1536,6 +1635,140 @@ function ExpensesRail({
         </p>
       </section>
     </aside>
+  );
+}
+
+/**
+ * Payment-cards manager + per-card planned totals for the rail (migration 0021). Mirrors
+ * `IncomeRail`: a row per card (credit/debit icon, name, this-month planned total with a muted
+ * "paid" sub-line and bill count), a "+" to add, and row-click to edit/archive in a modal. A
+ * trailing dashed "Unassigned" row shows expenses with no card. Totals come from `summarizeByCard`.
+ */
+function CardsRail({ cards, summaries }: { cards: Card[]; summaries: CardSummary[] }) {
+  const [mode, setMode] = useState<{ kind: "list" } | { kind: "create" } | { kind: "edit"; id: string }>({
+    kind: "list",
+  });
+  const toList = useCallback(() => setMode({ kind: "list" }), []);
+  const editing = mode.kind === "edit" ? cards.find((c) => c.id === mode.id) : undefined;
+  const indexById = useMemo(() => new Map(cards.map((c, i) => [c.id, i])), [cards]);
+
+  return (
+    <section className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <p className={labelClass}>// cards</p>
+        <button
+          type="button"
+          onClick={() => setMode({ kind: "create" })}
+          aria-label="New card"
+          className="text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-accent-blue)]"
+        >
+          <Plus className="size-4" aria-hidden />
+        </button>
+      </div>
+
+      {cards.length === 0 ? (
+        <p className="font-mono text-[11px] text-[var(--color-text-muted)]">
+          // no cards yet — add one to tag expenses
+        </p>
+      ) : (
+        <ul aria-label="Cards" className="space-y-2">
+          {summaries.map((s) => {
+            const card = s.cardId ? cards.find((c) => c.id === s.cardId) : null;
+            const accent = card ? cardAccent(indexById.get(card.id) ?? 0) : "--color-border-strong";
+            const Icon = card ? (card.card_type === "debit" ? Banknote : CreditCard) : Wallet;
+            const label = card ? card.name : "Unassigned";
+            const sub = card
+              ? `${CARD_TYPE_LABELS[card.card_type]} · ${s.count} bill${s.count === 1 ? "" : "s"}`
+              : `${s.count} bill${s.count === 1 ? "" : "s"}`;
+            const body = (
+              <>
+                <span className="flex min-w-0 items-center gap-3">
+                  <span
+                    aria-hidden
+                    className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-elevated)]"
+                    style={{ color: `var(${accent})` }}
+                  >
+                    <Icon className="size-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-sans text-sm font-medium text-[var(--color-text-primary)]">
+                      {label}
+                    </span>
+                    <span className="block font-mono text-[10px] text-[var(--color-text-muted)]">{sub}</span>
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block font-mono text-[12px] tabular-nums text-[var(--color-text-primary)]">
+                    {formatUsd(s.planned)}
+                  </span>
+                  {s.paid > 0 ? (
+                    <span className="block font-mono text-[10px] tabular-nums text-[var(--color-text-muted)]">
+                      {formatUsd(s.paid)} paid
+                    </span>
+                  ) : null}
+                </span>
+              </>
+            );
+            return (
+              <li key={s.cardId ?? "unassigned"}>
+                {card ? (
+                  <button
+                    type="button"
+                    onClick={() => setMode({ kind: "edit", id: card.id })}
+                    aria-label={`Edit ${card.name}`}
+                    className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-3 text-left transition-colors hover:border-[var(--color-border-strong)]"
+                  >
+                    {body}
+                  </button>
+                ) : (
+                  <div className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-subtle)] p-3">
+                    {body}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* open tracks `editing` so archiving (which drops it from the live list) auto-closes the modal. */}
+      <Modal
+        open={mode.kind === "create" || editing != null}
+        onClose={toList}
+        label={mode.kind === "edit" ? "Edit card" : "New card"}
+      >
+        {mode.kind === "create" ? <CardFormCard onDone={toList} onCancel={toList} /> : null}
+        {editing ? (
+          <>
+            <CardFormCard card={editing} onDone={toList} onCancel={toList} />
+            <div className="mt-4 flex justify-end">
+              <CardArchiveButton id={editing.id} name={editing.name} />
+            </div>
+          </>
+        ) : null}
+      </Modal>
+    </section>
+  );
+}
+
+function CardArchiveButton({ id, name }: { id: string; name: string }) {
+  const [state, formAction] = useActionState(archiveCard, INITIAL_FINANCE_STATE);
+  return (
+    <form
+      action={formAction}
+      onSubmit={(e) => {
+        if (!window.confirm(`Archive "${name}"? Expenses tagged to it become unassigned.`)) e.preventDefault();
+      }}
+    >
+      <input type="hidden" name="id" value={id} />
+      <button
+        type="submit"
+        className="flex h-11 items-center justify-center rounded-md px-4 font-mono text-xs tracking-[0.18em] text-[var(--color-text-muted)] uppercase transition-colors hover:text-[var(--color-accent-red)]"
+      >
+        Archive
+      </button>
+      {state.error ? <span role="alert" className={`ml-2 ${errorClass}`}>{state.error}</span> : null}
+    </form>
   );
 }
 

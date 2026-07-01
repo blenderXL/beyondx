@@ -321,6 +321,29 @@ export interface Expense {
   savings_goal_id?: string | null;
   /** For an "offering" expense: a percent (0–100) of total monthly income instead of a fixed amount. */
   pct_of_income: number | null;
+  /** Optional payment card this expense is tagged to (migration 0021). Null ⇒ unassigned. */
+  card_id?: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/* ---- Payment cards (migration 0021) — tag an expense with the card it's paid on ---- */
+
+export type CardType = "credit" | "debit";
+
+export const CARD_TYPES: readonly CardType[] = ["credit", "debit"] as const;
+
+export const CARD_TYPE_LABELS: Record<CardType, string> = {
+  credit: "Credit",
+  debit: "Debit",
+};
+
+export interface Card {
+  id: string;
+  profile_id: string;
+  name: string;
+  card_type: CardType;
   archived_at: string | null;
   created_at: string;
   updated_at: string;

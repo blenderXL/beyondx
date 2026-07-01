@@ -12,7 +12,7 @@ import {
 import { ExpensesHistory } from "@/components/finance/ExpensesHistory";
 import { buildMonthlyPlan, monthlyAmount, type PlannerDebt } from "@/lib/finance/planner";
 import { monthOptions, type HistoryItem } from "@/lib/finance/history";
-import type { Debt, Expense, Income, SavingsGoal } from "@/lib/finance/types";
+import type { Card, Debt, Expense, Income, SavingsGoal } from "@/lib/finance/types";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +76,7 @@ export default async function ExpensesPage({
     );
   }
 
-  const [expensesRes, debtsRes, savingsRes, incomesRes, paymentsRes, contribRes, overridesRes] = await Promise.all([
+  const [expensesRes, debtsRes, savingsRes, incomesRes, paymentsRes, contribRes, overridesRes, cardsRes] = await Promise.all([
     supabase.from("expenses").select("*").is("archived_at", null).order("created_at", { ascending: true }),
     // select("*") so a missing escrow/pmi column (pre-0014) reads as undefined rather than erroring.
     supabase.from("debts").select("*").is("archived_at", null).order("name", { ascending: true }),
@@ -87,6 +87,8 @@ export default async function ExpensesPage({
     supabase.from("transactions").select("savings_goal_id").eq("kind", "contribution").eq("billing_month", billingMonth),
     // Variable-income actuals for this month (migration 0010); degrades to none if absent.
     supabase.from("income_overrides").select("income_id, amount").eq("billing_month", billingMonth),
+    // Payment cards (migration 0021); select("*") so a missing table/column degrades gracefully.
+    supabase.from("cards").select("*").is("archived_at", null).order("created_at", { ascending: true }),
   ]);
 
   const payments = (paymentsRes.data ?? []) as { expense_id: string | null; debt_id: string | null }[];
@@ -100,6 +102,7 @@ export default async function ExpensesPage({
   const debtRows = (debtsRes.data ?? []) as Debt[];
   const savingsRows = (savingsRes.data ?? []) as SavingsGoal[];
   const incomes = (incomesRes.data ?? []) as Income[];
+  const cards = (cardsRes.data ?? []) as Card[];
 
   // income_id → this month's actual amount (variable sources).
   const overrides: Record<string, number> = {};
@@ -191,6 +194,7 @@ export default async function ExpensesPage({
     <ExpensesClient
       expenses={expenses}
       debts={debts}
+      cards={cards}
       rail={rail}
       income={plan.income}
       billingMonth={billingMonth}

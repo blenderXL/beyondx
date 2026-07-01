@@ -5,6 +5,7 @@ import {
   validateSavingsGoalInput,
   validateIncomeOverrideInput,
   validateContributionInput,
+  validateCardInput,
 } from "@/lib/finance/validation";
 
 describe("validateIncomeInput", () => {
@@ -210,5 +211,31 @@ describe("validateContributionInput", () => {
     expect(validateContributionInput({ ...base, savings_goal_id: "x" }).ok).toBe(false);
     expect(validateContributionInput({ ...base, amount: "0" }).ok).toBe(false);
     expect(validateContributionInput({ ...base, amount: "-5" }).ok).toBe(false);
+  });
+});
+
+describe("validateCardInput", () => {
+  it("accepts a valid credit card", () => {
+    const r = validateCardInput({ name: "Amex Gold", card_type: "credit" });
+    expect(r.ok).toBe(true);
+    expect(r.values).toEqual({ name: "Amex Gold", card_type: "credit" });
+  });
+
+  it("accepts debit and trims the name", () => {
+    const r = validateCardInput({ name: "  Chase Debit  ", card_type: "debit" });
+    expect(r.ok).toBe(true);
+    expect(r.values).toEqual({ name: "Chase Debit", card_type: "debit" });
+  });
+
+  it("defaults a blank type to credit", () => {
+    expect(validateCardInput({ name: "Visa", card_type: "" }).values?.card_type).toBe("credit");
+  });
+
+  it("requires a name", () => {
+    expect(validateCardInput({ name: "  ", card_type: "credit" }).ok).toBe(false);
+  });
+
+  it("rejects an invalid type", () => {
+    expect(validateCardInput({ name: "Visa", card_type: "gift" }).ok).toBe(false);
   });
 });
