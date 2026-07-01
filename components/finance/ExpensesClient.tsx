@@ -48,6 +48,8 @@ import {
   EXPENSE_GROUP_LABELS,
   INCOME_CADENCE_LABELS,
   CARD_TYPE_LABELS,
+  DEBT_BUCKET_LABELS,
+  typeBucket,
   type Card,
   type Expense,
   type ExpenseGroup,
@@ -70,6 +72,7 @@ import { MonthSwitcher } from "@/components/finance/MonthSwitcher";
 import { type MonthOption } from "@/lib/finance/history";
 import { IncomeForm } from "@/components/finance/IncomeClient";
 import { formatUsd, expenseDisplayAmount } from "@/lib/finance/derive";
+import { bucketAccentVar } from "@/lib/finance/insights";
 import { FieldHint } from "@/components/finance/FieldHint";
 import { EXPENSE_HINTS } from "@/lib/finance/fieldHints";
 import {
@@ -1400,9 +1403,12 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
     pmi: bill.pmi ?? 0,
   });
   const extras = split.escrow + split.pmi;
+  // Match the Debts-page card: colored left accent stripe + bucket label (paid ⇒ emerald).
+  const accent = paid ? "--color-accent-emerald" : bucketAccentVar(bill.type);
 
   return (
-    <li className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
+    <li className="relative overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 pl-5">
+      <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
       <form action={formAction}>
         <input type="hidden" name="kind" value="debt" />
         <input type="hidden" name="item_id" value={bill.id} />
@@ -1419,15 +1425,21 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
           />
           <div className="min-w-0">
             <p
-              className={`font-sans text-sm font-medium break-words ${
+              className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.16em] uppercase"
+              style={{ color: `var(${accent})` }}
+            >
+              <DebtTypeIcon type={bill.type} className="size-3 shrink-0" />
+              {DEBT_BUCKET_LABELS[typeBucket(bill.type)]}
+              {bill.dueDay ? (
+                <span className="text-[var(--color-text-muted)]">· due day {bill.dueDay}</span>
+              ) : null}
+            </p>
+            <p
+              className={`mt-1 font-sans text-sm font-medium break-words ${
                 paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
               }`}
             >
               {bill.name}
-            </p>
-            <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] tracking-[0.16em] text-[var(--color-text-muted)] uppercase">
-              <DebtTypeIcon type={bill.type} className="size-3" />
-              Debt{bill.dueDay ? ` · due day ${bill.dueDay}` : ""}
             </p>
           </div>
         </div>
@@ -1460,8 +1472,11 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
 function SavingsBillCard({ bill, paid, billingMonth }: { bill: SavingsBill; paid: boolean; billingMonth: string }) {
   const [amount, setAmount] = useState(String(bill.monthly_contribution));
   const [, formAction] = useActionState(toggleSavingsPaid, INITIAL_FINANCE_STATE);
+  // Savings cards read emerald across the app; match the Debts-card stripe + label treatment.
+  const accent = "--color-accent-emerald";
   return (
-    <li className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
+    <li className="relative overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 pl-5">
+      <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
       <form action={formAction}>
         <input type="hidden" name="item_id" value={bill.id} />
         <input type="hidden" name="billing_month" value={billingMonth} />
@@ -1477,14 +1492,17 @@ function SavingsBillCard({ bill, paid, billingMonth }: { bill: SavingsBill; paid
           />
           <div className="min-w-0">
             <p
-              className={`font-sans text-sm font-medium break-words ${
+              className="font-mono text-[10px] tracking-[0.16em] uppercase"
+              style={{ color: `var(${accent})` }}
+            >
+              Savings <span className="text-[var(--color-text-muted)]">· monthly</span>
+            </p>
+            <p
+              className={`mt-1 font-sans text-sm font-medium break-words ${
                 paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
               }`}
             >
               {bill.name}
-            </p>
-            <p className="mt-0.5 font-mono text-[10px] tracking-[0.16em] text-[var(--color-text-muted)] uppercase">
-              Savings · monthly
             </p>
           </div>
         </div>

@@ -270,11 +270,11 @@ function DebtRail({ debts, insight }: { debts: Debt[]; insight: ExtraPaymentInsi
             Optimization insight
           </p>
           <p className="mt-3 font-sans text-sm leading-relaxed text-[var(--color-text-secondary)]">
-            Allocating an extra{" "}
-            <span className="font-medium text-[var(--color-text-primary)]">{formatUsd(insight.extra)}/mo</span> to your{" "}
-            <span className="font-medium text-[var(--color-text-primary)]">{insight.debtName}</span> saves{" "}
+            Paying an extra{" "}
+            <span className="font-medium text-[var(--color-text-primary)]">{formatUsd(insight.extra)}/mo</span> — starting
+            with <span className="font-medium text-[var(--color-text-primary)]">{insight.debtName}</span> — saves{" "}
             <span className="font-medium text-[var(--color-accent-emerald)]">{formatUsd(insight.interestSaved)}</span> in
-            interest.
+            interest over your whole payoff.
           </p>
         </aside>
       ) : null}
