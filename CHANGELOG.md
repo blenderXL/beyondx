@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.15](https://github.com/blenderXL/beyondx/compare/v0.1.14...v0.1.15) (2026-07-01)
+
+
+### Features
+
+* **legal:** first-login consent gate + acceptance persistence ([4ab5650](https://github.com/blenderXL/beyondx/commit/4ab565093fc61a0f1bc2e6fb9fa26aa8e2eca962))
+* **legal:** persistent "not financial advice" note in the app sidebar ([e1254a8](https://github.com/blenderXL/beyondx/commit/e1254a89254c1e6ad4693a2cecec5838ac54259e))
+* **legal:** persistent "not financial advice" note in the app sidebar ([4a8c293](https://github.com/blenderXL/beyondx/commit/4a8c293e4f17ca00c0f6cf3fec68e1d0c33f687f))
+* **legal:** publish Terms, Privacy & Disclaimer pages ([ae5adf2](https://github.com/blenderXL/beyondx/commit/ae5adf2657849e91767a98fc71140a1f21db68ec))
+* **legal:** publish Terms, Privacy & Disclaimer pages ([84ecd84](https://github.com/blenderXL/beyondx/commit/84ecd8463b4ab87e66f7d2fc4c4901497449ed3c))
+
+
+### Bug Fixes
+
+* **legal:** move consent action state out of the "use server" file ([15243ca](https://github.com/blenderXL/beyondx/commit/15243ca2687271bc7bac2e8ce7b95ec64d0892bd))
+* **legal:** move consent action state out of the "use server" file ([faa1034](https://github.com/blenderXL/beyondx/commit/faa10349bba245da78d023e60082ac1dbf827d18))
+
+
+### Documentation
+
+* **legal:** expand ToS + Privacy Policy, add LEGAL-REVIEW ([ed27c56](https://github.com/blenderXL/beyondx/commit/ed27c56c904ba51f719ae1ae441809ab3fb4b0a6))
+* **legal:** expand ToS + Privacy Policy, add LEGAL-REVIEW ([c24f536](https://github.com/blenderXL/beyondx/commit/c24f5364e34bd10b3cd6a7e9edabae6869e18dd9))
+
 ## [0.1.14](https://github.com/blenderXL/beyondx/compare/v0.1.13...v0.1.14) (2026-06-11)
 
 
