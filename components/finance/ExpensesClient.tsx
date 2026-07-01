@@ -1426,14 +1426,11 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p
-              className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.16em] uppercase"
+              className="flex items-start gap-1.5 font-mono text-[10px] tracking-[0.16em] uppercase"
               style={{ color: `var(${accent})` }}
             >
-              <DebtTypeIcon type={bill.type} className="size-3 shrink-0" />
+              <DebtTypeIcon type={bill.type} className="mt-px size-3 shrink-0" />
               {DEBT_BUCKET_LABELS[typeBucket(bill.type)]}
-              {bill.dueDay ? (
-                <span className="text-[var(--color-text-muted)]">· due {bill.dueDay}</span>
-              ) : null}
             </p>
             <p
               className={`mt-1 font-sans text-base font-medium break-words ${
@@ -1494,6 +1491,12 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
             <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Interest</dt>
             <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(split.interest)}</dd>
           </div>
+          {bill.dueDay ? (
+            <div>
+              <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Due</dt>
+              <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">Day {bill.dueDay}</dd>
+            </div>
+          ) : null}
           {extras > 0 ? (
             <div>
               <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Esc/PMI</dt>
