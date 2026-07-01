@@ -597,8 +597,12 @@ export function ExpensesClient({
   const editExpense = mode.kind === "edit" ? (expenses.find((e) => e.id === mode.id) ?? null) : null;
   // THIS-MONTH budget math (user's formula): budget left = income − expenses − giving − savings
   // (no debt minimums). Savings = the planned monthly contributions to the user's savings goals.
+  // Budget left = income minus every planned outflow this month, INCLUDING debt minimums — so it
+  // goes negative when obligations exceed income (e.g. no income but debts due).
   const budgetLeft =
-    Math.round((plan.income - plan.expenses - plan.offerings - rail.savingsMonthly) * 100) / 100;
+    Math.round(
+      (plan.income - plan.expenses - plan.offerings - rail.savingsMonthly - plan.debtMinimums) * 100,
+    ) / 100;
   // Per-card planned/paid rollup for the rail (migration 0021).
   const cardSummaries = useMemo(() => summarizeByCard(expenses, cards, income, paid), [expenses, cards, income, paid]);
 
@@ -665,7 +669,7 @@ export function ExpensesClient({
         />
       ) : null}
 
-      <div className="lg:grid lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-6">
+      <div className="lg:grid lg:grid-cols-[1fr_19rem] lg:items-start lg:gap-6">
         {/* Left: the bills */}
         <div>
           {expenses.length === 0 && debtBills.length === 0 && savingsBills.length === 0 ? (
@@ -752,7 +756,7 @@ export function ExpensesClient({
                     Your debts, pre-filled with their minimum — edit what you&apos;ll pay, then check it off.
                     The balance drops by the principal portion.
                   </p>
-                  <ul aria-label="Debt payments" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <ul aria-label="Debt payments" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {debtBills.map((b) => (
                       <DebtBillCard key={b.id} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
                     ))}
@@ -766,7 +770,7 @@ export function ExpensesClient({
                   <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
                     Recurring contributions — check one off to add it to the pot.
                   </p>
-                  <ul aria-label="Savings contributions" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <ul aria-label="Savings contributions" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {savingsBills.map((b) => (
                       <SavingsBillCard key={b.id} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
                     ))}
@@ -1444,25 +1448,25 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
           </div>
         </div>
 
-        <div className="mt-3 flex items-end gap-3">
-          <label className="flex-1">
-            <span className={inlineLabelClass}>Pay $</span>
-            <input
-              name="amount"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              aria-label={`Payment for ${bill.name}`}
-              className={inlineFieldClass}
-            />
-          </label>
-          <p className="pb-1.5 text-right font-mono text-[11px] tabular-nums text-[var(--color-text-secondary)]">
-            ≈ {formatUsd(split.principal)} principal
-            <span className="block text-[10px] text-[var(--color-text-muted)]">
-              {formatUsd(split.interest)} interest{extras > 0 ? ` · ${formatUsd(extras)} esc/PMI` : ""}
-            </span>
-          </p>
-        </div>
+        {/* Stacked (not side-by-side) so the card reads cleanly at the 3-up width. */}
+        <label className="mt-3 block">
+          <span className={inlineLabelClass}>Pay $</span>
+          <input
+            name="amount"
+            inputMode="decimal"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            aria-label={`Payment for ${bill.name}`}
+            className={inlineFieldClass}
+          />
+        </label>
+        <p className="mt-1.5 font-mono text-[11px] tabular-nums text-[var(--color-text-secondary)]">
+          ≈ {formatUsd(split.principal)} principal
+          <span className="text-[var(--color-text-muted)]">
+            {" · "}
+            {formatUsd(split.interest)} interest{extras > 0 ? ` · ${formatUsd(extras)} esc/PMI` : ""}
+          </span>
+        </p>
       </form>
     </li>
   );
@@ -1556,7 +1560,8 @@ function ExpensesRail({
 }) {
   const income = plan.income;
   // Total planned outflow this month — the mirror of "budget left" (expenses + giving + savings).
-  const totalPlanned = Math.round((plan.expenses + plan.offerings + rail.savingsMonthly) * 100) / 100;
+  const totalPlanned =
+    Math.round((plan.expenses + plan.offerings + rail.savingsMonthly + plan.debtMinimums) * 100) / 100;
   // Segmented "where income goes" bar: expenses / offerings / leftover (clamped to income).
   const pctOf = (n: number) => (income > 0 ? Math.max(0, Math.min(100, (n / income) * 100)) : 0);
 
@@ -1591,6 +1596,10 @@ function ExpensesRail({
             <dt className="text-[var(--color-text-secondary)]">Savings</dt>
             <dd className="tabular-nums text-[var(--color-accent-blue)]">−{formatUsd(rail.savingsMonthly)}</dd>
           </div>
+          <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-2.5">
+            <dt className="text-[var(--color-text-secondary)]">Debt payments</dt>
+            <dd className="tabular-nums text-[var(--color-accent-amber)]">−{formatUsd(plan.debtMinimums)}</dd>
+          </div>
           <div className="flex items-center justify-between pt-1">
             <dt className="font-sans text-sm font-medium text-[var(--color-text-primary)]">Budget left</dt>
             <dd
@@ -1609,6 +1618,7 @@ function ExpensesRail({
           <div className="h-full bg-[var(--color-accent-red)]" style={{ width: `${pctOf(plan.expenses)}%` }} />
           <div className="h-full bg-[var(--color-accent-purple)]" style={{ width: `${pctOf(plan.offerings)}%` }} />
           <div className="h-full bg-[var(--color-accent-blue)]" style={{ width: `${pctOf(rail.savingsMonthly)}%` }} />
+          <div className="h-full bg-[var(--color-accent-amber)]" style={{ width: `${pctOf(plan.debtMinimums)}%` }} />
           <div className="h-full bg-[var(--color-accent-emerald)]" style={{ width: `${pctOf(Math.max(0, budgetLeft))}%` }} />
         </div>
 
