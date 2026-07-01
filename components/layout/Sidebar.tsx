@@ -86,6 +86,16 @@ export function Sidebar({ enabledFlags }: { enabledFlags?: Partial<Record<FlagKe
             Unlock the AI assistant, advanced charts, and exports.
           </p>
         </div>
+        {/* Persistent reminder — NZX is a planning tool, not financial advice. */}
+        <p className="mt-3 px-1 font-mono text-[10px] leading-relaxed text-[var(--color-text-muted)]">
+          Not financial advice.{" "}
+          <Link
+            href="/legal/disclaimer"
+            className="underline decoration-[var(--color-border-strong)] underline-offset-2 hover:text-[var(--color-text-secondary)]"
+          >
+            Read the disclaimer
+          </Link>
+        </p>
       </div>
     </aside>
   );
