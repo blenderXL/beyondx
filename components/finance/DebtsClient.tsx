@@ -423,12 +423,12 @@ function DebtCard({ debt, txns, onOpen }: { debt: Debt; txns: DebtTxn[]; onOpen:
   // Tiny month-to-month balance trend, shown only when there's enough reconstructable history.
   const trend = monthlyBalanceSeries(Number(debt.balance), txns);
   return (
-    <li>
+    <li className="h-full">
       <button
         type="button"
         onClick={onOpen}
         aria-label={`Open ${debt.name}`}
-        className="group relative w-full overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6 text-left transition-colors hover:border-[var(--color-border-strong)]"
+        className="group relative flex h-full w-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6 text-left transition-colors hover:border-[var(--color-border-strong)]"
       >
         <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
         {/* Header — category + name on the left; a tiny at-a-glance balance trend top-right. */}
@@ -464,11 +464,13 @@ function DebtCard({ debt, txns, onOpen }: { debt: Debt; txns: DebtTxn[]; onOpen:
         </dl>
 
         {bar ? (
-          <div className="mt-5 h-1 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${Math.round(bar.pct * 100)}%`, background: `var(${bar.tone})` }}
-            />
+          <div className="mt-auto pt-5">
+            <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${Math.round(bar.pct * 100)}%`, background: `var(${bar.tone})` }}
+              />
+            </div>
           </div>
         ) : null}
       </button>

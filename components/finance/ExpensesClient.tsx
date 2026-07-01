@@ -1407,26 +1407,23 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
     pmi: bill.pmi ?? 0,
   });
   const extras = split.escrow + split.pmi;
+  const [editing, setEditing] = useState(false);
+  const payShown = Number.isFinite(n) ? n : 0;
   // Match the Debts-page card: colored left accent stripe + bucket label (paid ⇒ emerald).
   const accent = paid ? "--color-accent-emerald" : bucketAccentVar(bill.type);
 
   return (
-    <li className="relative overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 pl-5">
+    <li className="relative h-full overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6">
       <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
       <form action={formAction}>
         <input type="hidden" name="kind" value="debt" />
         <input type="hidden" name="item_id" value={bill.id} />
         <input type="hidden" name="billing_month" value={billingMonth} />
+        {/* Amount rides as a hidden field so checking the box submits it even when not editing. */}
+        <input type="hidden" name="amount" value={amount} />
 
-        <div className="flex min-w-0 items-start gap-3">
-          <input
-            type="checkbox"
-            name="checked"
-            aria-label={`Mark ${bill.name} paid`}
-            defaultChecked={paid}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
-          />
+        {/* Header — category + name (like DebtCard); the check-off box sits top-right. */}
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p
               className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.16em] uppercase"
@@ -1435,38 +1432,75 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
               <DebtTypeIcon type={bill.type} className="size-3 shrink-0" />
               {DEBT_BUCKET_LABELS[typeBucket(bill.type)]}
               {bill.dueDay ? (
-                <span className="text-[var(--color-text-muted)]">· due day {bill.dueDay}</span>
+                <span className="text-[var(--color-text-muted)]">· due {bill.dueDay}</span>
               ) : null}
             </p>
             <p
-              className={`mt-1 font-sans text-sm font-medium break-words ${
+              className={`mt-1 font-sans text-base font-medium break-words ${
                 paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
               }`}
             >
               {bill.name}
             </p>
           </div>
+          <input
+            type="checkbox"
+            name="checked"
+            aria-label={`Mark ${bill.name} paid`}
+            defaultChecked={paid}
+            onChange={(e) => e.currentTarget.form?.requestSubmit()}
+            className="mt-1 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
+          />
         </div>
 
-        {/* Stacked (not side-by-side) so the card reads cleanly at the 3-up width. */}
-        <label className="mt-3 block">
-          <span className={inlineLabelClass}>Pay $</span>
-          <input
-            name="amount"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            aria-label={`Payment for ${bill.name}`}
-            className={inlineFieldClass}
-          />
-        </label>
-        <p className="mt-1.5 font-mono text-[11px] tabular-nums text-[var(--color-text-secondary)]">
-          ≈ {formatUsd(split.principal)} principal
-          <span className="text-[var(--color-text-muted)]">
-            {" · "}
-            {formatUsd(split.interest)} interest{extras > 0 ? ` · ${formatUsd(extras)} esc/PMI` : ""}
-          </span>
-        </p>
+        {/* Stat grid mirrors DebtCard. The pay amount shows as text; click it to edit inline. */}
+        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 font-mono text-[11px]">
+          <div>
+            <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Pay</dt>
+            <dd className="mt-0.5">
+              {editing ? (
+                <input
+                  autoFocus
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  onBlur={() => setEditing(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === "Escape") {
+                      e.preventDefault();
+                      setEditing(false);
+                    }
+                  }}
+                  aria-label={`Payment for ${bill.name}`}
+                  className="h-6 w-full rounded border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-1 text-sm tabular-nums text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)]"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  aria-label={`Edit payment for ${bill.name}`}
+                  className="text-sm tabular-nums text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-accent-emerald)]"
+                >
+                  {formatUsd(payShown)}
+                </button>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Principal</dt>
+            <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(split.principal)}</dd>
+          </div>
+          <div>
+            <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Interest</dt>
+            <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(split.interest)}</dd>
+          </div>
+          {extras > 0 ? (
+            <div>
+              <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Esc/PMI</dt>
+              <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(extras)}</dd>
+            </div>
+          ) : null}
+        </dl>
       </form>
     </li>
   );
@@ -1478,22 +1512,18 @@ function SavingsBillCard({ bill, paid, billingMonth }: { bill: SavingsBill; paid
   const [, formAction] = useActionState(toggleSavingsPaid, INITIAL_FINANCE_STATE);
   // Savings cards read emerald across the app; match the Debts-card stripe + label treatment.
   const accent = "--color-accent-emerald";
+  const [editing, setEditing] = useState(false);
+  const n = Number(amount);
+  const contribShown = Number.isFinite(n) ? n : 0;
   return (
-    <li className="relative overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4 pl-5">
+    <li className="relative h-full overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6">
       <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
       <form action={formAction}>
         <input type="hidden" name="item_id" value={bill.id} />
         <input type="hidden" name="billing_month" value={billingMonth} />
+        <input type="hidden" name="amount" value={amount} />
 
-        <div className="flex min-w-0 items-start gap-3">
-          <input
-            type="checkbox"
-            name="checked"
-            aria-label={`Mark ${bill.name} contributed`}
-            defaultChecked={paid}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
-          />
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p
               className="font-mono text-[10px] tracking-[0.16em] uppercase"
@@ -1502,26 +1532,56 @@ function SavingsBillCard({ bill, paid, billingMonth }: { bill: SavingsBill; paid
               Savings <span className="text-[var(--color-text-muted)]">· monthly</span>
             </p>
             <p
-              className={`mt-1 font-sans text-sm font-medium break-words ${
+              className={`mt-1 font-sans text-base font-medium break-words ${
                 paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
               }`}
             >
               {bill.name}
             </p>
           </div>
+          <input
+            type="checkbox"
+            name="checked"
+            aria-label={`Mark ${bill.name} contributed`}
+            defaultChecked={paid}
+            onChange={(e) => e.currentTarget.form?.requestSubmit()}
+            className="mt-1 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
+          />
         </div>
 
-        <label className="mt-3 block">
-          <span className={inlineLabelClass}>Contribute $</span>
-          <input
-            name="amount"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            aria-label={`Contribution for ${bill.name}`}
-            className={inlineFieldClass}
-          />
-        </label>
+        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 font-mono text-[11px]">
+          <div>
+            <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Contribute</dt>
+            <dd className="mt-0.5">
+              {editing ? (
+                <input
+                  autoFocus
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  onBlur={() => setEditing(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === "Escape") {
+                      e.preventDefault();
+                      setEditing(false);
+                    }
+                  }}
+                  aria-label={`Contribution for ${bill.name}`}
+                  className="h-6 w-full rounded border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-1 text-sm tabular-nums text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)]"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  aria-label={`Edit contribution for ${bill.name}`}
+                  className="text-sm tabular-nums text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-accent-emerald)]"
+                >
+                  {formatUsd(contribShown)}
+                </button>
+              )}
+            </dd>
+          </div>
+        </dl>
       </form>
     </li>
   );
