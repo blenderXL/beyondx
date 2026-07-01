@@ -197,6 +197,29 @@ describe("buildMonthlyPlan", () => {
     });
   });
 
+  describe("one-time expenses", () => {
+    it("counts a one-time expense at full value this month (symmetric with one-time income)", () => {
+      const p = buildMonthlyPlan({
+        incomes: [],
+        expenses: [
+          expense({ category: "Vet bill", amount: 700, cadence: "one_time", due_day: 16 }),
+          expense({ category: "Internet", amount: 110.77, cadence: "monthly", due_day: 2 }),
+        ],
+        debts: [],
+      });
+      expect(p.expenses).toBe(810.77);
+    });
+
+    it("counts a one-time fixed offering this month", () => {
+      const p = buildMonthlyPlan({
+        incomes: [],
+        expenses: [expense({ category: "Special gift", amount: 250, cadence: "one_time", due_day: 1, expense_group: "offering" })],
+        debts: [],
+      });
+      expect(p.offerings).toBe(250);
+    });
+  });
+
   it("counts an offering expense exactly once (no income-tithe double-count)", () => {
     // Income still carries a percent tithe (legacy field) AND there's a 10% offering expense.
     // Only the expense counts — offerings must be 10% of 4000 = 400, not 800.

@@ -67,7 +67,6 @@ import {
 import { CardFormCard } from "@/components/finance/CardFormCard";
 import { splitPayment } from "@/lib/finance/payment";
 import type { MonthlyPlan } from "@/lib/finance/planner";
-import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { MonthSwitcher } from "@/components/finance/MonthSwitcher";
 import { type MonthOption } from "@/lib/finance/history";
 import { IncomeForm } from "@/components/finance/IncomeClient";
@@ -1422,33 +1421,33 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
         {/* Amount rides as a hidden field so checking the box submits it even when not editing. */}
         <input type="hidden" name="amount" value={amount} />
 
-        {/* Header — category + name (like DebtCard); the check-off box sits top-right. */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p
-              className="flex items-start gap-1.5 font-mono text-[10px] tracking-[0.16em] uppercase"
-              style={{ color: `var(${accent})` }}
-            >
-              <DebtTypeIcon type={bill.type} className="mt-px size-3 shrink-0" />
-              {DEBT_BUCKET_LABELS[typeBucket(bill.type)]}
-            </p>
-            <p
-              className={`mt-1 font-sans text-base font-medium break-words ${
-                paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
-              }`}
-            >
-              {bill.name}
-            </p>
-          </div>
-          <input
-            type="checkbox"
-            name="checked"
-            aria-label={`Mark ${bill.name} paid`}
-            defaultChecked={paid}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="mt-1 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
-          />
-        </div>
+        {/* Check-off box, top-right corner (out of flow so the header stays one clean line). */}
+        <input
+          type="checkbox"
+          name="checked"
+          aria-label={`Mark ${bill.name} paid`}
+          defaultChecked={paid}
+          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          className="absolute right-5 top-5 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
+        />
+
+        {/* Header — category + subdued due on one line (like DebtCard), name below. */}
+        <p
+          className="pr-7 font-mono text-[10px] tracking-[0.16em] uppercase"
+          style={{ color: `var(${accent})` }}
+        >
+          {DEBT_BUCKET_LABELS[typeBucket(bill.type)]}
+          {bill.dueDay ? (
+            <span className="text-[var(--color-text-muted)]"> · due {bill.dueDay}</span>
+          ) : null}
+        </p>
+        <p
+          className={`mt-1 font-sans text-base font-medium break-words ${
+            paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+          }`}
+        >
+          {bill.name}
+        </p>
 
         {/* Stat grid mirrors DebtCard. The pay amount shows as text; click it to edit inline. */}
         <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 font-mono text-[11px]">
@@ -1491,12 +1490,6 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
             <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Interest</dt>
             <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(split.interest)}</dd>
           </div>
-          {bill.dueDay ? (
-            <div>
-              <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Due</dt>
-              <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">Day {bill.dueDay}</dd>
-            </div>
-          ) : null}
           {extras > 0 ? (
             <div>
               <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Esc/PMI</dt>

@@ -126,12 +126,17 @@ export function buildMonthlyPlan(inputs: {
       const m =
         exp.pct_of_income != null
           ? round2((income * exp.pct_of_income) / 100)
-          : monthlyAmount(exp.amount, exp.cadence);
+          : exp.cadence === "one_time"
+            ? round2(exp.amount)
+            : monthlyAmount(exp.amount, exp.cadence);
       offerings = round2(offerings + m);
       byCycle[c].offerings = round2(byCycle[c].offerings + m);
       continue;
     }
-    const m = monthlyAmount(exp.amount, exp.cadence);
+    // A one-time expense counts its full amount in the current month — symmetric with one-time
+    // income above. It shows as a this-month bill, so it must hit this month's expense total
+    // (monthlyFactor would otherwise zero it out of the recurring view).
+    const m = exp.cadence === "one_time" ? round2(exp.amount) : monthlyAmount(exp.amount, exp.cadence);
     expensesTotal = round2(expensesTotal + m);
     const label = exp.expense_group ? EXPENSE_GROUP_LABELS[exp.expense_group] : "Ungrouped";
     groupTotals.set(label, round2((groupTotals.get(label) ?? 0) + m));
