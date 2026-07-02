@@ -48,6 +48,8 @@ import {
   EXPENSE_GROUP_LABELS,
   INCOME_CADENCE_LABELS,
   CARD_TYPE_LABELS,
+  DEBT_BUCKET_LABELS,
+  typeBucket,
   type Card,
   type Expense,
   type ExpenseGroup,
@@ -65,11 +67,11 @@ import {
 import { CardFormCard } from "@/components/finance/CardFormCard";
 import { splitPayment } from "@/lib/finance/payment";
 import type { MonthlyPlan } from "@/lib/finance/planner";
-import { DebtTypeIcon } from "@/components/finance/DebtTypeIcon";
 import { MonthSwitcher } from "@/components/finance/MonthSwitcher";
 import { type MonthOption } from "@/lib/finance/history";
 import { IncomeForm } from "@/components/finance/IncomeClient";
 import { formatUsd, expenseDisplayAmount } from "@/lib/finance/derive";
+import { bucketAccentVar } from "@/lib/finance/insights";
 import { FieldHint } from "@/components/finance/FieldHint";
 import { EXPENSE_HINTS } from "@/lib/finance/fieldHints";
 import {
@@ -594,8 +596,12 @@ export function ExpensesClient({
   const editExpense = mode.kind === "edit" ? (expenses.find((e) => e.id === mode.id) ?? null) : null;
   // THIS-MONTH budget math (user's formula): budget left = income − expenses − giving − savings
   // (no debt minimums). Savings = the planned monthly contributions to the user's savings goals.
+  // Budget left = income minus every planned outflow this month, INCLUDING debt minimums — so it
+  // goes negative when obligations exceed income (e.g. no income but debts due).
   const budgetLeft =
-    Math.round((plan.income - plan.expenses - plan.offerings - rail.savingsMonthly) * 100) / 100;
+    Math.round(
+      (plan.income - plan.expenses - plan.offerings - rail.savingsMonthly - plan.debtMinimums) * 100,
+    ) / 100;
   // Per-card planned/paid rollup for the rail (migration 0021).
   const cardSummaries = useMemo(() => summarizeByCard(expenses, cards, income, paid), [expenses, cards, income, paid]);
 
@@ -662,7 +668,7 @@ export function ExpensesClient({
         />
       ) : null}
 
-      <div className="lg:grid lg:grid-cols-[1fr_20rem] lg:items-start lg:gap-6">
+      <div className="lg:grid lg:grid-cols-[1fr_19rem] lg:items-start lg:gap-6">
         {/* Left: the bills */}
         <div>
           {expenses.length === 0 && debtBills.length === 0 && savingsBills.length === 0 ? (
@@ -749,7 +755,7 @@ export function ExpensesClient({
                     Your debts, pre-filled with their minimum — edit what you&apos;ll pay, then check it off.
                     The balance drops by the principal portion.
                   </p>
-                  <ul aria-label="Debt payments" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <ul aria-label="Debt payments" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {debtBills.map((b) => (
                       <DebtBillCard key={b.id} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
                     ))}
@@ -763,7 +769,7 @@ export function ExpensesClient({
                   <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
                     Recurring contributions — check one off to add it to the pot.
                   </p>
-                  <ul aria-label="Savings contributions" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <ul aria-label="Savings contributions" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {savingsBills.map((b) => (
                       <SavingsBillCard key={b.id} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
                     ))}
@@ -1400,57 +1406,97 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
     pmi: bill.pmi ?? 0,
   });
   const extras = split.escrow + split.pmi;
+  const [editing, setEditing] = useState(false);
+  const payShown = Number.isFinite(n) ? n : 0;
+  // Match the Debts-page card: colored left accent stripe + bucket label (paid ⇒ emerald).
+  const accent = paid ? "--color-accent-emerald" : bucketAccentVar(bill.type);
 
   return (
-    <li className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
+    <li className="relative h-full overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6">
+      <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
       <form action={formAction}>
         <input type="hidden" name="kind" value="debt" />
         <input type="hidden" name="item_id" value={bill.id} />
         <input type="hidden" name="billing_month" value={billingMonth} />
+        {/* Amount rides as a hidden field so checking the box submits it even when not editing. */}
+        <input type="hidden" name="amount" value={amount} />
 
-        <div className="flex min-w-0 items-start gap-3">
-          <input
-            type="checkbox"
-            name="checked"
-            aria-label={`Mark ${bill.name} paid`}
-            defaultChecked={paid}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
-          />
-          <div className="min-w-0">
-            <p
-              className={`font-sans text-sm font-medium break-words ${
-                paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
-              }`}
-            >
-              {bill.name}
-            </p>
-            <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] tracking-[0.16em] text-[var(--color-text-muted)] uppercase">
-              <DebtTypeIcon type={bill.type} className="size-3" />
-              Debt{bill.dueDay ? ` · due day ${bill.dueDay}` : ""}
-            </p>
+        {/* Check-off box, top-right corner (out of flow so the header stays one clean line). */}
+        <input
+          type="checkbox"
+          name="checked"
+          aria-label={`Mark ${bill.name} paid`}
+          defaultChecked={paid}
+          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          className="absolute right-5 top-5 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
+        />
+
+        {/* Header — category + subdued due on one line (like DebtCard), name below. */}
+        <p
+          className="pr-7 font-mono text-[10px] tracking-[0.16em] uppercase"
+          style={{ color: `var(${accent})` }}
+        >
+          {DEBT_BUCKET_LABELS[typeBucket(bill.type)]}
+          {bill.dueDay ? (
+            <span className="text-[var(--color-text-muted)]"> · due {bill.dueDay}</span>
+          ) : null}
+        </p>
+        <p
+          className={`mt-1 font-sans text-base font-medium break-words ${
+            paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+          }`}
+        >
+          {bill.name}
+        </p>
+
+        {/* Stat grid mirrors DebtCard. The pay amount shows as text; click it to edit inline. */}
+        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 font-mono text-[11px]">
+          <div>
+            <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Pay</dt>
+            <dd className="mt-0.5">
+              {editing ? (
+                <input
+                  autoFocus
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  onBlur={() => setEditing(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === "Escape") {
+                      e.preventDefault();
+                      setEditing(false);
+                    }
+                  }}
+                  aria-label={`Payment for ${bill.name}`}
+                  className="h-6 w-full rounded border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-1 text-sm tabular-nums text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)]"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  aria-label={`Edit payment for ${bill.name}`}
+                  className="text-sm tabular-nums text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-accent-emerald)]"
+                >
+                  {formatUsd(payShown)}
+                </button>
+              )}
+            </dd>
           </div>
-        </div>
-
-        <div className="mt-3 flex items-end gap-3">
-          <label className="flex-1">
-            <span className={inlineLabelClass}>Pay $</span>
-            <input
-              name="amount"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              aria-label={`Payment for ${bill.name}`}
-              className={inlineFieldClass}
-            />
-          </label>
-          <p className="pb-1.5 text-right font-mono text-[11px] tabular-nums text-[var(--color-text-secondary)]">
-            ≈ {formatUsd(split.principal)} principal
-            <span className="block text-[10px] text-[var(--color-text-muted)]">
-              {formatUsd(split.interest)} interest{extras > 0 ? ` · ${formatUsd(extras)} esc/PMI` : ""}
-            </span>
-          </p>
-        </div>
+          <div>
+            <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Principal</dt>
+            <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(split.principal)}</dd>
+          </div>
+          <div>
+            <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Interest</dt>
+            <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(split.interest)}</dd>
+          </div>
+          {extras > 0 ? (
+            <div>
+              <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Esc/PMI</dt>
+              <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(extras)}</dd>
+            </div>
+          ) : null}
+        </dl>
       </form>
     </li>
   );
@@ -1460,46 +1506,78 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
 function SavingsBillCard({ bill, paid, billingMonth }: { bill: SavingsBill; paid: boolean; billingMonth: string }) {
   const [amount, setAmount] = useState(String(bill.monthly_contribution));
   const [, formAction] = useActionState(toggleSavingsPaid, INITIAL_FINANCE_STATE);
+  // Savings cards read emerald across the app; match the Debts-card stripe + label treatment.
+  const accent = "--color-accent-emerald";
+  const [editing, setEditing] = useState(false);
+  const n = Number(amount);
+  const contribShown = Number.isFinite(n) ? n : 0;
   return (
-    <li className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-4">
+    <li className="relative h-full overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6">
+      <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
       <form action={formAction}>
         <input type="hidden" name="item_id" value={bill.id} />
         <input type="hidden" name="billing_month" value={billingMonth} />
+        <input type="hidden" name="amount" value={amount} />
 
-        <div className="flex min-w-0 items-start gap-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p
+              className="font-mono text-[10px] tracking-[0.16em] uppercase"
+              style={{ color: `var(${accent})` }}
+            >
+              Savings <span className="text-[var(--color-text-muted)]">· monthly</span>
+            </p>
+            <p
+              className={`mt-1 font-sans text-base font-medium break-words ${
+                paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+              }`}
+            >
+              {bill.name}
+            </p>
+          </div>
           <input
             type="checkbox"
             name="checked"
             aria-label={`Mark ${bill.name} contributed`}
             defaultChecked={paid}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
+            className="mt-1 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
           />
-          <div className="min-w-0">
-            <p
-              className={`font-sans text-sm font-medium break-words ${
-                paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
-              }`}
-            >
-              {bill.name}
-            </p>
-            <p className="mt-0.5 font-mono text-[10px] tracking-[0.16em] text-[var(--color-text-muted)] uppercase">
-              Savings · monthly
-            </p>
-          </div>
         </div>
 
-        <label className="mt-3 block">
-          <span className={inlineLabelClass}>Contribute $</span>
-          <input
-            name="amount"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            aria-label={`Contribution for ${bill.name}`}
-            className={inlineFieldClass}
-          />
-        </label>
+        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 font-mono text-[11px]">
+          <div>
+            <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Contribute</dt>
+            <dd className="mt-0.5">
+              {editing ? (
+                <input
+                  autoFocus
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  onBlur={() => setEditing(false)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === "Escape") {
+                      e.preventDefault();
+                      setEditing(false);
+                    }
+                  }}
+                  aria-label={`Contribution for ${bill.name}`}
+                  className="h-6 w-full rounded border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-1 text-sm tabular-nums text-[var(--color-text-primary)] outline-none focus:border-[var(--color-text-primary)]"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  aria-label={`Edit contribution for ${bill.name}`}
+                  className="text-sm tabular-nums text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-accent-emerald)]"
+                >
+                  {formatUsd(contribShown)}
+                </button>
+              )}
+            </dd>
+          </div>
+        </dl>
       </form>
     </li>
   );
@@ -1538,7 +1616,8 @@ function ExpensesRail({
 }) {
   const income = plan.income;
   // Total planned outflow this month — the mirror of "budget left" (expenses + giving + savings).
-  const totalPlanned = Math.round((plan.expenses + plan.offerings + rail.savingsMonthly) * 100) / 100;
+  const totalPlanned =
+    Math.round((plan.expenses + plan.offerings + rail.savingsMonthly + plan.debtMinimums) * 100) / 100;
   // Segmented "where income goes" bar: expenses / offerings / leftover (clamped to income).
   const pctOf = (n: number) => (income > 0 ? Math.max(0, Math.min(100, (n / income) * 100)) : 0);
 
@@ -1573,6 +1652,10 @@ function ExpensesRail({
             <dt className="text-[var(--color-text-secondary)]">Savings</dt>
             <dd className="tabular-nums text-[var(--color-accent-blue)]">−{formatUsd(rail.savingsMonthly)}</dd>
           </div>
+          <div className="flex items-center justify-between border-b border-[var(--color-border-subtle)] pb-2.5">
+            <dt className="text-[var(--color-text-secondary)]">Debt payments</dt>
+            <dd className="tabular-nums text-[var(--color-accent-amber)]">−{formatUsd(plan.debtMinimums)}</dd>
+          </div>
           <div className="flex items-center justify-between pt-1">
             <dt className="font-sans text-sm font-medium text-[var(--color-text-primary)]">Budget left</dt>
             <dd
@@ -1591,6 +1674,7 @@ function ExpensesRail({
           <div className="h-full bg-[var(--color-accent-red)]" style={{ width: `${pctOf(plan.expenses)}%` }} />
           <div className="h-full bg-[var(--color-accent-purple)]" style={{ width: `${pctOf(plan.offerings)}%` }} />
           <div className="h-full bg-[var(--color-accent-blue)]" style={{ width: `${pctOf(rail.savingsMonthly)}%` }} />
+          <div className="h-full bg-[var(--color-accent-amber)]" style={{ width: `${pctOf(plan.debtMinimums)}%` }} />
           <div className="h-full bg-[var(--color-accent-emerald)]" style={{ width: `${pctOf(Math.max(0, budgetLeft))}%` }} />
         </div>
 

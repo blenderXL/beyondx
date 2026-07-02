@@ -270,11 +270,11 @@ function DebtRail({ debts, insight }: { debts: Debt[]; insight: ExtraPaymentInsi
             Optimization insight
           </p>
           <p className="mt-3 font-sans text-sm leading-relaxed text-[var(--color-text-secondary)]">
-            Allocating an extra{" "}
-            <span className="font-medium text-[var(--color-text-primary)]">{formatUsd(insight.extra)}/mo</span> to your{" "}
-            <span className="font-medium text-[var(--color-text-primary)]">{insight.debtName}</span> saves{" "}
+            Paying an extra{" "}
+            <span className="font-medium text-[var(--color-text-primary)]">{formatUsd(insight.extra)}/mo</span> — starting
+            with <span className="font-medium text-[var(--color-text-primary)]">{insight.debtName}</span> — saves{" "}
             <span className="font-medium text-[var(--color-accent-emerald)]">{formatUsd(insight.interestSaved)}</span> in
-            interest.
+            interest over your whole payoff.
           </p>
         </aside>
       ) : null}
@@ -423,12 +423,12 @@ function DebtCard({ debt, txns, onOpen }: { debt: Debt; txns: DebtTxn[]; onOpen:
   // Tiny month-to-month balance trend, shown only when there's enough reconstructable history.
   const trend = monthlyBalanceSeries(Number(debt.balance), txns);
   return (
-    <li>
+    <li className="h-full">
       <button
         type="button"
         onClick={onOpen}
         aria-label={`Open ${debt.name}`}
-        className="group relative w-full overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6 text-left transition-colors hover:border-[var(--color-border-strong)]"
+        className="group relative flex h-full w-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6 text-left transition-colors hover:border-[var(--color-border-strong)]"
       >
         <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
         {/* Header — category + name on the left; a tiny at-a-glance balance trend top-right. */}
@@ -464,11 +464,13 @@ function DebtCard({ debt, txns, onOpen }: { debt: Debt; txns: DebtTxn[]; onOpen:
         </dl>
 
         {bar ? (
-          <div className="mt-5 h-1 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
-            <div
-              className="h-full rounded-full"
-              style={{ width: `${Math.round(bar.pct * 100)}%`, background: `var(${bar.tone})` }}
-            />
+          <div className="mt-auto pt-5">
+            <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--color-elevated)]">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${Math.round(bar.pct * 100)}%`, background: `var(${bar.tone})` }}
+              />
+            </div>
           </div>
         ) : null}
       </button>
