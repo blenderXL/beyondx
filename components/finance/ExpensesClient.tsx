@@ -25,9 +25,11 @@ import {
   Wallet,
   Plus,
   Briefcase,
+  CalendarDays,
   type LucideIcon,
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
+import { PayCalendar, type CalendarItem } from "@/components/finance/PayCalendar";
 import {
   createExpense,
   updateExpense,
@@ -536,6 +538,7 @@ export function ExpensesClient({
   const toList = useCallback(() => setMode({ kind: "list" }), []);
   // Which debt bill's payment-card picker is open (migration 0022).
   const [debtCardId, setDebtCardId] = useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   // The dashboard's quick-add FAB links here with ?new=1 — open the create modal once, then
   // strip the param so a refresh doesn't reopen it.
@@ -633,6 +636,17 @@ export function ExpensesClient({
       ),
     [expenses, cards, income, paid, debtBills, paidDebt],
   );
+
+  // Dated bills for the pay calendar — expenses + debt payments that carry a pay day.
+  const calendarItems = useMemo<CalendarItem[]>(() => {
+    const fromExpenses = expenses
+      .filter((e) => e.due_day != null)
+      .map((e) => ({ name: e.category, day: e.due_day!, amount: expenseDisplayAmount(e, income), paid: paid.has(e.id) }));
+    const fromDebts = debtBills
+      .filter((b) => b.dueDay != null)
+      .map((b) => ({ name: b.name, day: b.dueDay!, amount: b.min_payment, paid: paidDebt.has(b.id) }));
+    return [...fromExpenses, ...fromDebts];
+  }, [expenses, debtBills, income, paid, paidDebt]);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -870,6 +884,19 @@ export function ExpensesClient({
           cardSummaries={cardSummaries}
         />
       </div>
+
+      {/* Floating pay-calendar button (bottom-right) → month view of when bills are due. */}
+      <button
+        type="button"
+        onClick={() => setCalendarOpen(true)}
+        aria-label="Open pay calendar"
+        className="fixed bottom-6 right-6 z-30 flex size-12 items-center justify-center rounded-full border border-[var(--color-border-strong)] bg-[var(--color-elevated)] text-[var(--color-text-primary)] shadow-lg transition-colors hover:border-[var(--color-text-primary)]"
+      >
+        <CalendarDays className="size-5" aria-hidden />
+      </button>
+      <Modal open={calendarOpen} onClose={() => setCalendarOpen(false)} label="Pay calendar" size="2xl">
+        <PayCalendar items={calendarItems} billingMonth={billingMonth} />
+      </Modal>
     </div>
   );
 }
