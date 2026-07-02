@@ -77,7 +77,7 @@ export default async function ExpensesPage({
     );
   }
 
-  const [expensesRes, debtsRes, savingsRes, incomesRes, paymentsRes, contribRes, overridesRes, cardsRes, debtTxnsRes, plannedRes] = await Promise.all([
+  const [expensesRes, debtsRes, savingsRes, incomesRes, paymentsRes, contribRes, overridesRes, cardsRes, debtTxnsRes, plannedRes, incomeCardsRes] = await Promise.all([
     supabase.from("expenses").select("*").is("archived_at", null).order("created_at", { ascending: true }),
     // select("*") so a missing escrow/pmi column (pre-0014) reads as undefined rather than erroring.
     supabase.from("debts").select("*").is("archived_at", null).order("name", { ascending: true }),
@@ -98,6 +98,8 @@ export default async function ExpensesPage({
       .order("created_at", { ascending: false }),
     // Planned payments applied from the payoff planner (migration 0023); degrades to none.
     supabase.from("debt_payment_plans").select("debt_id, amount").eq("billing_month", billingMonth),
+    // Per-income cards for percent offerings (migration 0024); degrades to none.
+    supabase.from("expense_income_cards").select("expense_id, income_id, card_id"),
   ]);
 
   const payments = (paymentsRes.data ?? []) as { expense_id: string | null; debt_id: string | null }[];
@@ -238,9 +240,15 @@ export default async function ExpensesPage({
       const ov = overrides[i.id];
       const base = i.is_variable && ov != null ? ov : Number(i.amount);
       const monthly = i.cadence === "one_time" ? base : monthlyAmount(base, i.cadence);
-      return { source: i.source, monthly };
+      return { id: i.id, source: i.source, monthly };
     })
     .filter((b) => b.monthly > 0);
+
+  // expense_id → income_id → card_id: which card pays each income slice of a percent offering.
+  const incomeCardsByExpense: Record<string, Record<string, string | null>> = {};
+  for (const r of (incomeCardsRes.data ?? []) as { expense_id: string; income_id: string; card_id: string | null }[]) {
+    (incomeCardsByExpense[r.expense_id] ??= {})[r.income_id] = r.card_id;
+  }
 
   return (
     <ExpensesClient
@@ -260,6 +268,7 @@ export default async function ExpensesPage({
       plan={plan}
       incomes={incomes}
       incomeBreakdown={incomeBreakdown}
+      incomeCardsByExpense={incomeCardsByExpense}
       savingsOptions={savingsOptions}
       months={months}
       currentMonth={billingMonth}

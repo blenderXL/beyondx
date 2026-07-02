@@ -41,6 +41,7 @@ import {
   archiveIncome,
   archiveCard,
   setExpenseCard,
+  setExpenseIncomeCard,
   setDebtCard,
 } from "@/app/(app)/actions";
 import { INITIAL_FINANCE_STATE, type FinanceActionState } from "@/lib/finance/actionState";
@@ -137,6 +138,7 @@ export interface ExpensesRail {
 
 /** Per-source monthly income (override-resolved) — the offering card breaks its % down over these. */
 export interface IncomeBreakdownItem {
+  id: string;
   source: string;
   monthly: number;
 }
@@ -505,6 +507,7 @@ export function ExpensesClient({
   plan,
   incomes,
   incomeBreakdown,
+  incomeCardsByExpense,
   savingsOptions,
   months,
   currentMonth,
@@ -522,6 +525,8 @@ export function ExpensesClient({
   incomes: Income[];
   /** Per-source monthly income (after overrides) — powers the offering card's breakdown. */
   incomeBreakdown: IncomeBreakdownItem[];
+  /** expense_id → income_id → card_id: which card pays each income slice of a percent offering. */
+  incomeCardsByExpense: Record<string, Record<string, string | null>>;
   /** Monthly income — resolves a percent offering to its dollar value in the listed total. */
   income: number;
   /** First-of-month ISO date the check-offs are keyed to. */
@@ -635,6 +640,23 @@ export function ExpensesClient({
     Math.round(
       (plan.income - plan.expenses - plan.offerings - rail.savingsMonthly - plan.debtMinimums) * 100,
     ) / 100;
+  // A percent offering with per-income card picks (migration 0024) splits into slices — each
+  // income's share rides its own card in the rail totals. No picks ⇒ the whole offering keeps
+  // using the expense's single card tag.
+  const offeringSlices = useMemo(() => {
+    const slices: Record<string, { amount: number; card_id: string | null }[]> = {};
+    for (const e of expenses) {
+      if (e.expense_group !== "offering" || e.pct_of_income == null) continue;
+      const picks = incomeCardsByExpense[e.id];
+      if (!picks || Object.keys(picks).length === 0) continue;
+      slices[e.id] = incomeBreakdown.map((b) => ({
+        amount: Math.round(b.monthly * e.pct_of_income!) / 100,
+        card_id: picks[b.id] ?? null,
+      }));
+    }
+    return slices;
+  }, [expenses, incomeBreakdown, incomeCardsByExpense]);
+
   // Per-card planned/paid rollup for the rail (migration 0021).
   const cardSummaries = useMemo(
     () =>
@@ -645,8 +667,9 @@ export function ExpensesClient({
         paid,
         debtBills.map((b) => ({ id: b.id, card_id: b.card_id, amount: b.plannedAmount ?? b.min_payment })),
         paidDebt,
+        offeringSlices,
       ),
-    [expenses, cards, income, paid, debtBills, paidDebt],
+    [expenses, cards, income, paid, debtBills, paidDebt, offeringSlices],
   );
 
   // Dated bills for the pay calendar — expenses + debt payments that carry a pay day.
@@ -702,20 +725,52 @@ export function ExpensesClient({
               onDone={toList}
               onCancel={toList}
             />
-            {/* Which payment card this bill is paid with — lives in the editor, not on the card face. */}
+            {/* Which payment card this bill is paid with — lives in the editor, not on the card
+                face. A percent offering gets one picker per income source: each paycheck's slice
+                of the offering can ride a different card (migration 0024). */}
             {cards.length > 0 ? (
-              <div className="mt-4">
-                <span className={labelClass}>// paying with</span>
-                <div className="mt-2">
-                  <CardPicker
-                    action={setExpenseCard}
-                    itemId={editExpense.id}
-                    currentCardId={editExpense.card_id}
-                    label={`Payment card for ${editExpense.category}`}
-                    cards={cards}
-                  />
+              editExpense.expense_group === "offering" &&
+              editExpense.pct_of_income != null &&
+              incomeBreakdown.length > 0 ? (
+                <div className="mt-4">
+                  <span className={labelClass}>// paying with — per income</span>
+                  <ul className="mt-2 space-y-3">
+                    {incomeBreakdown.map((b) => (
+                      <li key={b.id}>
+                        <div className="mb-1 flex items-center justify-between gap-3 font-mono text-[11px]">
+                          <span className="truncate text-[var(--color-text-secondary)]">
+                            {editExpense.pct_of_income}% × {b.source}
+                          </span>
+                          <span className="shrink-0 tabular-nums text-[var(--color-text-primary)]">
+                            {formatUsd(Math.round(b.monthly * editExpense.pct_of_income!) / 100)}
+                          </span>
+                        </div>
+                        <CardPicker
+                          action={setExpenseIncomeCard}
+                          itemId={editExpense.id}
+                          currentCardId={incomeCardsByExpense[editExpense.id]?.[b.id] ?? null}
+                          label={`Payment card for ${editExpense.category} from ${b.source}`}
+                          cards={cards}
+                          extraHidden={[{ name: "income_id", value: b.id }]}
+                        />
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              </div>
+              ) : (
+                <div className="mt-4">
+                  <span className={labelClass}>// paying with</span>
+                  <div className="mt-2">
+                    <CardPicker
+                      action={setExpenseCard}
+                      itemId={editExpense.id}
+                      currentCardId={editExpense.card_id}
+                      label={`Payment card for ${editExpense.category}`}
+                      cards={cards}
+                    />
+                  </div>
+                </div>
+              )
             ) : null}
             {/* Archive lives in the editor now (no buttons on the card). Sibling form — not nested. */}
             <div className="mt-4 flex justify-end">
@@ -1490,23 +1545,31 @@ function CardPicker({
   currentCardId,
   label,
   cards,
+  extraHidden,
 }: {
   action: (prev: FinanceActionState, formData: FormData) => Promise<FinanceActionState>;
   itemId: string;
   currentCardId: string | null | undefined;
   label: string;
   cards: Card[];
+  /** Extra hidden fields the action needs (e.g. income_id for a per-income offering slice). */
+  extraHidden?: { name: string; value: string }[];
 }) {
   const [state, formAction, pending] = useActionState(action, INITIAL_FINANCE_STATE);
+  // Several pickers can target the same item (one per income slice) — suffix keeps ids unique.
+  const domId = ["card", itemId, ...(extraHidden?.map((h) => h.value) ?? [])].join("-");
   return (
     <form action={formAction}>
       <input type="hidden" name="id" value={itemId} />
-      <label className="sr-only" htmlFor={`card-${itemId}`}>
+      {extraHidden?.map((h) => (
+        <input key={h.name} type="hidden" name={h.name} value={h.value} />
+      ))}
+      <label className="sr-only" htmlFor={domId}>
         {label}
       </label>
       <div className="relative">
         <select
-          id={`card-${itemId}`}
+          id={domId}
           name="card_id"
           defaultValue={currentCardId ?? ""}
           disabled={pending}

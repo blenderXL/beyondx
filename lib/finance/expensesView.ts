@@ -95,6 +95,12 @@ export interface CardDebtBill {
   amount: number;
 }
 
+/** One income's share of a percent offering, with the card that slice is paid on. */
+export interface OfferingSlice {
+  amount: number;
+  card_id: string | null;
+}
+
 export function summarizeByCard(
   expenses: Expense[],
   cards: Card[],
@@ -102,6 +108,9 @@ export function summarizeByCard(
   paidExpenseIds: Set<string>,
   debtBills: CardDebtBill[] = [],
   paidDebtIds: Set<string> = new Set(),
+  /** expense_id → per-income slices (migration 0024). A listed expense allocates per slice
+   *  instead of as one amount on its own card tag. */
+  offeringSlices: Record<string, OfferingSlice[]> = {},
 ): CardSummary[] {
   const empty = (cardId: string | null): CardSummary => ({ cardId, planned: 0, paid: 0, count: 0 });
   const byCard = new Map<string | null, CardSummary>();
@@ -109,6 +118,20 @@ export function summarizeByCard(
   const unassigned = empty(null);
 
   for (const e of expenses) {
+    // A percent offering with per-income card picks splits across its slices' cards; the bill
+    // counts once on every card it touches.
+    const slices = offeringSlices[e.id];
+    if (slices && slices.length > 0) {
+      const touched = new Set<CardSummary>();
+      for (const s of slices) {
+        const bucket = s.card_id && byCard.has(s.card_id) ? byCard.get(s.card_id)! : unassigned;
+        bucket.planned += s.amount;
+        if (paidExpenseIds.has(e.id)) bucket.paid += s.amount;
+        touched.add(bucket);
+      }
+      for (const bucket of touched) bucket.count += 1;
+      continue;
+    }
     const bucket = e.card_id && byCard.has(e.card_id) ? byCard.get(e.card_id)! : unassigned;
     const amount = expenseDisplayAmount(e, income);
     bucket.planned += amount;
