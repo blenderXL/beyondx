@@ -592,6 +592,18 @@ export function ExpensesClient({
     () => grouped.map((g) => ({ ...g, expenses: partitionPaidLast(g.expenses, paid) })),
     [grouped, paid],
   );
+  // Debt + savings bills share the one bill grid. They honor the search box (name match) but not
+  // the expense-group filter (their buckets aren't expense groups), so a specific group hides them.
+  const q = query.trim().toLowerCase();
+  const debtVisible = useMemo(
+    () => (group === "all" ? debtBills.filter((b) => q === "" || b.name.toLowerCase().includes(q)) : []),
+    [debtBills, group, q],
+  );
+  const savingsVisible = useMemo(
+    () => (group === "all" ? savingsBills.filter((b) => q === "" || b.name.toLowerCase().includes(q)) : []),
+    [savingsBills, group, q],
+  );
+  const noBillsMatch = orderedVisible.length === 0 && debtVisible.length === 0 && savingsVisible.length === 0;
   // Resolve the edit target from the live list so archiving it closes the modal.
   const editExpense = mode.kind === "edit" ? (expenses.find((e) => e.id === mode.id) ?? null) : null;
   // THIS-MONTH budget math (user's formula): budget left = income − expenses − giving − savings
@@ -645,6 +657,15 @@ export function ExpensesClient({
               onDone={toList}
               onCancel={toList}
             />
+            {/* Which payment card this bill is paid with — lives in the editor, not on the card face. */}
+            {cards.length > 0 ? (
+              <div className="mt-4">
+                <span className={labelClass}>// paying with</span>
+                <div className="mt-2">
+                  <ExpenseCardPicker expense={editExpense} cards={cards} />
+                </div>
+              </div>
+            ) : null}
             {/* Archive lives in the editor now (no buttons on the card). Sibling form — not nested. */}
             <div className="mt-4 flex justify-end">
               <ArchiveButton id={editExpense.id} name={editExpense.category} />
@@ -679,41 +700,52 @@ export function ExpensesClient({
             </div>
           ) : (
             <>
-              {expenses.length > 0 ? (
+              {noBillsMatch ? (
+                <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
+                  <p className="font-mono text-sm text-[var(--color-text-muted)]">
+                    // no bills match your search or filter
+                  </p>
+                </div>
+              ) : view === "category" ? (
                 <>
-                  {visible.length === 0 ? (
-                    <div className="rounded-[var(--radius-card)] border border-dashed border-[var(--color-border-strong)] p-10 text-center">
-                      <p className="font-mono text-sm text-[var(--color-text-muted)]">
-                        // no expenses match your search or filter
-                      </p>
-                    </div>
-                  ) : view === "category" ? (
-                    <div className="space-y-8">
-                      {groupedOrdered.map((g) => (
-                        <section key={g.group} aria-label={g.label}>
-                          <div className="mb-3 flex items-center justify-between gap-3">
-                            <p className={labelClass}>// {g.label.toLowerCase()}</p>
-                            <p className="font-mono text-[11px] tabular-nums text-[var(--color-text-muted)]">
-                              {g.expenses.length} · {formatUsd(g.total)}
-                            </p>
-                          </div>
-                          <ul aria-label={g.label} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                            {g.expenses.map((expense) => (
-                              <ExpenseCard
-                                key={expense.id}
-                                expense={expense}
-                                paid={paid.has(expense.id)}
-                                billingMonth={billingMonth}
-                                incomeBreakdown={incomeBreakdown}
-                                cards={cards}
-                                onEdit={() => setMode({ kind: "edit", id: expense.id })}
-                              />
-                            ))}
-                          </ul>
-                        </section>
+                  <div className="space-y-8">
+                    {groupedOrdered.map((g) => (
+                      <section key={g.group} aria-label={g.label}>
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className={labelClass}>// {g.label.toLowerCase()}</p>
+                          <p className="font-mono text-[11px] tabular-nums text-[var(--color-text-muted)]">
+                            {g.expenses.length} · {formatUsd(g.total)}
+                          </p>
+                        </div>
+                        <ul aria-label={g.label} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                          {g.expenses.map((expense) => (
+                            <ExpenseCard
+                              key={expense.id}
+                              expense={expense}
+                              paid={paid.has(expense.id)}
+                              billingMonth={billingMonth}
+                              incomeBreakdown={incomeBreakdown}
+                              onEdit={() => setMode({ kind: "edit", id: expense.id })}
+                            />
+                          ))}
+                        </ul>
+                      </section>
+                    ))}
+                  </div>
+                  {debtVisible.length + savingsVisible.length > 0 ? (
+                    <ul aria-label="Bills" className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      {debtVisible.map((b) => (
+                        <DebtBillCard key={`debt-${b.id}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
                       ))}
-                    </div>
-                  ) : view === "list" ? (
+                      {savingsVisible.map((b) => (
+                        <SavingsBillCard key={`sav-${b.id}`} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
+                      ))}
+                    </ul>
+                  ) : null}
+                </>
+              ) : view === "list" ? (
+                <>
+                  {orderedVisible.length > 0 ? (
                     <ul
                       aria-label="Expenses"
                       className="divide-y divide-[var(--color-border-subtle)] overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)]"
@@ -725,57 +757,43 @@ export function ExpensesClient({
                           paid={paid.has(expense.id)}
                           billingMonth={billingMonth}
                           income={income}
-                          cards={cards}
                           onEdit={() => setMode({ kind: "edit", id: expense.id })}
                         />
                       ))}
                     </ul>
-                  ) : (
-                    <ul aria-label="Expenses" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                      {orderedVisible.map((expense) => (
-                        <ExpenseCard
-                          key={expense.id}
-                          expense={expense}
-                          paid={paid.has(expense.id)}
-                          billingMonth={billingMonth}
-                          incomeBreakdown={incomeBreakdown}
-                          cards={cards}
-                          onEdit={() => setMode({ kind: "edit", id: expense.id })}
-                        />
+                  ) : null}
+                  {debtVisible.length + savingsVisible.length > 0 ? (
+                    <ul aria-label="Bills" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      {debtVisible.map((b) => (
+                        <DebtBillCard key={`debt-${b.id}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
+                      ))}
+                      {savingsVisible.map((b) => (
+                        <SavingsBillCard key={`sav-${b.id}`} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
                       ))}
                     </ul>
-                  )}
+                  ) : null}
                 </>
-              ) : null}
-
-              {debtBills.length > 0 ? (
-                <section className="mt-8">
-                  <p className={labelClass}>// debt payments this month</p>
-                  <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
-                    Your debts, pre-filled with their minimum — edit what you&apos;ll pay, then check it off.
-                    The balance drops by the principal portion.
-                  </p>
-                  <ul aria-label="Debt payments" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {debtBills.map((b) => (
-                      <DebtBillCard key={b.id} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
-
-              {savingsBills.length > 0 ? (
-                <section className="mt-8">
-                  <p className={labelClass}>// savings this month</p>
-                  <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
-                    Recurring contributions — check one off to add it to the pot.
-                  </p>
-                  <ul aria-label="Savings contributions" className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {savingsBills.map((b) => (
-                      <SavingsBillCard key={b.id} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
+              ) : (
+                /* Card view — every bill (expenses + debt payments + savings) in one grid. */
+                <ul aria-label="Bills" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {orderedVisible.map((expense) => (
+                    <ExpenseCard
+                      key={`exp-${expense.id}`}
+                      expense={expense}
+                      paid={paid.has(expense.id)}
+                      billingMonth={billingMonth}
+                      incomeBreakdown={incomeBreakdown}
+                      onEdit={() => setMode({ kind: "edit", id: expense.id })}
+                    />
+                  ))}
+                  {debtVisible.map((b) => (
+                    <DebtBillCard key={`debt-${b.id}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
+                  ))}
+                  {savingsVisible.map((b) => (
+                    <SavingsBillCard key={`sav-${b.id}`} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
+                  ))}
+                </ul>
+              )}
             </>
           )}
         </div>
@@ -957,6 +975,31 @@ function PayToggle({
   );
 }
 
+/**
+ * Pay-now / Revert submit button for a bill FORM that already carries the item's hidden fields
+ * (kind, item_id, billing_month, amount). Unlike PayToggle it isn't its own form — it drops into
+ * the debt/savings card forms so every bill shares one "Pay now" affordance (no checkboxes).
+ */
+function PayNowSubmit({ paid, name, pending }: { paid: boolean; name: string; pending?: boolean }) {
+  return (
+    <>
+      {!paid ? <input type="hidden" name="checked" value="on" /> : null}
+      <button
+        type="submit"
+        disabled={pending}
+        aria-label={paid ? `Revert ${name}` : `Pay ${name}`}
+        className={
+          paid
+            ? "flex w-full items-center justify-center gap-2 rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-primary)] disabled:opacity-40"
+            : "flex w-full items-center justify-center gap-2 rounded-md border border-[color-mix(in_oklab,var(--color-accent-red),transparent_70%)] bg-[var(--color-elevated)] py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--color-accent-red)] transition-colors hover:bg-[color-mix(in_oklab,var(--color-accent-red),transparent_88%)] disabled:opacity-40"
+        }
+      >
+        {pending ? "…" : paid ? (<><Undo2 className="size-3.5" aria-hidden /> Revert</>) : (<><CreditCard className="size-3.5" aria-hidden /> Pay now</>)}
+      </button>
+    </>
+  );
+}
+
 /** "Pay all this month" ⇄ "Revert" — pays every planned item, or undoes the month's payments. */
 function PayAllButton({ billingMonth, allPaid }: { billingMonth: string; allPaid: boolean }) {
   const [state, formAction, pending] = useActionState(
@@ -1060,14 +1103,12 @@ function ExpenseCard({
   paid,
   billingMonth,
   incomeBreakdown,
-  cards,
   onEdit,
 }: {
   expense: Expense;
   paid: boolean;
   billingMonth: string;
   incomeBreakdown: IncomeBreakdownItem[];
-  cards: Card[];
   onEdit: () => void;
 }) {
   const isPercentOffering = expense.expense_group === "offering" && expense.pct_of_income != null;
@@ -1090,10 +1131,10 @@ function ExpenseCard({
   const Icon = groupIcon(expense.expense_group);
 
   return (
-    <li>
+    <li className="h-full">
       <div
         onClick={onEdit}
-        className={`group relative cursor-pointer overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6 transition-colors hover:border-[var(--color-border-strong)] ${
+        className={`group relative flex h-full cursor-pointer flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6 transition-colors hover:border-[var(--color-border-strong)] ${
           paid ? "opacity-80" : ""
         }`}
       >
@@ -1246,15 +1287,8 @@ function ExpenseCard({
           {expense.debt_id || expense.savings_goal_id ? " · linked" : ""}
         </p>
 
-        {/* Inline payment-card picker (migration 0021) — only when the user has cards. */}
-        {cards.length > 0 ? (
-          <span onClick={stop} className="mt-3 block">
-            <ExpenseCardPicker expense={expense} cards={cards} />
-          </span>
-        ) : null}
-
         {/* The card's only button — pay this month, or revert. Edit/archive are a card-body click. */}
-        <span onClick={stop} className="mt-4 block">
+        <span onClick={stop} className="mt-auto block pt-4">
           <PayToggle expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} />
         </span>
 
@@ -1277,14 +1311,12 @@ function ExpenseRow({
   paid,
   billingMonth,
   income,
-  cards,
   onEdit,
 }: {
   expense: Expense;
   paid: boolean;
   billingMonth: string;
   income: number;
-  cards: Card[];
   onEdit: () => void;
 }) {
   const accent = paid ? "--color-accent-emerald" : groupAccent(expense.expense_group);
@@ -1334,11 +1366,6 @@ function ExpenseRow({
           {formatUsd(expenseDisplayAmount(expense, income))}
         </span>
       </button>
-      {cards.length > 0 ? (
-        <span onClick={(e) => e.stopPropagation()} className="hidden w-32 shrink-0 sm:block">
-          <ExpenseCardPicker expense={expense} cards={cards} />
-        </span>
-      ) : null}
       <span onClick={(e) => e.stopPropagation()} className="shrink-0">
         <PayToggle expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} compact />
       </span>
@@ -1396,7 +1423,7 @@ function ExpenseCardPicker({ expense, cards }: { expense: Expense; cards: Card[]
  */
 function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: boolean; billingMonth: string }) {
   const [amount, setAmount] = useState(String(bill.min_payment));
-  const [, formAction] = useActionState(togglePaid, INITIAL_FINANCE_STATE);
+  const [, formAction, pending] = useActionState(togglePaid, INITIAL_FINANCE_STATE);
   const n = Number(amount);
   const split = splitPayment({
     balance: bill.balance,
@@ -1412,24 +1439,14 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
   const accent = paid ? "--color-accent-emerald" : bucketAccentVar(bill.type);
 
   return (
-    <li className="relative h-full overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6">
+    <li className="relative flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6">
       <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
-      <form action={formAction}>
+      <form action={formAction} className="flex h-full flex-col">
         <input type="hidden" name="kind" value="debt" />
         <input type="hidden" name="item_id" value={bill.id} />
         <input type="hidden" name="billing_month" value={billingMonth} />
-        {/* Amount rides as a hidden field so checking the box submits it even when not editing. */}
+        {/* Amount rides as a hidden field so Pay now submits it even when not editing. */}
         <input type="hidden" name="amount" value={amount} />
-
-        {/* Check-off box, top-right corner (out of flow so the header stays one clean line). */}
-        <input
-          type="checkbox"
-          name="checked"
-          aria-label={`Mark ${bill.name} paid`}
-          defaultChecked={paid}
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
-          className="absolute right-5 top-5 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
-        />
 
         {/* Header — category + subdued due on one line (like DebtCard), name below. */}
         <p
@@ -1497,6 +1514,10 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
             </div>
           ) : null}
         </dl>
+
+        <div className="mt-auto pt-5">
+          <PayNowSubmit paid={paid} name={bill.name} pending={pending} />
+        </div>
       </form>
     </li>
   );
@@ -1505,45 +1526,33 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
 /** A recurring savings contribution as a checkable bill. Checking it off adds the amount to the pot. */
 function SavingsBillCard({ bill, paid, billingMonth }: { bill: SavingsBill; paid: boolean; billingMonth: string }) {
   const [amount, setAmount] = useState(String(bill.monthly_contribution));
-  const [, formAction] = useActionState(toggleSavingsPaid, INITIAL_FINANCE_STATE);
+  const [, formAction, pending] = useActionState(toggleSavingsPaid, INITIAL_FINANCE_STATE);
   // Savings cards read emerald across the app; match the Debts-card stripe + label treatment.
   const accent = "--color-accent-emerald";
   const [editing, setEditing] = useState(false);
   const n = Number(amount);
   const contribShown = Number.isFinite(n) ? n : 0;
   return (
-    <li className="relative h-full overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6">
+    <li className="relative flex h-full flex-col overflow-hidden rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-5 pl-6">
       <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
-      <form action={formAction}>
+      <form action={formAction} className="flex h-full flex-col">
         <input type="hidden" name="item_id" value={bill.id} />
         <input type="hidden" name="billing_month" value={billingMonth} />
         <input type="hidden" name="amount" value={amount} />
 
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p
-              className="font-mono text-[10px] tracking-[0.16em] uppercase"
-              style={{ color: `var(${accent})` }}
-            >
-              Savings <span className="text-[var(--color-text-muted)]">· monthly</span>
-            </p>
-            <p
-              className={`mt-1 font-sans text-base font-medium break-words ${
-                paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
-              }`}
-            >
-              {bill.name}
-            </p>
-          </div>
-          <input
-            type="checkbox"
-            name="checked"
-            aria-label={`Mark ${bill.name} contributed`}
-            defaultChecked={paid}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="mt-1 size-4 shrink-0 cursor-pointer accent-[var(--color-accent-emerald)]"
-          />
-        </div>
+        <p
+          className="font-mono text-[10px] tracking-[0.16em] uppercase"
+          style={{ color: `var(${accent})` }}
+        >
+          Savings <span className="text-[var(--color-text-muted)]">· monthly</span>
+        </p>
+        <p
+          className={`mt-1 font-sans text-base font-medium break-words ${
+            paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+          }`}
+        >
+          {bill.name}
+        </p>
 
         <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 font-mono text-[11px]">
           <div>
@@ -1578,6 +1587,10 @@ function SavingsBillCard({ bill, paid, billingMonth }: { bill: SavingsBill; paid
             </dd>
           </div>
         </dl>
+
+        <div className="mt-auto pt-5">
+          <PayNowSubmit paid={paid} name={bill.name} pending={pending} />
+        </div>
       </form>
     </li>
   );
