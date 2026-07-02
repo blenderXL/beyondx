@@ -8,7 +8,6 @@ import {
   Layers,
   List,
   ChevronDown,
-  Calendar,
   CreditCard,
   Banknote,
   Undo2,
@@ -1187,11 +1186,11 @@ function groupByExpenseGroup(
 }
 
 /**
- * Expense card. Click the dollar amount to quick-edit it in place (the unchanged fields ride
- * along as hidden inputs so the server validator gets a complete expense). Click anywhere else
- * on the card to open the full editor modal. A percent offering shows its % (edit it in the
- * modal). The checkbox, inline editor, and footer buttons stop propagation so they don't open
- * the modal.
+ * Expense card — same anatomy as DebtBillCard so mixed rows read as one grid: accent label
+ * header (+ pay day), name, a ≤4-cell stat grid, Pay now at the foot. Click the Amount stat to
+ * quick-edit it in place (the unchanged fields ride along as hidden inputs so the server
+ * validator gets a complete expense). Click anywhere else on the card to open the full editor
+ * modal. A percent offering's Amount expands its per-income breakdown instead.
  */
 function ExpenseCard({
   expense,
@@ -1223,7 +1222,6 @@ function ExpenseCard({
     : [];
   const offeringTotal = offeringLines.reduce((s, l) => s + l.amount, 0);
   const accent = paid ? "--color-accent-emerald" : groupAccent(expense.expense_group);
-  const Icon = groupIcon(expense.expense_group);
 
   return (
     <li className="h-full">
@@ -1235,78 +1233,95 @@ function ExpenseCard({
       >
         <span aria-hidden className="absolute left-0 top-0 h-full w-1" style={{ background: `var(${accent})` }} />
 
-        {/* Header: group icon + name, with a PAID chip when settled. */}
+        {/* Header — group label + pay day on one line (like DebtBillCard), PAID chip right. */}
         <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span
-              aria-hidden
-              className="flex size-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-border-subtle)] bg-[var(--color-elevated)]"
-              style={{ color: `var(${accent})` }}
-            >
-              <Icon className="size-[18px]" />
-            </span>
-            <span
-              className={`min-w-0 truncate font-mono text-[12px] font-medium tracking-[0.02em] ${
-                paid
-                  ? "text-[var(--color-text-muted)] line-through decoration-[var(--color-border-strong)]"
-                  : "text-[var(--color-text-primary)]"
-              }`}
-            >
-              {expense.category}
-            </span>
-          </div>
+          <p
+            className="min-w-0 font-mono text-[10px] tracking-[0.16em] uppercase"
+            style={{ color: `var(${accent})` }}
+          >
+            {expense.expense_group ? EXPENSE_GROUP_LABELS[expense.expense_group] : "Ungrouped"}
+            {expense.due_day ? (
+              <span className="whitespace-nowrap text-[var(--color-text-muted)]">
+                {" "}· {paid ? "paid" : "pay day"} {ordinal(expense.due_day)}
+              </span>
+            ) : null}
+            {expense.debt_id || expense.savings_goal_id ? (
+              <span className="text-[var(--color-text-muted)]"> · linked</span>
+            ) : null}
+          </p>
           {paid ? (
             <span className="shrink-0 rounded bg-[color-mix(in_oklab,var(--color-accent-emerald),transparent_85%)] px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--color-accent-emerald)]">
               Paid
             </span>
           ) : null}
         </div>
+        <p
+          className={`mt-1 font-sans text-base font-medium break-words ${
+            paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+          }`}
+        >
+          {expense.category}
+        </p>
 
-        {/* Amount: muted "$" + big figure. Click to quick-edit (offering shows its % breakdown). */}
+        {/* Stat grid mirrors DebtBillCard (≤4 cells). Amount is click-to-edit / breakdown-toggle. */}
         {!editingAmount ? (
-          <div className="mt-3">
+          <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 font-mono text-[11px]">
+            <div>
+              <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Amount</dt>
+              <dd className="mt-0.5">
+                {isPercentOffering ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      stop(e);
+                      setShowBreakdown((v) => !v);
+                    }}
+                    aria-label={`Show offering breakdown for ${expense.category}`}
+                    aria-expanded={showBreakdown}
+                    className="flex items-center gap-1 text-sm tabular-nums text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-accent-emerald)]"
+                  >
+                    {formatUsd(offeringTotal)}
+                    <ChevronDown
+                      className={`size-3.5 transition-transform ${showBreakdown ? "rotate-180" : ""}`}
+                      aria-hidden
+                    />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      stop(e);
+                      setEditingAmount(true);
+                    }}
+                    aria-label={`Edit amount for ${expense.category}`}
+                    className={`text-sm tabular-nums transition-colors hover:text-[var(--color-accent-emerald)] ${
+                      paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+                    }`}
+                  >
+                    {formatUsd(Number(expense.amount))}
+                  </button>
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Frequency</dt>
+              <dd className="mt-0.5 text-sm text-[var(--color-text-primary)]">
+                {EXPENSE_CADENCE_LABELS[expense.cadence]}
+              </dd>
+            </div>
             {isPercentOffering ? (
-              <>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    stop(e);
-                    setShowBreakdown((v) => !v);
-                  }}
-                  aria-label={`Show offering breakdown for ${expense.category}`}
-                  aria-expanded={showBreakdown}
-                  className="flex items-baseline gap-1 font-sans tabular-nums text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-accent-emerald)]"
-                >
-                  <span className="text-sm text-[var(--color-text-muted)]">$</span>
-                  <span className="text-2xl font-medium">{amountDigits(offeringTotal)}</span>
-                  <ChevronDown
-                    className={`size-4 self-center transition-transform ${showBreakdown ? "rotate-180" : ""}`}
-                    aria-hidden
-                  />
-                </button>
-                <p className="mt-0.5 font-mono text-[10px] text-[var(--color-text-muted)]">{pct}% of income</p>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={(e) => {
-                  stop(e);
-                  setEditingAmount(true);
-                }}
-                aria-label={`Edit amount for ${expense.category}`}
-                className="flex items-baseline gap-1 font-sans tabular-nums transition-colors hover:text-[var(--color-accent-emerald)]"
-              >
-                <span className="text-sm text-[var(--color-text-muted)]">$</span>
-                <span
-                  className={`text-2xl font-medium ${
-                    paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
-                  }`}
-                >
-                  {amountDigits(Number(expense.amount))}
-                </span>
-              </button>
-            )}
-          </div>
+              <div>
+                <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Rate</dt>
+                <dd className="mt-0.5 text-sm text-[var(--color-text-primary)]">{pct}% of income</dd>
+              </div>
+            ) : null}
+            {expense.payee ? (
+              <div className="min-w-0">
+                <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Payee</dt>
+                <dd className="mt-0.5 truncate text-sm text-[var(--color-text-primary)]">{expense.payee}</dd>
+              </div>
+            ) : null}
+          </dl>
         ) : null}
 
         {isPercentOffering && showBreakdown ? (
@@ -1343,6 +1358,7 @@ function ExpenseCard({
             <input type="hidden" name="payee" value={expense.payee ?? ""} />
             <input type="hidden" name="cadence" value={expense.cadence} />
             <input type="hidden" name="debt_id" value={expense.debt_id ?? ""} />
+            <input type="hidden" name="savings_goal_id" value={expense.savings_goal_id ?? ""} />
             <input type="hidden" name="due_day" value={expense.due_day ?? ""} />
             <label className="flex-1">
               <span className={inlineLabelClass}>Amount $</span>
@@ -1375,15 +1391,8 @@ function ExpenseCard({
           </form>
         ) : null}
 
-        <p className="mt-2 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--color-text-muted)]">
-          <Calendar className="size-3 shrink-0" aria-hidden />
-          {EXPENSE_CADENCE_LABELS[expense.cadence]}
-          {expense.due_day ? ` · ${paid ? "paid" : "pay day"} ${ordinal(expense.due_day)}` : ""}
-          {expense.debt_id || expense.savings_goal_id ? " · linked" : ""}
-        </p>
-
         {/* The card's only button — pay this month, or revert. Edit/archive are a card-body click. */}
-        <span onClick={stop} className="mt-auto block pt-4">
+        <span onClick={stop} className="mt-auto block pt-5">
           <PayToggle expenseId={expense.id} name={expense.category} paid={paid} billingMonth={billingMonth} />
         </span>
 
@@ -1559,7 +1568,6 @@ function DebtBillCard({
     escrow: bill.escrow ?? 0,
     pmi: bill.pmi ?? 0,
   });
-  const extras = split.escrow + split.pmi;
   const [editing, setEditing] = useState(false);
   const payShown = Number.isFinite(n) ? n : 0;
   // Match the Debts-page card: colored left accent stripe + bucket label (paid ⇒ emerald).
@@ -1584,7 +1592,8 @@ function DebtBillCard({
           >
             {DEBT_BUCKET_LABELS[typeBucket(bill.type)]}
             {debtDueLabel(bill) ? (
-              <span className="text-[var(--color-text-muted)]"> · {debtDueLabel(bill)}</span>
+              // nowrap so a tight card wraps the whole "· due Aug 1" together, never mid-date.
+              <span className="whitespace-nowrap text-[var(--color-text-muted)]"> · {debtDueLabel(bill)}</span>
             ) : null}
           </p>
           <p
@@ -1644,12 +1653,6 @@ function DebtBillCard({
             <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Balance</dt>
             <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(bill.balance)}</dd>
           </div>
-          {extras > 0 ? (
-            <div>
-              <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Esc/PMI</dt>
-              <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(extras)}</dd>
-            </div>
-          ) : null}
           </dl>
         </div>
 

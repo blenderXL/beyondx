@@ -40,7 +40,8 @@ test("card body opens the editor modal; Escape and click-away close it", async (
   await page.goto("/app/expenses");
   await page.getByLabel("Search expenses").fill(expName); // isolate the card
 
-  const card = page.getByRole("list", { name: "Expenses" }).locator("li", { hasText: expName });
+  // Card view renders every bill in the one "Bills" grid (expenses + debts + savings).
+  const card = page.getByRole("list", { name: "Bills" }).locator("li", { hasText: expName });
   const dialog = page.getByRole("dialog", { name: "Edit expense" });
 
   // Clicking the card body (the name) opens the full editor.
