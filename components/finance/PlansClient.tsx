@@ -41,6 +41,8 @@ export function PlansClient({
   insightDebts,
   initialMethod,
   initialBudget,
+  suggestedBudget,
+  suggestedExtra,
 }: {
   debts: PayoffDebtInput[];
   /** Same debts shaped for distribution math (carries credit_limit for utilization). */
@@ -49,19 +51,25 @@ export function PlansClient({
   initialMethod: PayoffMethod;
   /** The budget persisted on the profile; null pre-migration / before the user sets one. */
   initialBudget: number | null;
+  /** Total monthly budget suggested from the user's recurring surplus (minimums + extra). */
+  suggestedBudget: number;
+  /** The recurring monthly surplus (extra over minimums) that suggestedBudget implies. */
+  suggestedExtra: number;
 }) {
   const totalMin = useMemo(() => debts.reduce((s, d) => s + d.min_payment, 0), [debts]);
   const totalBalance = useMemo(() => debts.reduce((s, d) => s + d.balance, 0), [debts]);
   const defaultBudget = Math.max(Math.round(totalMin) + 100, Math.round(totalMin));
+  // Pre-fill from the user's real recurring surplus when there's one; else the old default.
+  const suggested = suggestedExtra > 0 ? suggestedBudget : defaultBudget;
   const [method, setMethod] = useState<PayoffMethod>(initialMethod);
   // Method + budget are both persisted on the profile so the Dashboard projects the same
-  // payoff date. Initialize the budget from the profile (no hydration flash); pre-migration
-  // (initialBudget null) fall back to the per-browser localStorage cache.
-  const [budget, setBudget] = useState<number>(initialBudget ?? defaultBudget);
+  // payoff date. Prefer the saved profile budget; otherwise pre-fill from the recurring surplus
+  // (falling back to the per-browser cache only when there's no surplus data either).
+  const [budget, setBudget] = useState<number>(initialBudget ?? suggested);
 
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
-    if (initialBudget == null) {
+    if (initialBudget == null && suggestedExtra <= 0) {
       try {
         const b = localStorage.getItem(BUDGET_KEY);
         if (b !== null) {
@@ -73,7 +81,7 @@ export function PlansClient({
       }
     }
     setHydrated(true);
-  }, [initialBudget]);
+  }, [initialBudget, suggestedExtra]);
   useEffect(() => {
     if (!hydrated) return;
     try {
@@ -351,6 +359,25 @@ export function PlansClient({
                 </span>
               </label>
             </div>
+            {suggestedExtra > 0 ? (
+              <p className="mt-3 font-mono text-[10px] leading-relaxed text-[var(--color-text-muted)]">
+                From your budget you have{" "}
+                <span className="text-[var(--color-accent-emerald)]">{formatUsd(suggestedExtra)}/mo</span> extra after
+                expenses, giving &amp; savings.
+                {Math.round(budget) !== Math.round(suggestedBudget) ? (
+                  <>
+                    {" "}
+                    <button
+                      type="button"
+                      onClick={() => setBudget(suggestedBudget)}
+                      className="underline decoration-dotted underline-offset-2 hover:text-[var(--color-text-secondary)]"
+                    >
+                      Use {formatUsd(suggestedBudget)}/mo
+                    </button>
+                  </>
+                ) : null}
+              </p>
+            ) : null}
             <p className="mt-3 font-mono text-[10px] leading-relaxed text-[var(--color-text-muted)]">
               {PAYOFF_METHODS.find((m) => m.value === method)?.blurb} · min {formatUsd(totalMin)}
             </p>

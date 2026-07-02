@@ -91,8 +91,11 @@ export function buildMonthlyPlan(inputs: {
   debts: PlannerDebt[];
   /** Per-month actual amounts (income_id → amount) for variable sources; cadence still applies. */
   overrides?: Record<string, number>;
+  /** Exclude one-time income/expenses — for a stable RECURRING monthly figure (e.g. the payoff
+   *  planner's projection, which runs many months forward). */
+  recurringOnly?: boolean;
 }): MonthlyPlan {
-  const { incomes, expenses, debts, overrides = {} } = inputs;
+  const { incomes, expenses, debts, overrides = {}, recurringOnly = false } = inputs;
   const byCycle: Record<Cycle, CycleBreakdown> = {
     first: emptyCycle(),
     mid: emptyCycle(),
@@ -101,6 +104,7 @@ export function buildMonthlyPlan(inputs: {
 
   let income = 0;
   for (const inc of incomes) {
+    if (recurringOnly && inc.cadence === "one_time") continue;
     // A variable source uses this month's override (if set) in place of its base amount; the
     // cadence multiplier then applies as usual. Non-variable sources always use the base.
     const override = overrides[inc.id];
@@ -121,6 +125,7 @@ export function buildMonthlyPlan(inputs: {
   let offerings = 0;
   const groupTotals = new Map<string, number>();
   for (const exp of expenses) {
+    if (recurringOnly && exp.cadence === "one_time") continue;
     const c = cycleForDay(exp.due_day);
     if (exp.expense_group === "offering") {
       const m =

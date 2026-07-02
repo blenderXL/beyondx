@@ -20,11 +20,12 @@ import type { FlagKey } from "@/lib/flags/registry";
 const NAV = [
   { href: "/app", label: "Dashboard", icon: LayoutDashboard },
   { href: "/app/debts", label: "Debts", icon: CreditCard },
-  // Insights was merged into the Payoff page, renamed, and moved under Debts (it reads debt data).
-  { href: "/app/plans", label: "Debt payoff planner", icon: CalendarRange, flag: "payoffEngine" },
   { href: "/app/savings", label: "Savings", icon: PiggyBank, flag: "savings" },
   // Income + Budget were folded into Expenses (Phase 5); their routes redirect to /app/expenses.
   { href: "/app/expenses", label: "Expenses", icon: Wallet, flag: "expenses" },
+  // The payoff planner sits right after Expenses — it pre-fills its budget from the surplus the
+  // user just entered there (income − expenses − giving − savings − minimums).
+  { href: "/app/plans", label: "Debt payoff planner", icon: CalendarRange, flag: "payoffEngine" },
   { href: "/app/paystub", label: "Paycheck calc", icon: Calculator },
   { href: "/app/assistant", label: "Assistant", icon: Sparkles, proOnly: true },
   { href: "/app/settings", label: "Settings", icon: Settings },

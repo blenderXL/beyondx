@@ -197,6 +197,25 @@ describe("buildMonthlyPlan", () => {
     });
   });
 
+  describe("recurringOnly (payoff-planner surplus)", () => {
+    it("excludes one-time income and expenses so the monthly figure is stable", () => {
+      const p = buildMonthlyPlan({
+        incomes: [
+          income({ source: "Salary", amount: 3000, cadence: "monthly", pay_day: 1 }),
+          income({ source: "Bonus", amount: 5000, cadence: "one_time", pay_day: 1 }),
+        ],
+        expenses: [
+          expense({ category: "Rent", amount: 1200, cadence: "monthly", due_day: 1 }),
+          expense({ category: "Vet", amount: 700, cadence: "one_time", due_day: 5 }),
+        ],
+        debts: [],
+        recurringOnly: true,
+      });
+      expect(p.income).toBe(3000);
+      expect(p.expenses).toBe(1200);
+    });
+  });
+
   describe("one-time expenses", () => {
     it("counts a one-time expense at full value this month (symmetric with one-time income)", () => {
       const p = buildMonthlyPlan({
