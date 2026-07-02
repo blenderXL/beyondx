@@ -6,6 +6,7 @@ test.skip(!hasTestCreds(), "Set TEST_USER_* to run the expenses group-by / offer
 
 const groupExp = `e2e-grp-${Date.now()}`;
 const offeringName = `e2e-offer-${Date.now()}`;
+const incomeName = `e2e-grp-income-${Date.now()}`;
 let profileId = "";
 let pctReady = false;
 
@@ -31,6 +32,16 @@ test.beforeAll(async () => {
     due_day: 8,
   });
 
+  // The offering breakdown needs at least one income source of our own (the shared test user
+  // may have none left over from other specs).
+  await c.from("incomes").insert({
+    profile_id: profileId,
+    source: incomeName,
+    amount: 3000,
+    cadence: "monthly",
+    pay_day: 1,
+  });
+
   // A 10% offering only inserts cleanly once pct_of_income (migration 0009) is applied.
   const { error } = await c.from("expenses").insert({
     profile_id: profileId,
@@ -49,6 +60,7 @@ test.afterAll(async () => {
   const c = ownerClient();
   await c.auth.signInWithPassword({ email: TEST_USER.email, password: TEST_USER.password });
   await c.from("expenses").delete().in("category", [groupExp, offeringName]);
+  await c.from("incomes").delete().eq("source", incomeName);
 });
 
 test("group-by view shows category sections with subtotals", async ({ page }) => {
@@ -71,7 +83,8 @@ test("offering card expands to a per-income breakdown that sums to the total", a
   await page.goto("/app/expenses");
   await page.getByLabel("Filter by group").selectOption("offering");
 
-  const card = page.getByRole("list", { name: "Expenses" }).locator("li", { hasText: offeringName });
+  // Card view renders every bill in the one "Bills" grid (expenses + debts + savings).
+  const card = page.getByRole("list", { name: "Bills" }).locator("li", { hasText: offeringName });
   await expect(card).toBeVisible();
   await expect(card).toContainText("10% of income");
 
