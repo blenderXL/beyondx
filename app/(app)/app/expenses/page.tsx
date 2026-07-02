@@ -77,7 +77,7 @@ export default async function ExpensesPage({
     );
   }
 
-  const [expensesRes, debtsRes, savingsRes, incomesRes, paymentsRes, contribRes, overridesRes, cardsRes, debtTxnsRes] = await Promise.all([
+  const [expensesRes, debtsRes, savingsRes, incomesRes, paymentsRes, contribRes, overridesRes, cardsRes, debtTxnsRes, plannedRes] = await Promise.all([
     supabase.from("expenses").select("*").is("archived_at", null).order("created_at", { ascending: true }),
     // select("*") so a missing escrow/pmi column (pre-0014) reads as undefined rather than erroring.
     supabase.from("debts").select("*").is("archived_at", null).order("name", { ascending: true }),
@@ -96,6 +96,8 @@ export default async function ExpensesPage({
       .select("id, debt_id, kind, amount, occurred_on, note, expense_id, savings_goal_id")
       .not("debt_id", "is", null)
       .order("created_at", { ascending: false }),
+    // Planned payments applied from the payoff planner (migration 0023); degrades to none.
+    supabase.from("debt_payment_plans").select("debt_id, amount").eq("billing_month", billingMonth),
   ]);
 
   const payments = (paymentsRes.data ?? []) as { expense_id: string | null; debt_id: string | null }[];
@@ -196,6 +198,12 @@ export default async function ExpensesPage({
   // Savings goals the expense form can link a "pay toward savings" expense to.
   const savingsOptions = savingsRows.map((g) => ({ id: g.id, name: g.name }));
 
+  // debt_id → this month's planned payment applied from the payoff planner.
+  const plannedByDebt: Record<string, number> = {};
+  for (const p of (plannedRes.data ?? []) as { debt_id: string; amount: number }[]) {
+    plannedByDebt[p.debt_id] = Number(p.amount);
+  }
+
   // Recurring debt obligations auto-appear as bill rows — every active debt NOT already
   // represented by a linked expense, pre-filled with its minimum.
   const debtBills: DebtBill[] = debtRows
@@ -212,6 +220,7 @@ export default async function ExpensesPage({
       dueDay: d.next_due_date ? new Date(`${d.next_due_date}T00:00:00Z`).getUTCDate() : d.due_day,
       nextDueDate: d.next_due_date ?? null,
       card_id: d.card_id ?? null,
+      plannedAmount: plannedByDebt[d.id] ?? null,
     }));
 
   // Recurring savings (a positive fixed or percent-of-income contribution) auto-appear as

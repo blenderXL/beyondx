@@ -286,6 +286,42 @@ export async function setPayoffBudget(budget: number): Promise<void> {
   revalidatePath("/app");
 }
 
+/**
+ * Save a planned payment for one debt for one billing month (migration 0023) — clicking a
+ * current-month amount in the payoff planner's month-by-month table calls this, and the
+ * Expenses page pre-fills that debt's bill with it instead of the bare minimum. Upserts on
+ * (profile_id, debt_id, billing_month); ownership of the debt is verified before writing.
+ */
+export async function setPlannedDebtPayment(
+  _p: FinanceActionState,
+  formData: FormData,
+): Promise<FinanceActionState> {
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return SIGNED_OUT;
+
+  const debtId = String(formData.get("debt_id") ?? "").trim();
+  const billingMonth = String(formData.get("billing_month") ?? "").trim();
+  const amount = parseMoney(formData.get("amount"));
+  if (!UUID_RE.test(debtId) || !ISO_MONTH.test(billingMonth)) return { error: "Couldn't apply — bad request." };
+  if (amount === null || amount < 0) return { error: "Payment must be a positive amount." };
+
+  // RLS scopes the read to the owner — an empty result means "not yours" (or gone).
+  const { data: debt } = await supabase.from("debts").select("id").eq("id", debtId).maybeSingle();
+  if (!debt) return { error: "Debt not found." };
+
+  const { error } = await supabase
+    .from("debt_payment_plans")
+    .upsert(
+      { profile_id: userId, debt_id: debtId, billing_month: billingMonth, amount: round2(amount) },
+      { onConflict: "profile_id,debt_id,billing_month" },
+    );
+  if (error) return dbFailure(error, "setPlannedDebtPayment", "Couldn't apply the payment. Please try again.");
+
+  revalidatePath(EXPENSES_PATH);
+  revalidatePath(PLANS_PATH);
+  return { error: null, ok: true };
+}
+
 /** Persist the paycheck-calculator inputs (one row per user) so the form is pre-filled next
  * visit. Fire-and-forget from the client; the estimate itself is computed client-side. */
 export async function savePaystubInputs(inputs: PaystubInputs): Promise<void> {

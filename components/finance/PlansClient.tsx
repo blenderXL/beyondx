@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import {
   computePayoff,
@@ -11,7 +11,8 @@ import {
 } from "@/lib/finance/payoff";
 import { bucketDistribution, type InsightDebt } from "@/lib/finance/insights";
 import { PayoffChart } from "@/components/finance/PayoffChart";
-import { setPayoffMethod, setPayoffBudget } from "@/app/(app)/actions";
+import { setPayoffMethod, setPayoffBudget, setPlannedDebtPayment } from "@/app/(app)/actions";
+import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
 import { buildAmortizationCsv } from "@/lib/finance/amortizationCsv";
 import { formatUsd, formatPercent } from "@/lib/finance/derive";
 import { labelClass, ghostButtonClass } from "@/components/finance/formStyles";
@@ -43,6 +44,7 @@ export function PlansClient({
   initialBudget,
   suggestedBudget,
   suggestedExtra,
+  billingMonth,
 }: {
   debts: PayoffDebtInput[];
   /** Same debts shaped for distribution math (carries credit_limit for utilization). */
@@ -55,6 +57,8 @@ export function PlansClient({
   suggestedBudget: number;
   /** The recurring monthly surplus (extra over minimums) that suggestedBudget implies. */
   suggestedExtra: number;
+  /** First-of-month ISO date for the current month — keys "apply to bill" writes. */
+  billingMonth: string;
 }) {
   const totalMin = useMemo(() => debts.reduce((s, d) => s + d.min_payment, 0), [debts]);
   const totalBalance = useMemo(() => debts.reduce((s, d) => s + d.balance, 0), [debts]);
@@ -256,7 +260,12 @@ export function PlansClient({
           ) : result.schedule.length > 0 ? (
             <section>
               <div className="flex items-end justify-between gap-4">
-                <p className={labelClass}>// month-by-month</p>
+                <div>
+                  <p className={labelClass}>// month-by-month</p>
+                  <p className="mt-1 font-mono text-[10px] text-[var(--color-text-muted)]">
+                    // click a {monthLabels[0]} amount to apply it to that bill on the Expenses page
+                  </p>
+                </div>
                 <button type="button" onClick={downloadCsv} className={ghostButtonClass} aria-label="Export CSV">
                   <Download className="mr-2 size-3.5" aria-hidden />
                   Export CSV
@@ -290,11 +299,19 @@ export function PlansClient({
                         <td className="whitespace-nowrap px-3 py-1.5 text-left text-[var(--color-text-secondary)]">
                           {monthLabels[i]}
                         </td>
-                        {debts.map((d) => (
-                          <td key={d.id} className="px-3 py-1.5 text-right tabular-nums text-[var(--color-text-secondary)]">
-                            {formatUsd(m.byDebt[d.id]?.payment ?? 0)}
-                          </td>
-                        ))}
+                        {debts.map((d) => {
+                          const payment = m.byDebt[d.id]?.payment ?? 0;
+                          return (
+                            <td key={d.id} className="px-3 py-1.5 text-right tabular-nums text-[var(--color-text-secondary)]">
+                              {/* Current-month amounts apply straight to that debt's Expenses bill. */}
+                              {i === 0 && payment > 0 ? (
+                                <ApplyCell debtId={d.id} debtName={d.name} billingMonth={billingMonth} amount={payment} />
+                              ) : (
+                                formatUsd(payment)
+                              )}
+                            </td>
+                          );
+                        })}
                         <td className="px-3 py-1.5 text-right tabular-nums text-[var(--color-text-secondary)]">
                           {formatUsd(m.totalInterest)}
                         </td>
@@ -465,6 +482,59 @@ export function PlansClient({
         </aside>
       </div>
     </div>
+  );
+}
+
+/**
+ * A current-month schedule amount as a click-to-apply button: confirming saves it as the
+ * planned payment for that debt this month (migration 0023), and the Expenses page pre-fills
+ * the debt's bill with it. Shows a ✓ once applied; an error swaps in red with the message.
+ */
+function ApplyCell({
+  debtId,
+  debtName,
+  billingMonth,
+  amount,
+}: {
+  debtId: string;
+  debtName: string;
+  billingMonth: string;
+  amount: number;
+}) {
+  const [state, formAction, pending] = useActionState(setPlannedDebtPayment, INITIAL_FINANCE_STATE);
+  return (
+    <form
+      action={formAction}
+      className="inline"
+      onSubmit={(e) => {
+        if (
+          !window.confirm(
+            `Apply ${formatUsd(amount)} to ${debtName}'s bill on the Expenses page for this month?`,
+          )
+        ) {
+          e.preventDefault();
+        }
+      }}
+    >
+      <input type="hidden" name="debt_id" value={debtId} />
+      <input type="hidden" name="billing_month" value={billingMonth} />
+      <input type="hidden" name="amount" value={amount} />
+      <button
+        type="submit"
+        disabled={pending}
+        aria-label={`Apply ${formatUsd(amount)} to ${debtName} for this month`}
+        title={state.error ?? `Apply to ${debtName}'s bill this month`}
+        className={`tabular-nums underline decoration-dotted underline-offset-2 transition-colors disabled:opacity-40 ${
+          state.error
+            ? "text-[var(--color-accent-red)]"
+            : state.ok
+              ? "text-[var(--color-accent-emerald)]"
+              : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+        }`}
+      >
+        {pending ? "…" : `${state.ok ? "✓ " : ""}${formatUsd(amount)}`}
+      </button>
+    </form>
   );
 }
 

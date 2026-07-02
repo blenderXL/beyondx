@@ -125,6 +125,7 @@ export default async function PlansPage() {
       initialBudget={initialBudget}
       suggestedBudget={suggestedBudget}
       suggestedExtra={suggestedExtra}
+      billingMonth={billingMonth}
     />
   );
 }
