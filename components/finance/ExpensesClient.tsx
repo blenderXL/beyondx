@@ -115,6 +115,8 @@ export interface DebtBill {
   nextDueDate: string | null;
   /** Payment card this debt's payment is made on (migration 0022); null ⇒ unassigned. */
   card_id: string | null;
+  /** This month's planned payment applied from the payoff planner (migration 0023); null ⇒ minimum. */
+  plannedAmount: number | null;
 }
 
 /** A recurring savings contribution auto-shown as a checkable bill row. */
@@ -641,7 +643,7 @@ export function ExpensesClient({
         cards,
         income,
         paid,
-        debtBills.map((b) => ({ id: b.id, card_id: b.card_id, amount: b.min_payment })),
+        debtBills.map((b) => ({ id: b.id, card_id: b.card_id, amount: b.plannedAmount ?? b.min_payment })),
         paidDebt,
       ),
     [expenses, cards, income, paid, debtBills, paidDebt],
@@ -656,7 +658,7 @@ export function ExpensesClient({
     // still shows — the obligation recurs monthly); a bare legacy due_day always shows.
     const fromDebts = debtBills
       .filter((b) => b.dueDay != null && (!b.nextDueDate || b.nextDueDate.slice(0, 7) <= billingMonth.slice(0, 7)))
-      .map((b) => ({ name: b.name, day: b.dueDay!, amount: b.min_payment, paid: paidDebt.has(b.id) }));
+      .map((b) => ({ name: b.name, day: b.dueDay!, amount: b.plannedAmount ?? b.min_payment, paid: paidDebt.has(b.id) }));
     return [...fromExpenses, ...fromDebts];
   }, [expenses, debtBills, income, paid, paidDebt, billingMonth]);
 
@@ -816,7 +818,7 @@ export function ExpensesClient({
                   {debtVisible.length + savingsVisible.length > 0 ? (
                     <ul aria-label="Bills" className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                       {debtVisible.map((b) => (
-                        <DebtBillCard key={`debt-${b.id}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} onEdit={() => setDebtCardId(b.id)} />
+                        <DebtBillCard key={`debt-${b.id}-${b.plannedAmount ?? "min"}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} onEdit={() => setDebtCardId(b.id)} />
                       ))}
                       {savingsVisible.map((b) => (
                         <SavingsBillCard key={`sav-${b.id}`} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
@@ -846,7 +848,7 @@ export function ExpensesClient({
                   {debtVisible.length + savingsVisible.length > 0 ? (
                     <ul aria-label="Bills" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                       {debtVisible.map((b) => (
-                        <DebtBillCard key={`debt-${b.id}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} onEdit={() => setDebtCardId(b.id)} />
+                        <DebtBillCard key={`debt-${b.id}-${b.plannedAmount ?? "min"}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} onEdit={() => setDebtCardId(b.id)} />
                       ))}
                       {savingsVisible.map((b) => (
                         <SavingsBillCard key={`sav-${b.id}`} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
@@ -868,7 +870,7 @@ export function ExpensesClient({
                     />
                   ))}
                   {debtVisible.map((b) => (
-                    <DebtBillCard key={`debt-${b.id}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} onEdit={() => setDebtCardId(b.id)} />
+                    <DebtBillCard key={`debt-${b.id}-${b.plannedAmount ?? "min"}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} onEdit={() => setDebtCardId(b.id)} />
                   ))}
                   {savingsVisible.map((b) => (
                     <SavingsBillCard key={`sav-${b.id}`} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
@@ -1558,7 +1560,8 @@ function DebtBillCard({
   /** Open the debt-detail modal (full debt view + which card it's paid with). */
   onEdit?: () => void;
 }) {
-  const [amount, setAmount] = useState(String(bill.min_payment));
+  // The payoff planner's applied amount (when there is one) wins over the bare minimum.
+  const [amount, setAmount] = useState(String(bill.plannedAmount ?? bill.min_payment));
   const [, formAction, pending] = useActionState(togglePaid, INITIAL_FINANCE_STATE);
   const n = Number(amount);
   const split = splitPayment({
@@ -1607,7 +1610,12 @@ function DebtBillCard({
           {/* Stat grid mirrors DebtCard. The pay amount shows as text; click it to edit inline. */}
           <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 font-mono text-[11px]">
           <div>
-            <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Pay</dt>
+            <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">
+              Pay
+              {bill.plannedAmount != null ? (
+                <span className="text-[var(--color-accent-emerald)]"> · planner</span>
+              ) : null}
+            </dt>
             <dd className="mt-0.5">
               {editing ? (
                 <input
