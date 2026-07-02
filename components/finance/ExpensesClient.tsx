@@ -39,8 +39,9 @@ import {
   archiveIncome,
   archiveCard,
   setExpenseCard,
+  setDebtCard,
 } from "@/app/(app)/actions";
-import { INITIAL_FINANCE_STATE } from "@/lib/finance/actionState";
+import { INITIAL_FINANCE_STATE, type FinanceActionState } from "@/lib/finance/actionState";
 import {
   EXPENSE_CADENCES,
   EXPENSE_CADENCE_LABELS,
@@ -107,6 +108,8 @@ export interface DebtBill {
   escrow: number | null;
   pmi: number | null;
   dueDay: number | null;
+  /** Payment card this debt's payment is made on (migration 0022); null ⇒ unassigned. */
+  card_id: string | null;
 }
 
 /** A recurring savings contribution auto-shown as a checkable bill row. */
@@ -531,6 +534,8 @@ export function ExpensesClient({
 }) {
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const toList = useCallback(() => setMode({ kind: "list" }), []);
+  // Which debt bill's payment-card picker is open (migration 0022).
+  const [debtCardId, setDebtCardId] = useState<string | null>(null);
 
   // The dashboard's quick-add FAB links here with ?new=1 — open the create modal once, then
   // strip the param so a refresh doesn't reopen it.
@@ -606,6 +611,7 @@ export function ExpensesClient({
   const noBillsMatch = orderedVisible.length === 0 && debtVisible.length === 0 && savingsVisible.length === 0;
   // Resolve the edit target from the live list so archiving it closes the modal.
   const editExpense = mode.kind === "edit" ? (expenses.find((e) => e.id === mode.id) ?? null) : null;
+  const debtCardBill = debtCardId ? (debtBills.find((b) => b.id === debtCardId) ?? null) : null;
   // THIS-MONTH budget math (user's formula): budget left = income − expenses − giving − savings
   // (no debt minimums). Savings = the planned monthly contributions to the user's savings goals.
   // Budget left = income minus every planned outflow this month, INCLUDING debt minimums — so it
@@ -615,7 +621,18 @@ export function ExpensesClient({
       (plan.income - plan.expenses - plan.offerings - rail.savingsMonthly - plan.debtMinimums) * 100,
     ) / 100;
   // Per-card planned/paid rollup for the rail (migration 0021).
-  const cardSummaries = useMemo(() => summarizeByCard(expenses, cards, income, paid), [expenses, cards, income, paid]);
+  const cardSummaries = useMemo(
+    () =>
+      summarizeByCard(
+        expenses,
+        cards,
+        income,
+        paid,
+        debtBills.map((b) => ({ id: b.id, card_id: b.card_id, amount: b.min_payment })),
+        paidDebt,
+      ),
+    [expenses, cards, income, paid, debtBills, paidDebt],
+  );
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -662,7 +679,13 @@ export function ExpensesClient({
               <div className="mt-4">
                 <span className={labelClass}>// paying with</span>
                 <div className="mt-2">
-                  <ExpenseCardPicker expense={editExpense} cards={cards} />
+                  <CardPicker
+                    action={setExpenseCard}
+                    itemId={editExpense.id}
+                    currentCardId={editExpense.card_id}
+                    label={`Payment card for ${editExpense.category}`}
+                    cards={cards}
+                  />
                 </div>
               </div>
             ) : null}
@@ -671,6 +694,45 @@ export function ExpensesClient({
               <ArchiveButton id={editExpense.id} name={editExpense.category} />
             </div>
           </>
+        ) : null}
+      </Modal>
+
+      {/* Debt bill → pick which card its payment is made on (migration 0022). */}
+      <Modal open={debtCardBill != null} onClose={() => setDebtCardId(null)} label="Debt payment card">
+        {debtCardBill ? (
+          <div className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6">
+            <p className={labelClass}>// paying with</p>
+            <h2 className="mt-2 font-sans text-xl font-medium text-[var(--color-text-primary)]">
+              {debtCardBill.name}
+            </h2>
+            <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
+              // which card do you pay this debt with — mostly debit, sometimes credit
+            </p>
+            {cards.length > 0 ? (
+              <div className="mt-4">
+                <CardPicker
+                  action={setDebtCard}
+                  itemId={debtCardBill.id}
+                  currentCardId={debtCardBill.card_id}
+                  label={`Payment card for ${debtCardBill.name}`}
+                  cards={cards}
+                />
+              </div>
+            ) : (
+              <p className="mt-4 font-mono text-[11px] text-[var(--color-text-muted)]">
+                // add a card first — use the + in the Cards panel
+              </p>
+            )}
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setDebtCardId(null)}
+                className={ghostButtonClass}
+              >
+                Done
+              </button>
+            </div>
+          </div>
         ) : null}
       </Modal>
 
@@ -735,7 +797,7 @@ export function ExpensesClient({
                   {debtVisible.length + savingsVisible.length > 0 ? (
                     <ul aria-label="Bills" className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                       {debtVisible.map((b) => (
-                        <DebtBillCard key={`debt-${b.id}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
+                        <DebtBillCard key={`debt-${b.id}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} onEdit={() => setDebtCardId(b.id)} />
                       ))}
                       {savingsVisible.map((b) => (
                         <SavingsBillCard key={`sav-${b.id}`} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
@@ -765,7 +827,7 @@ export function ExpensesClient({
                   {debtVisible.length + savingsVisible.length > 0 ? (
                     <ul aria-label="Bills" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                       {debtVisible.map((b) => (
-                        <DebtBillCard key={`debt-${b.id}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
+                        <DebtBillCard key={`debt-${b.id}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} onEdit={() => setDebtCardId(b.id)} />
                       ))}
                       {savingsVisible.map((b) => (
                         <SavingsBillCard key={`sav-${b.id}`} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
@@ -787,7 +849,7 @@ export function ExpensesClient({
                     />
                   ))}
                   {debtVisible.map((b) => (
-                    <DebtBillCard key={`debt-${b.id}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} />
+                    <DebtBillCard key={`debt-${b.id}`} bill={b} paid={paidDebt.has(b.id)} billingMonth={billingMonth} onEdit={() => setDebtCardId(b.id)} />
                   ))}
                   {savingsVisible.map((b) => (
                     <SavingsBillCard key={`sav-${b.id}`} bill={b} paid={paidSavings.has(b.id)} billingMonth={billingMonth} />
@@ -1378,22 +1440,34 @@ function ExpenseRow({
  * `setExpenseCard` on change — blank clears the tag. Wrapped by callers in a stop-propagation
  * span so choosing a card doesn't open the expense editor.
  */
-function ExpenseCardPicker({ expense, cards }: { expense: Expense; cards: Card[] }) {
-  const [state, formAction, pending] = useActionState(setExpenseCard, INITIAL_FINANCE_STATE);
+function CardPicker({
+  action,
+  itemId,
+  currentCardId,
+  label,
+  cards,
+}: {
+  action: (prev: FinanceActionState, formData: FormData) => Promise<FinanceActionState>;
+  itemId: string;
+  currentCardId: string | null | undefined;
+  label: string;
+  cards: Card[];
+}) {
+  const [state, formAction, pending] = useActionState(action, INITIAL_FINANCE_STATE);
   return (
     <form action={formAction}>
-      <input type="hidden" name="id" value={expense.id} />
-      <label className="sr-only" htmlFor={`card-${expense.id}`}>
-        Payment card for {expense.category}
+      <input type="hidden" name="id" value={itemId} />
+      <label className="sr-only" htmlFor={`card-${itemId}`}>
+        {label}
       </label>
       <div className="relative">
         <select
-          id={`card-${expense.id}`}
+          id={`card-${itemId}`}
           name="card_id"
-          defaultValue={expense.card_id ?? ""}
+          defaultValue={currentCardId ?? ""}
           disabled={pending}
           onChange={(e) => e.currentTarget.form?.requestSubmit()}
-          className="h-8 w-full appearance-none rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] pl-2 pr-7 font-mono text-[11px] text-[var(--color-text-secondary)] outline-none transition-colors focus:border-[var(--color-text-primary)] disabled:opacity-50"
+          className="h-11 w-full appearance-none rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] pl-3 pr-8 font-mono text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-text-primary)] disabled:opacity-50"
         >
           <option value="">No card</option>
           {cards.map((c) => (
@@ -1403,7 +1477,7 @@ function ExpenseCardPicker({ expense, cards }: { expense: Expense; cards: Card[]
           ))}
         </select>
         <ChevronDown
-          className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-text-muted)]"
+          className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2 text-[var(--color-text-muted)]"
           aria-hidden
         />
       </div>
@@ -1421,7 +1495,18 @@ function ExpenseCardPicker({ expense, cards }: { expense: Expense; cards: Card[]
  * editable for the month; checking off records the payment and draws the balance down by the
  * principal portion (shown live as you edit the amount).
  */
-function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: boolean; billingMonth: string }) {
+function DebtBillCard({
+  bill,
+  paid,
+  billingMonth,
+  onEdit,
+}: {
+  bill: DebtBill;
+  paid: boolean;
+  billingMonth: string;
+  /** Open the card-picker modal (which card this debt is paid with). */
+  onEdit?: () => void;
+}) {
   const [amount, setAmount] = useState(String(bill.min_payment));
   const [, formAction, pending] = useActionState(togglePaid, INITIAL_FINANCE_STATE);
   const n = Number(amount);
@@ -1448,26 +1533,28 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
         {/* Amount rides as a hidden field so Pay now submits it even when not editing. */}
         <input type="hidden" name="amount" value={amount} />
 
-        {/* Header — category + subdued due on one line (like DebtCard), name below. */}
-        <p
-          className="pr-7 font-mono text-[10px] tracking-[0.16em] uppercase"
-          style={{ color: `var(${accent})` }}
-        >
-          {DEBT_BUCKET_LABELS[typeBucket(bill.type)]}
-          {bill.dueDay ? (
-            <span className="text-[var(--color-text-muted)]"> · due {bill.dueDay}</span>
-          ) : null}
-        </p>
-        <p
-          className={`mt-1 font-sans text-base font-medium break-words ${
-            paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
-          }`}
-        >
-          {bill.name}
-        </p>
+        {/* Body click opens the card-picker modal; the inline amount editor stops propagation. */}
+        <div onClick={onEdit} className={onEdit ? "cursor-pointer" : undefined}>
+          {/* Header — category + subdued due on one line (like DebtCard), name below. */}
+          <p
+            className="pr-7 font-mono text-[10px] tracking-[0.16em] uppercase"
+            style={{ color: `var(${accent})` }}
+          >
+            {DEBT_BUCKET_LABELS[typeBucket(bill.type)]}
+            {bill.dueDay ? (
+              <span className="text-[var(--color-text-muted)]"> · due {bill.dueDay}</span>
+            ) : null}
+          </p>
+          <p
+            className={`mt-1 font-sans text-base font-medium break-words ${
+              paid ? "text-[var(--color-text-muted)] line-through" : "text-[var(--color-text-primary)]"
+            }`}
+          >
+            {bill.name}
+          </p>
 
-        {/* Stat grid mirrors DebtCard. The pay amount shows as text; click it to edit inline. */}
-        <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 font-mono text-[11px]">
+          {/* Stat grid mirrors DebtCard. The pay amount shows as text; click it to edit inline. */}
+          <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4 font-mono text-[11px]">
           <div>
             <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Pay</dt>
             <dd className="mt-0.5">
@@ -1476,6 +1563,7 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
                   autoFocus
                   inputMode="decimal"
                   value={amount}
+                  onClick={(e) => e.stopPropagation()}
                   onChange={(e) => setAmount(e.target.value)}
                   onBlur={() => setEditing(false)}
                   onKeyDown={(e) => {
@@ -1490,7 +1578,10 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
               ) : (
                 <button
                   type="button"
-                  onClick={() => setEditing(true)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditing(true);
+                  }}
                   aria-label={`Edit payment for ${bill.name}`}
                   className="text-sm tabular-nums text-[var(--color-text-primary)] transition-colors hover:text-[var(--color-accent-emerald)]"
                 >
@@ -1513,9 +1604,10 @@ function DebtBillCard({ bill, paid, billingMonth }: { bill: DebtBill; paid: bool
               <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(extras)}</dd>
             </div>
           ) : null}
-        </dl>
+          </dl>
+        </div>
 
-        <div className="mt-auto pt-5">
+        <div className="mt-auto pt-5" onClick={(e) => e.stopPropagation()}>
           <PayNowSubmit paid={paid} name={bill.name} pending={pending} />
         </div>
       </form>

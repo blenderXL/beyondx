@@ -88,11 +88,20 @@ export interface CardSummary {
  * archived/unknown card — or none — falls into the trailing "unassigned" bucket, which is
  * omitted when empty. Pure + unit-tested.
  */
+/** A debt payment as a card-taggable bill: its planned amount is the monthly minimum. */
+export interface CardDebtBill {
+  id: string;
+  card_id?: string | null;
+  amount: number;
+}
+
 export function summarizeByCard(
   expenses: Expense[],
   cards: Card[],
   income: number,
   paidExpenseIds: Set<string>,
+  debtBills: CardDebtBill[] = [],
+  paidDebtIds: Set<string> = new Set(),
 ): CardSummary[] {
   const empty = (cardId: string | null): CardSummary => ({ cardId, planned: 0, paid: 0, count: 0 });
   const byCard = new Map<string | null, CardSummary>();
@@ -105,6 +114,14 @@ export function summarizeByCard(
     bucket.planned += amount;
     bucket.count += 1;
     if (paidExpenseIds.has(e.id)) bucket.paid += amount;
+  }
+
+  // Debt payments tagged to a card roll into the same totals (migration 0022).
+  for (const d of debtBills) {
+    const bucket = d.card_id && byCard.has(d.card_id) ? byCard.get(d.card_id)! : unassigned;
+    bucket.planned += d.amount;
+    bucket.count += 1;
+    if (paidDebtIds.has(d.id)) bucket.paid += d.amount;
   }
 
   const rounded = (s: CardSummary): CardSummary => ({
