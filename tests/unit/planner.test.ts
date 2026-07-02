@@ -112,6 +112,30 @@ describe("buildMonthlyPlan", () => {
     expect(plan.byCycle.first.minimums).toBe(200); // Tesla day 10
   });
 
+  describe("savings-linked expenses", () => {
+    const p = buildMonthlyPlan({
+      incomes,
+      expenses: [
+        expense({ category: "Internet", amount: 115, due_day: 5, expense_group: "utility" }),
+        expense({ category: "Emergency pot", amount: 300, due_day: 5, savings_goal_id: "g1" }),
+      ],
+      debts: [],
+    });
+
+    it("counts them as savings, not expenses", () => {
+      expect(p.savings).toBe(300);
+      expect(p.expenses).toBe(115);
+      expect(p.leftover).toBe(6000 - 115 - 300);
+    });
+
+    it("rolls them into a Savings group and keeps cycle outflow whole", () => {
+      const map = Object.fromEntries(p.byGroup.map((g) => [g.group, g.amount]));
+      expect(map["Savings"]).toBe(300);
+      expect(map["Utility"]).toBe(115);
+      expect(p.byCycle.first.expenses).toBe(415); // cash still leaves the first cycle
+    });
+  });
+
   describe("variable income overrides", () => {
     it("uses a current-month override for a variable source, base otherwise", () => {
       const p = buildMonthlyPlan({

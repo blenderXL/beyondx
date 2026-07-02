@@ -95,7 +95,7 @@ export default async function AppDashboard() {
         due_day: d.next_due_date ? new Date(`${d.next_due_date}T00:00:00Z`).getUTCDate() : d.due_day,
       })),
   });
-  const outflow = Math.round(plan.offerings + plan.expenses + plan.debtMinimums);
+  const outflow = Math.round(plan.offerings + plan.expenses + plan.savings + plan.debtMinimums);
 
   // ---- Today's agenda: every still-unpaid obligation this month ----
   const agenda: AgendaItem[] = [];

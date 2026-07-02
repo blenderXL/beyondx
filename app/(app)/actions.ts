@@ -88,7 +88,9 @@ export async function createDebt(
   const { error } = await supabase.from("debts").insert({ profile_id: userId, ...payload });
   if (error) return dbFailure(error, "createDebt", "Couldn't save the debt. Please try again.");
 
+  // Debts surface as bill cards (and a detail modal) on the Expenses page too.
   revalidatePath(DEBTS_PATH);
+  revalidatePath(EXPENSES_PATH);
   return { error: null, ok: true };
 }
 
@@ -115,6 +117,7 @@ export async function updateDebt(
   if (!data || data.length === 0) return { error: "Debt not found." };
 
   revalidatePath(DEBTS_PATH);
+  revalidatePath(EXPENSES_PATH);
   return { error: null, ok: true };
 }
 
@@ -138,6 +141,7 @@ export async function archiveDebt(
   if (!data || data.length === 0) return { error: "Debt not found." };
 
   revalidatePath(DEBTS_PATH);
+  revalidatePath(EXPENSES_PATH);
   return { error: null, ok: true };
 }
 
@@ -190,6 +194,7 @@ export async function addTransaction(
   }
 
   revalidatePath(DEBTS_PATH);
+  revalidatePath(EXPENSES_PATH);
   return { error: null, ok: true };
 }
 
@@ -237,6 +242,7 @@ export async function deleteTransaction(
   if (delErr) return dbFailure(delErr, "deleteTransaction.delete", "Couldn't delete the transaction. Please try again.");
 
   revalidatePath(DEBTS_PATH);
+  revalidatePath(EXPENSES_PATH);
   return { error: null, ok: true };
 }
 
