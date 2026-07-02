@@ -75,6 +75,9 @@ export interface MonthlyPlan {
   income: number;
   offerings: number;
   expenses: number;
+  /** Money routed to savings pots via savings-linked expenses — kept out of `expenses` so it
+   *  reads as saving, not spending. */
+  savings: number;
   debtMinimums: number;
   leftover: number;
   byGroup: { group: string; amount: number }[];
@@ -123,10 +126,19 @@ export function buildMonthlyPlan(inputs: {
   // The income-tithe sum was removed from the loop above so nothing is counted twice.
   let expensesTotal = 0;
   let offerings = 0;
+  let savings = 0;
   const groupTotals = new Map<string, number>();
   for (const exp of expenses) {
     if (recurringOnly && exp.cadence === "one_time") continue;
     const c = cycleForDay(exp.due_day);
+    // A savings-linked expense is money moved into a pot, not spent — its own bucket (it still
+    // rides byCycle.expenses so per-cycle outflow keeps counting the cash leaving that cycle).
+    if (exp.savings_goal_id) {
+      const m = exp.cadence === "one_time" ? round2(exp.amount) : monthlyAmount(exp.amount, exp.cadence);
+      savings = round2(savings + m);
+      byCycle[c].expenses = round2(byCycle[c].expenses + m);
+      continue;
+    }
     if (exp.expense_group === "offering") {
       const m =
         exp.pct_of_income != null
@@ -164,11 +176,12 @@ export function buildMonthlyPlan(inputs: {
 
   const byGroup = [
     ...[...groupTotals.entries()].map(([group, amount]) => ({ group, amount })),
+    { group: "Savings", amount: savings },
     { group: "Offerings", amount: offerings },
     { group: "Min. debt payments", amount: debtMinimums },
   ].filter((g) => g.amount > 0);
 
-  const leftover = round2(income - offerings - expensesTotal - debtMinimums);
+  const leftover = round2(income - offerings - expensesTotal - savings - debtMinimums);
 
-  return { income, offerings, expenses: expensesTotal, debtMinimums, leftover, byGroup, byCycle };
+  return { income, offerings, expenses: expensesTotal, savings, debtMinimums, leftover, byGroup, byCycle };
 }

@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { PayCalendar, type CalendarItem } from "@/components/finance/PayCalendar";
+import { DebtDetail, type DebtTxn } from "@/components/finance/DebtDetail";
 import {
   createExpense,
   updateExpense,
@@ -54,6 +55,7 @@ import {
   DEBT_BUCKET_LABELS,
   typeBucket,
   type Card,
+  type Debt,
   type Expense,
   type ExpenseGroup,
   type DebtType,
@@ -110,6 +112,8 @@ export interface DebtBill {
   escrow: number | null;
   pmi: number | null;
   dueDay: number | null;
+  /** Full next-due date (ISO), when set — lets the calendar skip a debt not due this month. */
+  nextDueDate: string | null;
   /** Payment card this debt's payment is made on (migration 0022); null ⇒ unassigned. */
   card_id: string | null;
 }
@@ -492,6 +496,8 @@ export function ExpensesClient({
   billingMonth,
   paidExpenseIds,
   debtBills,
+  debtRows,
+  txnsByDebt,
   paidDebtIds,
   savingsBills,
   paidSavingsIds,
@@ -523,6 +529,10 @@ export function ExpensesClient({
   paidExpenseIds: string[];
   /** Recurring debt obligations auto-shown as bill rows. */
   debtBills: DebtBill[];
+  /** The full debt rows behind the bills — powers the debt-detail modal (as on the Debts page). */
+  debtRows: Debt[];
+  /** Per-debt transaction lists for the detail modal (keyed by debt id). */
+  txnsByDebt: Record<string, DebtTxn[]>;
   /** Debt ids already checked off (paid) this month. */
   paidDebtIds: string[];
   /** Recurring savings contributions auto-shown as bill rows. */
@@ -536,7 +546,7 @@ export function ExpensesClient({
 }) {
   const [mode, setMode] = useState<Mode>({ kind: "list" });
   const toList = useCallback(() => setMode({ kind: "list" }), []);
-  // Which debt bill's payment-card picker is open (migration 0022).
+  // Which debt bill's detail modal (full debt view + payment-card picker) is open.
   const [debtCardId, setDebtCardId] = useState<string | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
 
@@ -614,7 +624,8 @@ export function ExpensesClient({
   const noBillsMatch = orderedVisible.length === 0 && debtVisible.length === 0 && savingsVisible.length === 0;
   // Resolve the edit target from the live list so archiving it closes the modal.
   const editExpense = mode.kind === "edit" ? (expenses.find((e) => e.id === mode.id) ?? null) : null;
-  const debtCardBill = debtCardId ? (debtBills.find((b) => b.id === debtCardId) ?? null) : null;
+  // Full debt row behind the clicked bill — archiving it drops the row and closes the modal.
+  const detailDebt = debtCardId ? (debtRows.find((d) => d.id === debtCardId) ?? null) : null;
   // THIS-MONTH budget math (user's formula): budget left = income − expenses − giving − savings
   // (no debt minimums). Savings = the planned monthly contributions to the user's savings goals.
   // Budget left = income minus every planned outflow this month, INCLUDING debt minimums — so it
@@ -642,11 +653,13 @@ export function ExpensesClient({
     const fromExpenses = expenses
       .filter((e) => e.due_day != null)
       .map((e) => ({ name: e.category, day: e.due_day!, amount: expenseDisplayAmount(e, income), paid: paid.has(e.id) }));
+    // A debt with a full next-due date only belongs on the month it's due in (a stale/past date
+    // still shows — the obligation recurs monthly); a bare legacy due_day always shows.
     const fromDebts = debtBills
-      .filter((b) => b.dueDay != null)
+      .filter((b) => b.dueDay != null && (!b.nextDueDate || b.nextDueDate.slice(0, 7) <= billingMonth.slice(0, 7)))
       .map((b) => ({ name: b.name, day: b.dueDay!, amount: b.min_payment, paid: paidDebt.has(b.id) }));
     return [...fromExpenses, ...fromDebts];
-  }, [expenses, debtBills, income, paid, paidDebt]);
+  }, [expenses, debtBills, income, paid, paidDebt, billingMonth]);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -711,42 +724,35 @@ export function ExpensesClient({
         ) : null}
       </Modal>
 
-      {/* Debt bill → pick which card its payment is made on (migration 0022). */}
-      <Modal open={debtCardBill != null} onClose={() => setDebtCardId(null)} label="Debt payment card">
-        {debtCardBill ? (
-          <div className="rounded-[var(--radius-card)] border border-[var(--color-border-subtle)] bg-[var(--color-surface)] p-6">
-            <p className={labelClass}>// paying with</p>
-            <h2 className="mt-2 font-sans text-xl font-medium text-[var(--color-text-primary)]">
-              {debtCardBill.name}
-            </h2>
-            <p className="mt-1 font-mono text-[11px] text-[var(--color-text-muted)]">
-              // which card do you pay this debt with — mostly debit, sometimes credit
-            </p>
-            {cards.length > 0 ? (
-              <div className="mt-4">
-                <CardPicker
-                  action={setDebtCard}
-                  itemId={debtCardBill.id}
-                  currentCardId={debtCardBill.card_id}
-                  label={`Payment card for ${debtCardBill.name}`}
-                  cards={cards}
-                />
-              </div>
-            ) : (
-              <p className="mt-4 font-mono text-[11px] text-[var(--color-text-muted)]">
-                // add a card first — use the + in the Cards panel
-              </p>
-            )}
-            <div className="mt-6 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setDebtCardId(null)}
-                className={ghostButtonClass}
-              >
-                Done
-              </button>
+      {/* Debt bill → the full debt detail (same as the Debts page), plus which card it's paid
+          with — everything about the debt without a trip to the Debts page. */}
+      <Modal open={detailDebt != null} onClose={() => setDebtCardId(null)} label="Debt details" size="4xl">
+        {detailDebt ? (
+          <>
+            <DebtDetail
+              debt={detailDebt}
+              txns={txnsByDebt[detailDebt.id] ?? []}
+              onClose={() => setDebtCardId(null)}
+            />
+            <div className="mt-6 max-w-sm">
+              <span className={labelClass}>// paying with</span>
+              {cards.length > 0 ? (
+                <div className="mt-2">
+                  <CardPicker
+                    action={setDebtCard}
+                    itemId={detailDebt.id}
+                    currentCardId={detailDebt.card_id ?? null}
+                    label={`Payment card for ${detailDebt.name}`}
+                    cards={cards}
+                  />
+                </div>
+              ) : (
+                <p className="mt-2 font-mono text-[11px] text-[var(--color-text-muted)]">
+                  // add a card first — use the + in the Cards panel
+                </p>
+              )}
             </div>
-          </div>
+          </>
         ) : null}
       </Modal>
 
@@ -1517,6 +1523,15 @@ function CardPicker({
   );
 }
 
+/** "due Aug 1" when the debt carries a full next-due date; "due 1" for a bare legacy day. */
+function debtDueLabel(bill: DebtBill): string | null {
+  if (bill.nextDueDate) {
+    const d = new Date(`${bill.nextDueDate}T00:00:00Z`);
+    return `due ${d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`;
+  }
+  return bill.dueDay ? `due ${bill.dueDay}` : null;
+}
+
 /**
  * A recurring debt obligation as a checkable bill. The payment defaults to the minimum and is
  * editable for the month; checking off records the payment and draws the balance down by the
@@ -1531,7 +1546,7 @@ function DebtBillCard({
   bill: DebtBill;
   paid: boolean;
   billingMonth: string;
-  /** Open the card-picker modal (which card this debt is paid with). */
+  /** Open the debt-detail modal (full debt view + which card it's paid with). */
   onEdit?: () => void;
 }) {
   const [amount, setAmount] = useState(String(bill.min_payment));
@@ -1560,7 +1575,7 @@ function DebtBillCard({
         {/* Amount rides as a hidden field so Pay now submits it even when not editing. */}
         <input type="hidden" name="amount" value={amount} />
 
-        {/* Body click opens the card-picker modal; the inline amount editor stops propagation. */}
+        {/* Body click opens the debt-detail modal; the inline amount editor stops propagation. */}
         <div onClick={onEdit} className={onEdit ? "cursor-pointer" : undefined}>
           {/* Header — category + subdued due on one line (like DebtCard), name below. */}
           <p
@@ -1568,8 +1583,8 @@ function DebtBillCard({
             style={{ color: `var(${accent})` }}
           >
             {DEBT_BUCKET_LABELS[typeBucket(bill.type)]}
-            {bill.dueDay ? (
-              <span className="text-[var(--color-text-muted)]"> · due {bill.dueDay}</span>
+            {debtDueLabel(bill) ? (
+              <span className="text-[var(--color-text-muted)]"> · {debtDueLabel(bill)}</span>
             ) : null}
           </p>
           <p
@@ -1624,6 +1639,10 @@ function DebtBillCard({
           <div>
             <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Interest</dt>
             <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(split.interest)}</dd>
+          </div>
+          <div>
+            <dt className="uppercase tracking-[0.14em] text-[var(--color-text-muted)]">Balance</dt>
+            <dd className="mt-0.5 text-sm tabular-nums text-[var(--color-text-primary)]">{formatUsd(bill.balance)}</dd>
           </div>
           {extras > 0 ? (
             <div>

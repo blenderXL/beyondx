@@ -12,6 +12,7 @@ import {
 import { ExpensesHistory } from "@/components/finance/ExpensesHistory";
 import { buildMonthlyPlan, monthlyAmount, type PlannerDebt } from "@/lib/finance/planner";
 import { monthOptions, type HistoryItem } from "@/lib/finance/history";
+import type { DebtTxn } from "@/components/finance/DebtDetail";
 import type { Card, Debt, Expense, Income, SavingsGoal } from "@/lib/finance/types";
 
 export const dynamic = "force-dynamic";
@@ -76,7 +77,7 @@ export default async function ExpensesPage({
     );
   }
 
-  const [expensesRes, debtsRes, savingsRes, incomesRes, paymentsRes, contribRes, overridesRes, cardsRes] = await Promise.all([
+  const [expensesRes, debtsRes, savingsRes, incomesRes, paymentsRes, contribRes, overridesRes, cardsRes, debtTxnsRes] = await Promise.all([
     supabase.from("expenses").select("*").is("archived_at", null).order("created_at", { ascending: true }),
     // select("*") so a missing escrow/pmi column (pre-0014) reads as undefined rather than erroring.
     supabase.from("debts").select("*").is("archived_at", null).order("name", { ascending: true }),
@@ -89,6 +90,12 @@ export default async function ExpensesPage({
     supabase.from("income_overrides").select("income_id, amount").eq("billing_month", billingMonth),
     // Payment cards (migration 0021); select("*") so a missing table/column degrades gracefully.
     supabase.from("cards").select("*").is("archived_at", null).order("created_at", { ascending: true }),
+    // Per-debt transaction history for the debt-detail modal (same shape as the Debts page).
+    supabase
+      .from("transactions")
+      .select("id, debt_id, kind, amount, occurred_on, note, expense_id, savings_goal_id")
+      .not("debt_id", "is", null)
+      .order("created_at", { ascending: false }),
   ]);
 
   const payments = (paymentsRes.data ?? []) as { expense_id: string | null; debt_id: string | null }[];
@@ -100,6 +107,30 @@ export default async function ExpensesPage({
 
   const expenses = (expensesRes.data ?? []) as Expense[];
   const debtRows = (debtsRes.data ?? []) as Debt[];
+
+  // Per-debt transaction lists keyed by debt id (mirrors the Debts page's detail modal).
+  type DebtTxnRow = {
+    id: string;
+    debt_id: string | null;
+    kind: "charge" | "payment" | "contribution";
+    amount: number;
+    occurred_on: string;
+    note: string | null;
+    expense_id: string | null;
+    savings_goal_id: string | null;
+  };
+  const txnsByDebt: Record<string, DebtTxn[]> = {};
+  for (const r of (debtTxnsRes.data ?? []) as DebtTxnRow[]) {
+    if (!r.debt_id) continue;
+    (txnsByDebt[r.debt_id] ??= []).push({
+      id: r.id,
+      kind: r.kind,
+      amount: Number(r.amount),
+      occurredOn: r.occurred_on,
+      note: r.note,
+      fromExpense: r.expense_id != null || r.savings_goal_id != null,
+    });
+  }
   const savingsRows = (savingsRes.data ?? []) as SavingsGoal[];
   const incomes = (incomesRes.data ?? []) as Income[];
   const cards = (cardsRes.data ?? []) as Card[];
@@ -137,9 +168,17 @@ export default async function ExpensesPage({
     }
     return 0;
   };
-  // Planned monthly savings = sum of each goal's recurring contribution (the money the user
-  // routes into the savings spots they created). Subtracted from the rail's budget-left.
-  const savingsMonthly = savingsRows.reduce((s, g) => s + effectiveSavingsMonthly(g), 0);
+  // Planned monthly savings = each goal's recurring contribution + savings-linked expenses (the
+  // plan's `savings` bucket). A goal already represented by a linked expense is dropped from the
+  // goal sum — same as linked debts — so the money isn't counted twice.
+  const linkedSavingsIds = new Set(
+    expenses.map((e) => e.savings_goal_id).filter((id): id is string => Boolean(id)),
+  );
+  const savingsMonthly =
+    Math.round(
+      (savingsRows.filter((g) => !linkedSavingsIds.has(g.id)).reduce((s, g) => s + effectiveSavingsMonthly(g), 0) +
+        plan.savings) * 100,
+    ) / 100;
   const rail: ExpensesRail = {
     byGroup: plan.byGroup,
     subscriptionCount: subs.length,
@@ -171,12 +210,15 @@ export default async function ExpensesPage({
       escrow: d.escrow == null ? null : Number(d.escrow),
       pmi: d.pmi == null ? null : Number(d.pmi),
       dueDay: d.next_due_date ? new Date(`${d.next_due_date}T00:00:00Z`).getUTCDate() : d.due_day,
+      nextDueDate: d.next_due_date ?? null,
       card_id: d.card_id ?? null,
     }));
 
   // Recurring savings (a positive fixed or percent-of-income contribution) auto-appear as
-  // checkable bill rows, pre-filled with the resolved monthly amount.
+  // checkable bill rows, pre-filled with the resolved monthly amount. A goal already represented
+  // by a linked expense is skipped — the expense card is its bill (mirrors linked debts).
   const savingsBills: SavingsBill[] = savingsRows
+    .filter((g) => !linkedSavingsIds.has(g.id))
     .map((g) => ({ id: g.id, name: g.name, monthly_contribution: effectiveSavingsMonthly(g) }))
     .filter((b) => b.monthly_contribution > 0);
 
@@ -201,6 +243,8 @@ export default async function ExpensesPage({
       billingMonth={billingMonth}
       paidExpenseIds={paidExpenseIds}
       debtBills={debtBills}
+      debtRows={debtRows}
+      txnsByDebt={txnsByDebt}
       paidDebtIds={paidDebtIds}
       savingsBills={savingsBills}
       paidSavingsIds={paidSavingsIds}

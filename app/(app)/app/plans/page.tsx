@@ -96,10 +96,22 @@ export default async function PlansPage() {
     }
     return 0;
   };
-  const savingsMonthly = savingsRows.reduce((s, g) => s + effectiveSavingsMonthly(g), 0);
+  // Goals already represented by a savings-linked expense ride recurringPlan.savings instead —
+  // drop them from the goal sum so the contribution isn't double-counted (same as linked debts).
+  const linkedSavingsIds = new Set(
+    expenseRows.map((e) => e.savings_goal_id).filter((id): id is string => Boolean(id)),
+  );
+  const savingsMonthly = savingsRows
+    .filter((g) => !linkedSavingsIds.has(g.id))
+    .reduce((s, g) => s + effectiveSavingsMonthly(g), 0);
   const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
   const recurringSurplus = round2(
-    recurringPlan.income - recurringPlan.expenses - recurringPlan.offerings - savingsMonthly - recurringPlan.debtMinimums,
+    recurringPlan.income -
+      recurringPlan.expenses -
+      recurringPlan.offerings -
+      recurringPlan.savings -
+      savingsMonthly -
+      recurringPlan.debtMinimums,
   );
   const totalMin = round2(rows.reduce((s, d) => s + Number(d.min_payment), 0));
   const suggestedExtra = Math.max(0, recurringSurplus);
