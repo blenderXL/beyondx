@@ -161,6 +161,23 @@ describe("summarizeByCard", () => {
     expect(out[0]).toEqual({ cardId: "amex", planned: 500, paid: 0, count: 1 });
   });
 
+  it("splits a percent offering across its per-income slices' cards", () => {
+    const es = [exp({ category: "Tithe", amount: 0, expense_group: "offering", pct_of_income: 10, card_id: amex.id })];
+    const slices = {
+      Tithe: [
+        { amount: 300, card_id: amex.id }, // 10% × $3,000 salary
+        { amount: 200, card_id: visa.id }, // 10% × $2,000 rental
+        { amount: 50, card_id: null }, // unassigned slice
+      ],
+    };
+    const out = summarizeByCard(es, [amex, visa], 5500, new Set(["Tithe"]), [], new Set(), slices);
+    expect(out).toEqual([
+      { cardId: "amex", planned: 300, paid: 300, count: 1 },
+      { cardId: "visa", planned: 200, paid: 200, count: 1 },
+      { cardId: null, planned: 50, paid: 50, count: 1 },
+    ]);
+  });
+
   it("rolls debt payments into the per-card totals", () => {
     const es = [exp({ category: "Rent", amount: 1500, card_id: amex.id })];
     const debtBills = [

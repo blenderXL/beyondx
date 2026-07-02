@@ -578,6 +578,53 @@ export async function setExpenseCard(_p: FinanceActionState, formData: FormData)
 }
 
 /**
+ * Tag (or clear) the payment card for ONE income slice of a percent offering (migration 0024).
+ * A 10% tithe over three paychecks is three slices; each can ride a different card. Upserts on
+ * (profile_id, expense_id, income_id); ownership of the expense, income, and card is enforced.
+ */
+export async function setExpenseIncomeCard(
+  _p: FinanceActionState,
+  formData: FormData,
+): Promise<FinanceActionState> {
+  const { supabase, userId } = await requireUserId();
+  if (!userId) return SIGNED_OUT;
+
+  const id = idOf(formData); // the expense
+  const incomeId = String(formData.get("income_id") ?? "").trim();
+  if (!id) return { error: "Missing expense id." };
+  if (!UUID_RE.test(incomeId)) return { error: "Missing income id." };
+
+  const raw = String(formData.get("card_id") ?? "").trim();
+  let card_id: string | null = null;
+  if (raw !== "") {
+    if (!UUID_RE.test(raw)) return { error: "Choose a valid card." };
+    card_id = raw;
+  }
+
+  // RLS scopes both reads to the owner — an empty result means "not yours" (or gone).
+  const [{ data: exp }, { data: inc }] = await Promise.all([
+    supabase.from("expenses").select("id").eq("id", id).maybeSingle(),
+    supabase.from("incomes").select("id").eq("id", incomeId).maybeSingle(),
+  ]);
+  if (!exp) return { error: "Expense not found." };
+  if (!inc) return { error: "Income not found." };
+
+  const linkError = await assertLinkedCardOwned(card_id);
+  if (linkError) return linkError;
+
+  const { error } = await supabase
+    .from("expense_income_cards")
+    .upsert(
+      { profile_id: userId, expense_id: id, income_id: incomeId, card_id },
+      { onConflict: "profile_id,expense_id,income_id" },
+    );
+  if (error) return dbFailure(error, "setExpenseIncomeCard", "Couldn't save the card. Please try again.");
+
+  revalidatePath(EXPENSES_PATH);
+  return { error: null, ok: true };
+}
+
+/**
  * Tag (or clear) the payment card a debt's monthly payment is made on (migration 0022). Blank
  * clears it. Ownership of the debt (RLS on the update) and the card (guard) is enforced. Revalidates
  * both the Expenses hub (where debt bills live) and the Debts page.
