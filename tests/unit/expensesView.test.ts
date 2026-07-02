@@ -160,4 +160,19 @@ describe("summarizeByCard", () => {
     const out = summarizeByCard(es, [amex], 5000, new Set());
     expect(out[0]).toEqual({ cardId: "amex", planned: 500, paid: 0, count: 1 });
   });
+
+  it("rolls debt payments into the per-card totals", () => {
+    const es = [exp({ category: "Rent", amount: 1500, card_id: amex.id })];
+    const debtBills = [
+      { id: "d1", card_id: amex.id, amount: 400 },
+      { id: "d2", card_id: visa.id, amount: 100 },
+      { id: "d3", card_id: null, amount: 50 }, // unassigned debt
+    ];
+    const out = summarizeByCard(es, [amex, visa], 0, new Set(), debtBills, new Set(["d1"]));
+    expect(out).toEqual([
+      { cardId: "amex", planned: 1900, paid: 400, count: 2 },
+      { cardId: "visa", planned: 100, paid: 0, count: 1 },
+      { cardId: null, planned: 50, paid: 0, count: 1 },
+    ]);
+  });
 });

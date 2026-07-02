@@ -155,6 +155,8 @@ export interface Debt {
   deferred_interest: boolean;
   payoff_order: number | null;
   notes: string | null;
+  /** Optional payment card this debt's monthly payment is made on (migration 0022). */
+  card_id?: string | null;
 }
 
 export interface Transaction {

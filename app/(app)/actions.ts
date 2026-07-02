@@ -535,6 +535,30 @@ export async function setExpenseCard(_p: FinanceActionState, formData: FormData)
   return updateOwned("expenses", EXPENSES_PATH, id, { card_id });
 }
 
+/**
+ * Tag (or clear) the payment card a debt's monthly payment is made on (migration 0022). Blank
+ * clears it. Ownership of the debt (RLS on the update) and the card (guard) is enforced. Revalidates
+ * both the Expenses hub (where debt bills live) and the Debts page.
+ */
+export async function setDebtCard(_p: FinanceActionState, formData: FormData): Promise<FinanceActionState> {
+  const id = idOf(formData);
+  if (!id) return { error: "Missing debt id." };
+
+  const raw = String(formData.get("card_id") ?? "").trim();
+  let card_id: string | null = null;
+  if (raw !== "") {
+    if (!UUID_RE.test(raw)) return { error: "Choose a valid card." };
+    card_id = raw;
+  }
+
+  const linkError = await assertLinkedCardOwned(card_id);
+  if (linkError) return linkError;
+
+  const result = await updateOwned("debts", EXPENSES_PATH, id, { card_id });
+  if (result.ok) revalidatePath(DEBTS_PATH);
+  return result;
+}
+
 // Savings pots
 /**
  * `type` only matters once migration 0012 lands; omitting it for "general" pots (the default)

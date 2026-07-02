@@ -171,6 +171,7 @@ export default async function ExpensesPage({
       escrow: d.escrow == null ? null : Number(d.escrow),
       pmi: d.pmi == null ? null : Number(d.pmi),
       dueDay: d.next_due_date ? new Date(`${d.next_due_date}T00:00:00Z`).getUTCDate() : d.due_day,
+      card_id: d.card_id ?? null,
     }));
 
   // Recurring savings (a positive fixed or percent-of-income contribution) auto-appear as
