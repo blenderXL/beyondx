@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.1.16](https://github.com/blenderXL/beyondx/compare/v0.1.15...v0.1.16) (2026-07-03)
+
+
+### Features
+
+* **expenses:** debt-card detail + balance, savings rail bucket, calendar month fix ([cb2882b](https://github.com/blenderXL/beyondx/commit/cb2882bce6c4051da154ebb132e3e8f243560227))
+* **expenses:** floating pay-date calendar ([8040230](https://github.com/blenderXL/beyondx/commit/80402307d272a04c6dfc67ef54ca582373bc3f7d))
+* **expenses:** pay-date calendar + debt-card detail, savings rail bucket ([0226321](https://github.com/blenderXL/beyondx/commit/02263219a1664988fbdbbaf28cd6398c608d2f2d))
+* **expenses:** pick a payment card per income slice of a percent offering ([52e6c28](https://github.com/blenderXL/beyondx/commit/52e6c28705245681263c72ef8bb444c5b95f226d))
+* **expenses:** pick a payment card per income slice of a percent offering ([75b2969](https://github.com/blenderXL/beyondx/commit/75b296963ea68acb09a16bd5b1e2c848742d6b40))
+* **expenses:** pick which card each debt is paid with ([6099edb](https://github.com/blenderXL/beyondx/commit/6099edb32954a368f06a822afd3bc4cd34180c27))
+* **expenses:** pick which card each debt is paid with + roll into per-card totals ([26c8aea](https://github.com/blenderXL/beyondx/commit/26c8aeaf1ff9e6471d993f293cf3c8d5cb91e4e4))
+* **expenses:** tag expenses with payment cards + per-card totals ([dbdd77e](https://github.com/blenderXL/beyondx/commit/dbdd77e24666b451337f07c1ab7bfe1f105ac2d2))
+* **expenses:** tag expenses with payment cards + per-card totals ([f5cba60](https://github.com/blenderXL/beyondx/commit/f5cba60671c46ea963240ff71741c9510a9aa5bf))
+* **expenses:** unify bills into one grid + PAY NOW on all + card-select in editor ([bb64e4b](https://github.com/blenderXL/beyondx/commit/bb64e4bea94e8404e63835b96fa77505dba80077))
+* **expenses:** unify bills into one grid, PAY NOW on all, card-select in editor ([7a906bf](https://github.com/blenderXL/beyondx/commit/7a906bf33a87c25d456abad8171faf62f3fff866))
+* **planner:** click a current-month amount to apply it to that bill ([1f7e5c7](https://github.com/blenderXL/beyondx/commit/1f7e5c76861a3efba1dad6e6e392483673277bb1))
+* **planner:** click a current-month amount to apply it to that bill ([2e9a4d5](https://github.com/blenderXL/beyondx/commit/2e9a4d516b5230f1b26829ecbf956fa5513b0f5f))
+* **planner:** pre-fill budget from recurring surplus + move below Expenses ([f75c6c8](https://github.com/blenderXL/beyondx/commit/f75c6c8c3eb6beafd0c94ae88ab921a5831ac0ee))
+* **planner:** pre-fill budget from the user's recurring surplus + move below Expenses ([ed66e97](https://github.com/blenderXL/beyondx/commit/ed66e9753064375734e0b42a55dc2f75e76f7e56))
+* **settings:** "reset my data" to clear all entered data ([b9ba11b](https://github.com/blenderXL/beyondx/commit/b9ba11bad94af7a6aae3333edef7e8b43dc8e120))
+* **settings:** add "reset my data" to clear all entered data ([76e5ed7](https://github.com/blenderXL/beyondx/commit/76e5ed7ee2cd2ba5cce11f85961485f107dae941))
+
+
+### Bug Fixes
+
+* **expenses,debts:** match bill-card style + clarify payoff insight ([a5e8be7](https://github.com/blenderXL/beyondx/commit/a5e8be7ae3af885774ffeeaf2539bc42d0562392))
+* **expenses,debts:** match bill-card style + clarify payoff insight ([29bffd4](https://github.com/blenderXL/beyondx/commit/29bffd40ed7f4801f4f85a84cc33c80da65de499))
+* **expenses,debts:** rebuild bill cards to truly match DebtCard + equal heights ([1ed8bf7](https://github.com/blenderXL/beyondx/commit/1ed8bf781a4d6d1cb811bd3ec7a4e05af4f65b67))
+* **expenses:** 3-up bill cards to match Debts page + debt payments in rail ([26e25f7](https://github.com/blenderXL/beyondx/commit/26e25f7c382b4ff068935367731cc37eb14e8e3c))
+* **expenses:** card picker no longer flashes back to "No card" after picking ([93e487c](https://github.com/blenderXL/beyondx/commit/93e487ca2cd6d203ac0c4d9e448a38ddcee79d1b))
+* **expenses:** card picker no longer flashes back to "No card" after picking ([a789d70](https://github.com/blenderXL/beyondx/commit/a789d7013afccebf233b5c9ad37de6faac37d0db))
+* **expenses:** move due date into the stat grid for consistent card headers ([d6200c4](https://github.com/blenderXL/beyondx/commit/d6200c452f0795f3011608b543d498de3da05337))
+* **expenses:** subdued inline due date + uniform card heights; count one-time expenses ([c817c4f](https://github.com/blenderXL/beyondx/commit/c817c4f42e9bb57ce1116646171ea5e1d727a1f0))
+* **expenses:** uniform card anatomy — expense cards match debt cards, 4-stat cap ([d86e689](https://github.com/blenderXL/beyondx/commit/d86e689452e0425c05cc521637474b0c185090fb))
+* **expenses:** uniform card anatomy — expense cards match debt cards, 4-stat cap ([f0b2193](https://github.com/blenderXL/beyondx/commit/f0b2193ad1faebd15f4902f58cfac51a3289df42))
+
 ## [0.1.15](https://github.com/blenderXL/beyondx/compare/v0.1.14...v0.1.15) (2026-07-01)
 
 
