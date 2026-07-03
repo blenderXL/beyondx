@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useMemo, useState } from "react";
+import { startTransition, useActionState, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
@@ -1555,25 +1555,36 @@ function CardPicker({
   /** Extra hidden fields the action needs (e.g. income_id for a per-income offering slice). */
   extraHidden?: { name: string; value: string }[];
 }) {
-  const [state, formAction, pending] = useActionState(action, INITIAL_FINANCE_STATE);
+  const [state, dispatch, pending] = useActionState(action, INITIAL_FINANCE_STATE);
+  // No <form> on purpose: React 19 resets a form's fields once its action resolves, which
+  // flashed the pick back to "No card" until the revalidated data arrived (form.reset() also
+  // bypasses a controlled value at the DOM level). A controlled select dispatching the action
+  // itself keeps the pick on screen; a failed save falls back to the saved prop.
+  const [value, setValue] = useState(currentCardId ?? "");
+  useEffect(() => {
+    if (state.error) setValue(currentCardId ?? "");
+  }, [state.error, currentCardId]);
   // Several pickers can target the same item (one per income slice) — suffix keeps ids unique.
   const domId = ["card", itemId, ...(extraHidden?.map((h) => h.value) ?? [])].join("-");
   return (
-    <form action={formAction}>
-      <input type="hidden" name="id" value={itemId} />
-      {extraHidden?.map((h) => (
-        <input key={h.name} type="hidden" name={h.name} value={h.value} />
-      ))}
+    <div>
       <label className="sr-only" htmlFor={domId}>
         {label}
       </label>
       <div className="relative">
         <select
           id={domId}
-          name="card_id"
-          defaultValue={currentCardId ?? ""}
+          value={value}
           disabled={pending}
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          onChange={(e) => {
+            const v = e.target.value;
+            setValue(v);
+            const fd = new FormData();
+            fd.set("id", itemId);
+            for (const h of extraHidden ?? []) fd.set(h.name, h.value);
+            fd.set("card_id", v);
+            startTransition(() => dispatch(fd));
+          }}
           className="h-11 w-full appearance-none rounded-md border border-[var(--color-border-strong)] bg-[var(--color-elevated)] pl-3 pr-8 font-mono text-sm text-[var(--color-text-primary)] outline-none transition-colors focus:border-[var(--color-text-primary)] disabled:opacity-50"
         >
           <option value="">No card</option>
@@ -1593,7 +1604,7 @@ function CardPicker({
           {state.error}
         </span>
       ) : null}
-    </form>
+    </div>
   );
 }
 

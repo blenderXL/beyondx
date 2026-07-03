@@ -71,10 +71,19 @@ test("add a card, tag an expense with it, and see the per-card total in the rail
   await expect(cardRow).toBeVisible();
   await expect(cardRow).toContainText("$0.00");
 
-  // Tag the expense with the card via the inline picker; the picker submits on change.
-  await page.getByLabel(`Payment card for ${expA}`).selectOption({ label: cardName });
+  // The picker lives in the editor modal — open it by clicking the bill card's body.
+  const billCard = page.getByRole("list", { name: "Bills" }).locator("li", { hasText: expA });
+  await billCard.getByText(expA, { exact: true }).click();
+  const picker = page.getByLabel(`Payment card for ${expA}`);
+  await picker.selectOption({ label: cardName });
 
   // The rail now rolls the expense's amount up under the card.
   await expect(cardRow).toContainText("$300.00");
   await expect(cardRow).toContainText("1 bill");
+
+  // The pick still reads in the select AFTER the save round-trips (regression: React 19's
+  // post-action form reset flashed it back to "No card" until the modal was reopened).
+  await expect(picker.locator("option:checked")).toHaveText(cardName);
+
+  await page.keyboard.press("Escape"); // close the editor
 });
